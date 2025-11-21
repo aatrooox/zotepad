@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.5.0
+
+
+### 🚀 Enhancements
+
+- Gemini 3p 完成笔记 app ([f0b124a](https://github.com/aatrooox/zotepad/commit/f0b124a))
+
+### 🏡 Chore
+
+- Eslint ([e709cc3](https://github.com/aatrooox/zotepad/commit/e709cc3))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.4.2
 
 [compare changes](https://github.com/aatrooox/tauri2-nuxt4-app/compare/v0.4.1...v0.4.2)
