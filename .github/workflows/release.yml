@@ -1,0 +1,301 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - template
+    paths-ignore:
+      - '**.md'
+      - .gitignore
+      - LICENSE
+
+jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.check.outputs.should-build }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check commit message
+        id: check
+        run: |
+          COMMIT_MSG="$(git log -1 --pretty=%B)"
+          echo "Commit message: $COMMIT_MSG"
+
+          if [[ "$COMMIT_MSG" =~ ^chore\(build\):\ release\ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "should-build=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Found release commit for version: $VERSION"
+          else
+             echo "should-build=false" >> $GITHUB_OUTPUT
+             echo "Not a release commit"
+           fi
+
+  build:
+    needs: check-commit
+    if: needs.check-commit.outputs.should-build == 'true'
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # === macOS 依赖 ===
+      - name: Install Rust (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      # === Linux 依赖 ===
+      - name: Install system dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust (Linux/Android)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      # === Windows 依赖 ===
+      - name: Install Rust (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install WiX Toolset (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          choco install wixtoolset -y
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      # === Android 环境配置 ===
+      - name: Setup Android NDK (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: false
+
+      - name: Set Android env vars (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
+
+      - name: Setup Java (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: android-actions/setup-android@v3
+
+      - name: Add Android Rust target (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: rustup target add aarch64-linux-android
+
+      # === 构建 macOS DMG ===
+      - name: Build macOS app
+        if: matrix.platform == 'macos-latest'
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Rename macOS DMG with version
+        if: matrix.platform == 'macos-latest'
+        run: |
+          VERSION="v${{ needs.check-commit.outputs.version }}"
+          cd src-tauri/target/universal-apple-darwin/release/bundle/dmg
+          for file in *.dmg; do
+            if [ -f "$file" ]; then
+              base_name=$(basename "$file" .dmg)
+              mv "$file" "${base_name}-${VERSION}.dmg"
+            fi
+          done
+
+      - name: Upload macOS DMG
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+      # === 构建 Windows 安装包 ===
+      - name: Build Windows app
+        if: matrix.platform == 'windows-latest'
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Rename Windows installers with version
+        if: matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          $VERSION = "v${{ needs.check-commit.outputs.version }}"
+          $bundleDir = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          if (-Not (Test-Path $bundleDir)) {
+            $bundleDir = "src-tauri/target/release/bundle"
+          }
+          Get-ChildItem -Path $bundleDir -Recurse -Include *.msi,*.exe -File | ForEach-Object {
+            $dir = Split-Path -Path $_.FullName -Parent
+            $base = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+            $ext = $_.Extension
+            Rename-Item -Path $_.FullName -NewName "$base-$VERSION$ext"
+          }
+
+      - name: Upload Windows installers
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+
+      # === 构建 Android APK ===
+      - name: Setup Android NDK
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk-2
+        with:
+          ndk-version: r26d
+          add-to-path: false
+
+      - name: Set Android environment variables
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+      - name: Clean Android gen directory
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          rm -rf src-tauri/gen/android
+
+      - name: Build Android APK
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          pnpm tauri android init
+          pnpm tauri android build --apk --target aarch64
+        env:
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+
+      - name: Rename Android APK with version
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          VERSION="v${{ needs.check-commit.outputs.version }}"
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -type f | while read file; do
+            dir=$(dirname "$file")
+            base_name=$(basename "$file" .apk)
+            mv "$file" "${dir}/${base_name}-${VERSION}.apk"
+          done
+
+      - name: Upload Android APK
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+  # === 创建 Release ===
+  release:
+    needs: [check-commit, build]
+    if: needs.check-commit.outputs.should-build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: ./artifacts/macos/
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: ./artifacts/android/
+
+      - name: Download Windows installers
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installers
+          path: ./artifacts/windows/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 'v${{ needs.check-commit.outputs.version }}'
+          name: 'v${{ needs.check-commit.outputs.version }}'
+          body: |
+            ## 📦 下载
+
+            - **macOS (Universal)**: `.dmg` 文件
+            - **Android (arm64-v8a)**: `.apk` 文件
+            - **Windows (x64)**: `.msi` 或 `.exe` 安装包
+
+            ## 📝 更新日志
+            请查看 [CHANGELOG.md](https://github.com/aatrooox/community-service-center/blob/main/CHANGELOG.md)
+          files: |
+            ./artifacts/macos/*.dmg
+            ./artifacts/android/**/*.apk
+            ./artifacts/windows/**/*.{msi,exe}
+          draft: false
+          prerelease: false
+          make_latest: true
+          append_body: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
