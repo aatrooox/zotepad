@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "tauri-v2-nuxt-app",
+  "productName": "zotepad",
   "version": "0.4.2",
-  "identifier": "com.zzaoclub.taurinuxtapp",
+  "identifier": "com.zzaoclub.zotepad",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:4577",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Community Service Center",
+        "title": "zotepad",
         "width": 1200,
         "height": 800,
         "resizable": true,

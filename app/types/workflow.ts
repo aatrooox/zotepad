@@ -1,0 +1,36 @@
+export type StepType = 'api' | 'javascript' | 'shell'
+
+export interface WorkflowStep {
+  id: string
+  name: string
+  type: StepType
+  // API 相关配置
+  url?: string
+  method?: string
+  headers?: Record<string, string>
+  body?: string // 支持模板变量 {{title}}
+  // 脚本相关配置
+  script?: string // JS 代码或 Shell 命令
+  // 通用
+  timeout?: number
+}
+
+export interface Workflow {
+  id: number
+  name: string
+  description?: string
+  steps: string // JSON string of WorkflowStep[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ExecutionLog {
+  stepId: string
+  stepName: string
+  status: 'success' | 'error' | 'skipped'
+  duration: number
+  output?: any
+  error?: string
+  startTime: number
+  endTime: number
+}

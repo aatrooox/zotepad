@@ -38,6 +38,41 @@ pub fn run() {
               ",
               kind: MigrationKind::Up,
             },
+            Migration {
+              version: 2,
+              description: "create_notes_table",
+              sql: "\
+                CREATE TABLE IF NOT EXISTS notes (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  title TEXT,
+                  content TEXT,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+              ",
+              kind: MigrationKind::Up,
+            },
+            Migration {
+              version: 3,
+              description: "add_tags_to_notes",
+              sql: "ALTER TABLE notes ADD COLUMN tags TEXT DEFAULT '[]';",
+              kind: MigrationKind::Up,
+            },
+            Migration {
+              version: 4,
+              description: "create_workflows_table",
+              sql: "\
+                CREATE TABLE IF NOT EXISTS workflows (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT NOT NULL,
+                  description TEXT,
+                  steps TEXT NOT NULL DEFAULT '[]',
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+              ",
+              kind: MigrationKind::Up,
+            },
           ],
         )
         .build()

@@ -1,10 +1,10 @@
 [package]
-name = "tauri-v2-nuxt-app"
+name = "zotepad"
 version = "0.4.2"
-description = "tauri-v2-nuxt-app - A template for fast development of desktop applications using Tauri and Nuxt.js"
+description = "zotepad - A template for fast development of desktop applications using Tauri and Nuxt.js"
 authors = [ "aatrox" ]
 license = "MIT"
-repository = "https://github.com/zzstudio/community-service-center"
+repository = "https://github.com/zzstudio/zotepad"
 edition = "2021"
 rust-version = "1.88.0"
 

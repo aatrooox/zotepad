@@ -4947,22 +4947,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-v2-nuxt-app"
-version = "0.4.2"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-http",
- "tauri-plugin-log",
- "tauri-plugin-notification",
- "tauri-plugin-sql",
- "tauri-plugin-store",
-]
-
-[[package]]
 name = "tauri-winres"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6570,6 +6554,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "zotepad"
+version = "0.4.2"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-http",
+ "tauri-plugin-log",
+ "tauri-plugin-notification",
+ "tauri-plugin-sql",
+ "tauri-plugin-store",
 ]
 
 [[package]]

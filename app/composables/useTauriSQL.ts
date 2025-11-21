@@ -20,21 +20,24 @@ class DatabaseService {
     }
   }
 
-  private ensureDB(): Database {
+  private async ensureDB(): Promise<Database> {
     if (!this.db) {
-      throw new Error('数据库未初始化，请先调用 init() 方法')
+      await this.init()
+    }
+    if (!this.db) {
+      throw new Error('数据库初始化失败')
     }
     return this.db
   }
 
   async execute(query: string, bindValues?: unknown[]) {
-    const db = this.ensureDB()
+    const db = await this.ensureDB()
     // await this.logger.info('Execute SQL', { tag: 'SQL', context: { query } })
     return await db.execute(query, bindValues)
   }
 
   async select<T>(query: string, bindValues?: unknown[]): Promise<T> {
-    const db = this.ensureDB()
+    const db = await this.ensureDB()
     return await db.select<T>(query, bindValues)
   }
 
