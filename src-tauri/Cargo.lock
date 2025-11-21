@@ -6558,7 +6558,7 @@ dependencies = [
 
 [[package]]
 name = "zotepad"
-version = "0.4.2"
+version = "0.5.2"
 dependencies = [
  "log",
  "serde",
