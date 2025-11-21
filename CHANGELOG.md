@@ -1,6 +1,24 @@
 # Changelog
 
 
+## v0.5.7
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.6...v0.5.7)
+
+### 🩹 Fixes
+
+- 安卓 app 安装问题 ([f274e57](https://github.com/aatrooox/zotepad/commit/f274e57))
+- Apk  release ([6070c27](https://github.com/aatrooox/zotepad/commit/6070c27))
+
+### 🏡 Chore
+
+- **release:** V0.5.6 ([4a9a5fb](https://github.com/aatrooox/zotepad/commit/4a9a5fb))
+- **build:** Release v0.5.6 ([90d62c2](https://github.com/aatrooox/zotepad/commit/90d62c2))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.6
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.5...v0.5.6)
