@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.5.3
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.0...v0.5.3)
+
+### 🩹 Fixes
+
+- 修复打包问题 ([f9c8240](https://github.com/aatrooox/zotepad/commit/f9c8240))
+
+### 🏡 Chore
+
+- **release:** V0.5.1 ([884166f](https://github.com/aatrooox/zotepad/commit/884166f))
+- **release:** V0.5.2 ([a19e40e](https://github.com/aatrooox/zotepad/commit/a19e40e))
+- **build:** Release v0.5.2 ([aab9170](https://github.com/aatrooox/zotepad/commit/aab9170))
+- Eslint ([000e77a](https://github.com/aatrooox/zotepad/commit/000e77a))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.1...v0.5.2)
