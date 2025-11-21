@@ -26,12 +26,12 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
     signingConfigs {
-        // create("debug") {
-        //     keyAlias = "androiddebugkey"
-        //     keyPassword = "android"
-        //     storeFile = file("../../../debug.keystore")
-        //     storePassword = "android"
-        // }
+        create("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeFile = file("../../../debug.keystore")
+            storePassword = "android"
+        }
         create("release") {
             val keystorePropertiesFile = rootProject.file("keystore.properties")
             val keystoreProperties = Properties()
@@ -39,12 +39,16 @@ android {
                 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
             }
 
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            enableV1Signing = true
-            enableV2Signing = true
+            if (keystoreProperties.containsKey("keyAlias")) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                enableV1Signing = true
+                enableV2Signing = true
+            } else {
+                println("Release keystore properties not found or incomplete, skipping signing config.")
+            }
         }
     }
     buildTypes {
