@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.5.5
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.4...v0.5.5)
+
+### 🩹 Fixes
+
+- Release ([4af15d8](https://github.com/aatrooox/zotepad/commit/4af15d8))
+
+### 🏡 Chore
+
+- **build:** Release v0.5.4 ([026743e](https://github.com/aatrooox/zotepad/commit/026743e))
+- Eslint ([a60b799](https://github.com/aatrooox/zotepad/commit/a60b799))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.4
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.3...v0.5.4)
