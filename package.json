@@ -21,10 +21,10 @@
     "release:minor": "npx changelogen@latest --minor --release",
     "release:major": "npx changelogen@latest --major --release",
     "version:update": "node scripts/update-version.js",
-    "quick-release": "./scripts/quick-release.sh",
-    "quick-release-patch-auto": "./scripts/quick-release.sh patch --auto",
-    "quick-release-minor-auto": "./scripts/quick-release.sh minor --auto",
-    "quick-release-major-auto": "./scripts/quick-release.sh major --auto",
+    "quick-release": "node scripts/quick-release.mjs",
+    "quick-release-patch-auto": "node scripts/quick-release.mjs patch --auto",
+    "quick-release-minor-auto": "node scripts/quick-release.mjs minor --auto",
+    "quick-release-major-auto": "node scripts/quick-release.mjs major --auto",
     "tauri": "tauri"
   },
   "dependencies": {
