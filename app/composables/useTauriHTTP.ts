@@ -4,6 +4,7 @@
  */
 
 import { fetch } from '@tauri-apps/plugin-http'
+import { error as logError } from '@tauri-apps/plugin-log'
 
 // ============= 类型定义 =============
 
@@ -151,14 +152,12 @@ export class TauriHTTPClient {
           ok: response.ok,
         }
 
-        // 检查响应状态
-        if (!response.ok) {
-          throw new Error('error')
-        }
-
         return httpResponse
       }
       catch (error: any) {
+        console.error('[HTTP] Raw error in loop:', error)
+        await logError(`[HTTP] Raw error in loop: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`)
+
         lastError = {
           message: error.message || 'Request failed',
           status: error.status,
@@ -256,6 +255,7 @@ export function useTauriHTTP(config?: HTTPConfig) {
     catch (err: any) {
       error.value = err
       console.error('HTTP 请求失败:', err)
+      await logError(`[HTTP] Request failed: ${err.message || err}`)
       return null
     }
     finally {

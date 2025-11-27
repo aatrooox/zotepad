@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { Workflow, WorkflowStep } from '~/types/workflow'
+import type { Workflow, WorkflowSchema, WorkflowStep } from '~/types/workflow'
 import { useClipboard } from '@vueuse/core'
 import { toast } from 'vue-sonner'
+import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
 
 interface HeaderItem {
   id: string
@@ -17,27 +19,80 @@ interface EditableWorkflowStep extends WorkflowStep {
 const route = useRoute()
 const router = useRouter()
 const { getWorkflow, updateWorkflow } = useWorkflowRepository()
+const { getAllSchemas } = useWorkflowSchemaRepository()
+const { getAllEnvs } = useEnvironmentRepository()
 const { copy } = useClipboard()
 
 const workflow = ref<Workflow | null>(null)
+const schemas = ref<WorkflowSchema[]>([])
+const envKeys = ref<string[]>([])
 const steps = ref<EditableWorkflowStep[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 
 const workflowId = computed(() => Number(route.params.id))
 
+const availableVariables = computed(() => {
+  // Base variables (always available in Note context)
+  const vars = [
+    { name: 'title', desc: '笔记标题' },
+    { name: 'content', desc: '笔记 Markdown 内容' },
+    { name: 'html', desc: '笔记 HTML 内容' },
+    { name: 'tags', desc: '标签数组' },
+    { name: 'noteId', desc: '笔记 ID' },
+    { name: 'system.timestamp', desc: '当前时间戳' },
+    { name: 'system.date', desc: 'ISO 日期字符串' },
+    { name: 'system.locale_date', desc: '本地化日期字符串' },
+  ]
+
+  // Add variables from selected schema if available
+  // if (workflow.value?.schema_id) {
+  //   const selectedSchema = schemas.value.find(s => s.id === workflow.value?.schema_id)
+  //   if (selectedSchema) {
+  //     try {
+  //       const fields = JSON.parse(selectedSchema.fields)
+  //       // Merge schema fields, avoiding duplicates if they match base vars
+  //       fields.forEach((f: any) => {
+  //         if (!vars.some(v => v.name === f.key)) {
+  //           vars.push({ name: f.key, desc: f.description || f.label })
+  //         }
+  //       })
+  //     }
+  //     catch (e) {
+  //       console.error('Failed to parse schema fields for hints', e)
+  //     }
+  //   }
+  // }
+
+  const envVars = envKeys.value.map(k => ({
+    name: `env.${k}`,
+    desc: '环境变量 (Secret)',
+  }))
+
+  return [...vars, ...envVars]
+})
+
 const generateId = () => {
   return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36)
 }
 
-const loadWorkflow = async () => {
+const loadData = async () => {
   isLoading.value = true
   try {
-    const data = await getWorkflow(workflowId.value)
-    if (data) {
-      workflow.value = data
+    const [wfData, schemaData, envData] = await Promise.all([
+      getWorkflow(workflowId.value),
+      getAllSchemas(),
+      getAllEnvs(),
+    ])
+
+    if (envData) {
+      envKeys.value = envData.map(e => e.key)
+    }
+
+    if (wfData) {
+      workflow.value = wfData
       try {
-        const parsedSteps = JSON.parse(data.steps)
+        const parsedSteps = JSON.parse(wfData.steps)
         steps.value = parsedSteps.map((step: any) => ({
           ...step,
           headersList: Object.entries(step.headers || {}).map(([key, value]) => ({
@@ -55,10 +110,12 @@ const loadWorkflow = async () => {
       toast.error('未找到工作流')
       router.push('/workflows')
     }
+
+    schemas.value = schemaData || []
   }
   catch (e) {
     console.error(e)
-    toast.error('加载工作流失败')
+    toast.error('加载数据失败')
   }
   finally {
     isLoading.value = false
@@ -66,7 +123,7 @@ const loadWorkflow = async () => {
 }
 
 onMounted(() => {
-  loadWorkflow()
+  loadData()
 })
 
 const handleSave = async () => {
@@ -92,6 +149,7 @@ const handleSave = async () => {
       workflow.value.name,
       workflow.value.description || '',
       stepsToSave,
+      workflow.value.schema_id,
     )
     toast.success('工作流已保存')
   }
@@ -112,6 +170,7 @@ const handleExport = () => {
     name: workflow.value.name,
     description: workflow.value.description,
     steps: steps.value,
+    schema_id: workflow.value.schema_id,
   }
 
   copy(JSON.stringify(exportData, null, 2))
@@ -177,7 +236,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
         </Button>
         <div>
           <h1 class="text-xl font-bold tracking-tight text-foreground">
-            编辑工作流
+            编辑推送
           </h1>
         </div>
       </div>
@@ -186,7 +245,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
           <Icon name="lucide:share" class="w-4 h-4 mr-2" />
           导出
         </Button>
-        <Button variant="outline" :disabled="isSaving" @click="loadWorkflow">
+        <Button variant="outline" :disabled="isSaving" @click="loadData">
           重置
         </Button>
         <Button :disabled="isSaving" @click="handleSave">
@@ -210,9 +269,30 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
             <CardTitle>基本信息</CardTitle>
           </CardHeader>
           <CardContent class="space-y-4">
-            <div class="space-y-2">
-              <Label>名称</Label>
-              <Input v-model="workflow.name" placeholder="工作流名称" />
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <Label>名称</Label>
+                <Input v-model="workflow.name" placeholder="推送名称" />
+              </div>
+              <!-- <div class="space-y-2">
+                <Label>关联 Schema (可选)</Label>
+                <Select v-model="workflow.schema_id">
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择 Schema (仅作变量提示)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem :value="undefined">
+                      无
+                    </SelectItem>
+                    <SelectItem v-for="schema in schemas" :key="schema.id" :value="schema.id">
+                      {{ schema.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p class="text-xs text-muted-foreground">
+                  选择 Schema 可以帮助您在编辑时获得更准确的变量提示，但不会限制运行时的数据。
+                </p>
+              </div> -->
             </div>
             <div class="space-y-2">
               <Label>描述</Label>
@@ -272,7 +352,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                   <div class="flex gap-2">
                     <Select v-model="step.method">
                       <SelectTrigger class="w-24">
-                        <SelectValue />
+                        <SelectValue placeholder="Method" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="GET">
@@ -315,12 +395,28 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                       <AccordionTrigger>请求体</AccordionTrigger>
                       <AccordionContent>
                         <Textarea v-model="step.body" placeholder="{ 'key': 'value' }" class="font-mono text-sm" rows="5" />
-                        <div v-pre class="text-xs text-muted-foreground mt-1">
-                          使用 {{variable}} 插入动态值。
-                        </div>
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
+
+                  <div class="mt-2 pt-2 border-t border-border/50">
+                    <p class="text-xs font-medium mb-2 text-muted-foreground flex items-center gap-2">
+                      <Icon name="lucide:info" class="w-3 h-3" />
+                      可用变量 (点击复制，支持在 URL、Header 和 Body 中使用):
+                    </p>
+                    <div class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="v in availableVariables"
+                        :key="v.name"
+                        variant="secondary"
+                        class="cursor-pointer hover:bg-primary hover:text-primary-foreground text-[10px] px-1.5 py-0.5 transition-colors"
+                        :title="v.desc"
+                        @click="copy(`{{${v.name}}}`); toast.success(`已复制 {{${v.name}}}`)"
+                      >
+                        {{ v.name }}
+                      </Badge>
+                    </div>
+                  </div>
                 </template>
 
                 <!-- Script Step Fields -->

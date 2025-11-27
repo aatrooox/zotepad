@@ -69,7 +69,7 @@ onMounted(() => {
           ]"
         >
           <Icon name="lucide:workflow" class="w-5 h-5" />
-          <span class="font-medium">工作流</span>
+          <span class="font-medium">推送</span>
         </NuxtLink>
         <NuxtLink
           to="/settings"
@@ -119,7 +119,7 @@ onMounted(() => {
               @click="closeDrawer"
             >
               <Icon name="lucide:workflow" class="w-5 h-5" />
-              <span class="font-medium">工作流</span>
+              <span class="font-medium">推送</span>
             </NuxtLink>
             <NuxtLink
               to="/settings"

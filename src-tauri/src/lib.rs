@@ -73,6 +73,42 @@ pub fn run() {
               ",
               kind: MigrationKind::Up,
             },
+            Migration {
+              version: 5,
+              description: "add_schema_to_workflows",
+              sql: "ALTER TABLE workflows ADD COLUMN schema TEXT DEFAULT '[]';",
+              kind: MigrationKind::Up,
+            },
+            Migration {
+              version: 6,
+              description: "create_workflow_schemas_table",
+              sql: "\
+                CREATE TABLE IF NOT EXISTS workflow_schemas (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT NOT NULL,
+                  description TEXT,
+                  fields TEXT NOT NULL DEFAULT '[]',
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE workflows ADD COLUMN schema_id INTEGER;
+              ",
+              kind: MigrationKind::Up,
+            },
+            Migration {
+              version: 7,
+              description: "create_workflow_envs_table",
+              sql: "\
+                CREATE TABLE IF NOT EXISTS workflow_envs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  key TEXT NOT NULL UNIQUE,
+                  value TEXT NOT NULL,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+              ",
+              kind: MigrationKind::Up,
+            },
           ],
         )
         .build()

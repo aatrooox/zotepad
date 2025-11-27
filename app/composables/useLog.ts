@@ -1,4 +1,4 @@
-import { attachConsole, debug, info, trace, warn } from '@tauri-apps/plugin-log'
+import { attachConsole, debug, error as pluginError, info, trace, warn } from '@tauri-apps/plugin-log'
 
 /**
  * 日志级别枚举
@@ -158,7 +158,7 @@ export function useLog() {
     }
 
     try {
-      await logError(formattedMessage)
+      await pluginError(formattedMessage)
       if (options?.console !== false) {
         console.error(`❌ ERROR: ${formattedMessage}`)
       }

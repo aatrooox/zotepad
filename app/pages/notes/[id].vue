@@ -44,7 +44,7 @@ const loadWorkflows = async () => {
   }
   catch (e) {
     console.error(e)
-    toast.error('加载工作流失败')
+    toast.error('加载推送配置失败')
   }
 }
 
@@ -58,7 +58,7 @@ const handleRunWorkflow = async (workflow: Workflow) => {
       steps = JSON.parse(workflow.steps)
     }
     catch {
-      toast.error('无效的工作流步骤')
+      toast.error('无效的推送步骤')
       return
     }
 
@@ -70,21 +70,32 @@ const handleRunWorkflow = async (workflow: Workflow) => {
       noteId: noteId.value,
     }
 
-    toast.info(`正在运行工作流: ${workflow.name}`)
-    const result = await runWorkflow(steps, ctx)
+    let schemaFields = []
+    if (workflow.schema && workflow.schema.fields) {
+      try {
+        schemaFields = JSON.parse(workflow.schema.fields)
+      }
+      catch (e) {
+        console.error('Failed to parse schema fields', e)
+        toast.error('Schema 解析失败，将使用完整上下文')
+      }
+    }
+
+    toast.info(`正在执行推送: ${workflow.name}`)
+    const result = await runWorkflow(steps, ctx, schemaFields)
 
     // Check for errors in logs
     const errors = result.logs.filter(l => l.status === 'error')
     if (errors.length > 0 && errors[0]) {
-      toast.error(`工作流失败: ${errors[0].error}`)
+      toast.error(`推送失败: ${errors[0].error}`)
     }
     else {
-      toast.success('工作流执行成功')
+      toast.success('推送执行成功')
     }
   }
   catch (e: any) {
     console.error(e)
-    toast.error(`工作流执行失败: ${e.message}`)
+    toast.error(`推送执行失败: ${e.message}`)
   }
   finally {
     isRunningWorkflow.value = false
@@ -319,14 +330,14 @@ const copyHtml = () => {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>选择工作流</DialogTitle>
+              <DialogTitle>选择推送目标</DialogTitle>
               <DialogDescription>
-                选择要在此笔记上运行的工作流。
+                选择要将此笔记推送到的目标。
               </DialogDescription>
             </DialogHeader>
             <div class="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
               <div v-if="workflows.length === 0" class="text-center text-muted-foreground py-4">
-                未找到工作流。 <NuxtLink to="/workflows" class="text-primary hover:underline">
+                未找到推送配置。 <NuxtLink to="/workflows" class="text-primary hover:underline">
                   创建一个
                 </NuxtLink>。
               </div>

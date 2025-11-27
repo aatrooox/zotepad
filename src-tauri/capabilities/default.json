@@ -37,7 +37,10 @@
     "sql:allow-execute",
     "sql:allow-select",
     "sql:allow-close",
-    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    },
     "log:default"
   ]
 }
