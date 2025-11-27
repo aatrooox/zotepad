@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.5.8
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.7...v0.5.8)
+
+### 🚀 Enhancements
+
+- 完善推送机制 ([8ddfd39](https://github.com/aatrooox/zotepad/commit/8ddfd39))
+
+### 🩹 Fixes
+
+- Win下无法使用sh脚本问题 ([ee02386](https://github.com/aatrooox/zotepad/commit/ee02386))
+
+### 🏡 Chore
+
+- **release:** V0.5.7 ([4d90267](https://github.com/aatrooox/zotepad/commit/4d90267))
+- **build:** Release v0.5.7 ([65a3e24](https://github.com/aatrooox/zotepad/commit/65a3e24))
+- Ignore husky ([7c36432](https://github.com/aatrooox/zotepad/commit/7c36432))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.7
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.6...v0.5.7)
