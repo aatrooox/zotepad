@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.5.9
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.8...v0.5.9)
+
+### 🩹 Fixes
+
+- 推送相关bug修复 ([7ac9f40](https://github.com/aatrooox/zotepad/commit/7ac9f40))
+
+### 🏡 Chore
+
+- **build:** Release v0.5.8 ([667ca4c](https://github.com/aatrooox/zotepad/commit/667ca4c))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.8
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.7...v0.5.8)
