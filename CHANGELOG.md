@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.5.10
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.9...v0.5.10)
+
+### 🩹 Fixes
+
+- 隐藏无用的逻辑 ([18c3b6f](https://github.com/aatrooox/zotepad/commit/18c3b6f))
+
+### 🏡 Chore
+
+- **build:** Release v0.5.9 ([dd427b2](https://github.com/aatrooox/zotepad/commit/dd427b2))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.9
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.8...v0.5.9)
