@@ -8,10 +8,10 @@ const { setSetting, getSetting } = useSettingRepository()
 const { getAllEnvs, createEnv, deleteEnv } = useEnvironmentRepository()
 
 const customCss = ref('')
-const apiUrl = ref('')
-const apiMethod = ref('POST')
-const apiHeaders = ref('{}')
-const apiBodyTemplate = ref('{"content": "{{content}}", "html": "{{html}}"}')
+// const apiUrl = ref('')
+// const apiMethod = ref('POST')
+// const apiHeaders = ref('{}')
+// const apiBodyTemplate = ref('{"content": "{{content}}", "html": "{{html}}"}')
 
 // Env Vars State
 const envs = ref<WorkflowEnv[]>([])
@@ -61,31 +61,21 @@ const handleDeleteEnv = async (id: number) => {
 
 onMounted(async () => {
   customCss.value = await getSetting('custom_css') || ''
-  apiUrl.value = await getSetting('api_url') || ''
-  apiMethod.value = await getSetting('api_method') || 'POST'
-  apiHeaders.value = await getSetting('api_headers') || '{\n  "Content-Type": "application/json"\n}'
-  apiBodyTemplate.value = await getSetting('api_body_template') || '{\n  "content": "{{content}}",\n  "html": "{{html}}"\n}'
+  // apiUrl.value = await getSetting('api_url') || ''
+  // apiMethod.value = await getSetting('api_method') || 'POST'
+  // apiHeaders.value = await getSetting('api_headers') || '{\n  "Content-Type": "application/json"\n}'
+  // apiBodyTemplate.value = await getSetting('api_body_template') || '{\n  "content": "{{content}}",\n  "html": "{{html}}"\n}'
 
   await loadEnvs()
 })
 
 const saveSettings = async () => {
   try {
-    // Validate JSON
-    try {
-      JSON.parse(apiHeaders.value)
-      JSON.parse(apiBodyTemplate.value)
-    }
-    catch {
-      toast.error('Headers 或 Body Template 中的 JSON 格式无效')
-      return
-    }
-
     await setSetting('custom_css', customCss.value)
-    await setSetting('api_url', apiUrl.value)
-    await setSetting('api_method', apiMethod.value)
-    await setSetting('api_headers', apiHeaders.value)
-    await setSetting('api_body_template', apiBodyTemplate.value)
+    // await setSetting('api_url', apiUrl.value)
+    // await setSetting('api_method', apiMethod.value)
+    // await setSetting('api_headers', apiHeaders.value)
+    // await setSetting('api_body_template', apiBodyTemplate.value)
     toast.success('设置已保存')
   }
   catch {
@@ -159,7 +149,7 @@ const saveSettings = async () => {
         </Card>
 
         <!-- API Configuration -->
-        <Card>
+        <!-- <Card>
           <CardHeader>
             <CardTitle>API 配置</CardTitle>
             <CardDescription>配置笔记发送的目标地址。</CardDescription>
@@ -200,7 +190,7 @@ const saveSettings = async () => {
               <Textarea v-model="apiBodyTemplate" class="font-mono h-32" />
             </div>
           </CardContent>
-        </Card>
+        </Card> -->
 
         <Button class="w-full" @click="saveSettings">
           保存设置
