@@ -97,8 +97,9 @@ export function useWorkflowRunner() {
       })
     }
 
+    const method = (step.method || 'GET').toUpperCase()
     const url = replaceString(step.url)
-    await info(`[Workflow] API Request: ${step.method || 'GET'} ${url}`)
+    await info(`[Workflow] API Request: ${method} ${url}`)
 
     // Clone headers to avoid mutating the original step object
     const headers: Record<string, string> = { ...(step.headers || {}) }
@@ -107,7 +108,11 @@ export function useWorkflowRunner() {
     }
 
     let body = step.body
-    if (body) {
+    // GET and HEAD requests cannot have a body
+    if (method === 'GET' || method === 'HEAD') {
+      body = undefined
+    }
+    else if (body) {
       // Smart JSON handling
       try {
         // Try to parse body as JSON
@@ -144,7 +149,7 @@ export function useWorkflowRunner() {
     }
 
     const response = await request(url, {
-      method: step.method || 'GET',
+      method,
       headers,
       body,
     })

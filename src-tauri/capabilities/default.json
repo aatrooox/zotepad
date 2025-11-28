@@ -39,7 +39,12 @@
     "sql:allow-close",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" },
+        { "url": "http://localhost:**" },
+        { "url": "http://localhost:4775/**" }
+      ]
     },
     "log:default"
   ]
