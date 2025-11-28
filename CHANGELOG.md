@@ -1,6 +1,20 @@
 # Changelog
 
 
+## v0.5.11
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.10...v0.5.11)
+
+### 🏡 Chore
+
+- **build:** Release v0.5.10 ([c4c5e61](https://github.com/aatrooox/zotepad/commit/c4c5e61))
+- 更换App图标 ([1727aa4](https://github.com/aatrooox/zotepad/commit/1727aa4))
+- 更换app icon ([8bc0b78](https://github.com/aatrooox/zotepad/commit/8bc0b78))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.10
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.9...v0.5.10)
