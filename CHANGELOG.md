@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.5.12
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.11...v0.5.12)
+
+### 🚀 Enhancements
+
+- 新增动态页面; 对接腾讯cos; 优化交互 ([13862aa](https://github.com/aatrooox/zotepad/commit/13862aa))
+
+### 🏡 Chore
+
+- **build:** Release v0.5.11 ([a7f06b8](https://github.com/aatrooox/zotepad/commit/a7f06b8))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.11
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.10...v0.5.11)
