@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.6.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.12...v0.6.0)
+
+### 🩹 Fixes
+
+- 尝试修复安卓apk未签名问题 ([9fbe470](https://github.com/aatrooox/zotepad/commit/9fbe470))
+
+### 🏡 Chore
+
+- **build:** Release v0.5.12 ([4097664](https://github.com/aatrooox/zotepad/commit/4097664))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.5.12
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.11...v0.5.12)
