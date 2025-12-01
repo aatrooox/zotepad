@@ -6,7 +6,7 @@ on:
       - main
       - template
     paths-ignore:
-      - '**.md'
+      - "**.md"
       - .gitignore
       - LICENSE
 
@@ -48,9 +48,9 @@ jobs:
           - platform: macos-latest
             args: --target universal-apple-darwin
           - platform: ubuntu-22.04
-            args: ''
+            args: ""
           - platform: windows-latest
-            args: ''
+            args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -132,7 +132,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Android SDK (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -214,11 +214,6 @@ jobs:
           echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
 
-      - name: Clean Android gen directory
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          rm -rf src-tauri/gen/android
-
       - name: Build Android APK
         if: matrix.platform == 'ubuntu-22.04'
         env:
@@ -294,8 +289,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: 'v${{ needs.check-commit.outputs.version }}'
-          name: 'v${{ needs.check-commit.outputs.version }}'
+          tag_name: "v${{ needs.check-commit.outputs.version }}"
+          name: "v${{ needs.check-commit.outputs.version }}"
           body: |
             ## 📦 下载
 
