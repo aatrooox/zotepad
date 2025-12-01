@@ -25,9 +25,10 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
 
+    var releaseSigningConfigured = false
     signingConfigs {
         create("release") {
-            val keystoreFile = file("../keystore.properties")
+            val keystoreFile = rootProject.file("keystore.properties")
             if (keystoreFile.exists()) {
                 val props = Properties()
                 props.load(keystoreFile.inputStream())
@@ -35,8 +36,9 @@ android {
                 keyPassword = props.getProperty("keyPassword")
                 storeFile = file(props.getProperty("storeFile"))
                 storePassword = props.getProperty("storePassword")
+                releaseSigningConfigured = true
             } else {
-                println("Release keystore not found, skipping signing config")
+                println("Release keystore not found at ${keystoreFile.absolutePath}, skipping signing config")
             }
         }
     }
@@ -54,7 +56,9 @@ android {
             }
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

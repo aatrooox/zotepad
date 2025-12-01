@@ -238,6 +238,9 @@ jobs:
             echo "Warning: ANDROID_KEYSTORE_BASE64 secret not found. Build may fail or use debug signing."
           fi
 
+          echo "Listing src-tauri/gen/android content:"
+          ls -R src-tauri/gen/android
+
           pnpm tauri android build --apk --target aarch64
 
       - name: Rename Android APK with version
