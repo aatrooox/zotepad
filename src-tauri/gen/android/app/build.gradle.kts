@@ -28,17 +28,27 @@ android {
     var releaseSigningConfigured = false
     signingConfigs {
         create("release") {
-            val keystoreFile = rootProject.file("keystore.properties")
-            if (keystoreFile.exists()) {
-                val props = Properties()
-                props.load(keystoreFile.inputStream())
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
-                storeFile = file(props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
+            val envStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (envStorePath != null) {
+                storeFile = file(envStorePath)
+                storePassword = System.getenv("ANDROID_STORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
                 releaseSigningConfigured = true
+                println("Configured release signing from environment variables")
             } else {
-                println("Release keystore not found at ${keystoreFile.absolutePath}, skipping signing config")
+                val keystoreFile = rootProject.file("keystore.properties")
+                if (keystoreFile.exists()) {
+                    val props = Properties()
+                    props.load(keystoreFile.inputStream())
+                    keyAlias = props.getProperty("keyAlias")
+                    keyPassword = props.getProperty("keyPassword")
+                    storeFile = file(props.getProperty("storeFile"))
+                    storePassword = props.getProperty("storePassword")
+                    releaseSigningConfigured = true
+                } else {
+                    println("Release keystore not found at ${keystoreFile.absolutePath}, skipping signing config")
+                }
             }
         }
     }

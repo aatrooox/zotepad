@@ -229,8 +229,10 @@ jobs:
           # Decode Keystore from Secrets
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > src-tauri/release.keystore
+            export ANDROID_KEYSTORE_PATH=$(pwd)/src-tauri/release.keystore
+            echo "ANDROID_KEYSTORE_PATH=$ANDROID_KEYSTORE_PATH" >> $GITHUB_ENV
 
-            # Create keystore.properties
+            # Create keystore.properties (fallback)
             printf "keyAlias=%s\nkeyPassword=%s\nstoreFile=../../../release.keystore\nstorePassword=%s\n" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD" > src-tauri/gen/android/keystore.properties
 
             echo "Keystore configured successfully."
