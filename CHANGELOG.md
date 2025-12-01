@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.6.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.0...v0.6.1)
+
+### 🩹 Fixes
+
+- 尝试修复apk打包问题 ([64a195e](https://github.com/aatrooox/zotepad/commit/64a195e))
+
+### 🏡 Chore
+
+- **build:** Release v0.6.0 ([68f012c](https://github.com/aatrooox/zotepad/commit/68f012c))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.6.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.5.12...v0.6.0)
