@@ -40,12 +40,24 @@
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" },
-        { "url": "http://localhost:**" },
-        { "url": "http://localhost:4775/**" }
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        },
+        {
+          "url": "http://localhost:**"
+        },
+        {
+          "url": "http://localhost:4775/**"
+        }
       ]
     },
-    "log:default"
+    "log:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-write-image"
   ]
 }

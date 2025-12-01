@@ -150,6 +150,10 @@ pnpm tauri build
 pnpm tauri android build
 ```
 
+### 修改App名称后
+
+需要删除 `gen/android`，然后重新 `pnpm tauri android ini`
+
 ## 📁 目录结构
 
 ```

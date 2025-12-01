@@ -1,4 +1,4 @@
-package com.zzaoclub.community_service_center
+package com.zzaoclub.zotepad
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

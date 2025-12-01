@@ -39,6 +39,7 @@ const availableVariables = computed(() => {
     { name: 'content', desc: '笔记 Markdown 内容' },
     { name: 'html', desc: '笔记 HTML 内容' },
     { name: 'tags', desc: '标签数组' },
+    { name: 'photos', desc: '图片数组' },
     { name: 'noteId', desc: '笔记 ID' },
     { name: 'system.timestamp', desc: '当前时间戳' },
     { name: 'system.date', desc: 'ISO 日期字符串' },

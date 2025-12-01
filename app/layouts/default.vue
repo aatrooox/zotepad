@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
-import Sonner from '@/components/ui/sonner.vue'
 
 useHead({ titleTemplate: '%s - ZotePad' })
 
@@ -29,12 +28,13 @@ onMounted(() => {
     })
   }
 })
+
+const config = useRuntimeConfig()
+const version = config.public.version
 </script>
 
 <template>
   <div class="min-h-screen bg-background text-foreground flex font-sans antialiased selection:bg-primary/20">
-    <Sonner />
-
     <!-- Desktop Sidebar -->
     <aside
       v-if="!isMobile"
@@ -59,6 +59,28 @@ onMounted(() => {
         >
           <Icon name="lucide:file-text" class="w-5 h-5" />
           <span class="font-medium">笔记</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/moments"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
+          :class="[
+            $route.path.startsWith('/moments') ? '' : 'hover:bg-accent hover:text-accent-foreground',
+          ]"
+        >
+          <Icon name="lucide:camera" class="w-5 h-5" />
+          <span class="font-medium">动态</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/assets"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
+          :class="[
+            $route.path.startsWith('/assets') ? '' : 'hover:bg-accent hover:text-accent-foreground',
+          ]"
+        >
+          <Icon name="lucide:image" class="w-5 h-5" />
+          <span class="font-medium">资源</span>
         </NuxtLink>
         <NuxtLink
           to="/workflows"
@@ -86,7 +108,7 @@ onMounted(() => {
 
       <div class="p-6 border-t bg-card/30">
         <div class="text-xs text-muted-foreground text-center font-medium">
-          v0.4.2
+          v{{ version }}
         </div>
       </div>
     </aside>
@@ -99,7 +121,7 @@ onMounted(() => {
             <div class="w-10 h-10 bg-primary rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center text-primary-foreground font-bold text-xl">
               Z
             </div>
-            <span class="font-bold text-xl tracking-tight">ZotePad</span>
+            <span class="font-bold text-xl tracking-tight">ZotePad <em class="text-xs">v{{ version }}</em></span>
           </div>
 
           <nav class="space-y-2">
@@ -111,6 +133,24 @@ onMounted(() => {
             >
               <Icon name="lucide:file-text" class="w-5 h-5" />
               <span class="font-medium">笔记</span>
+            </NuxtLink>
+            <NuxtLink
+              to="/moments"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+              active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
+              @click="closeDrawer"
+            >
+              <Icon name="lucide:camera" class="w-5 h-5" />
+              <span class="font-medium">动态</span>
+            </NuxtLink>
+            <NuxtLink
+              to="/assets"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
+              active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
+              @click="closeDrawer"
+            >
+              <Icon name="lucide:image" class="w-5 h-5" />
+              <span class="font-medium">资源</span>
             </NuxtLink>
             <NuxtLink
               to="/workflows"

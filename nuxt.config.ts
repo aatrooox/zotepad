@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { defineNuxtConfig } from 'nuxt/config'
+
+const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 export default defineNuxtConfig({
 
@@ -27,6 +30,11 @@ export default defineNuxtConfig({
   ],
   devtools: { enabled: false },
   css: ['~/assets/css/tailwind.css'],
+  runtimeConfig: {
+    public: {
+      version: packageJson.version,
+    },
+  },
   devServer: { host: process.env.TAURI_DEV_HOST || 'localhost' },
   compatibilityDate: '2025-07-15',
   vite: {

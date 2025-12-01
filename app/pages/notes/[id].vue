@@ -27,6 +27,7 @@ const noteId = ref<number | null>(null)
 const htmlContent = ref('')
 const customCss = ref('')
 const editorContainerRef = ref(null)
+const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 
 const { getNote, createNote, updateNote } = useNoteRepository()
 const { getSetting } = useSettingRepository()
@@ -158,6 +159,9 @@ const saveNote = async () => {
   if (!content.value && !title.value)
     return
 
+  const startTime = Date.now()
+  saveStatus.value = 'saving'
+
   try {
     if (noteId.value) {
       await updateNote(noteId.value, title.value, content.value, tags.value)
@@ -170,10 +174,23 @@ const saveNote = async () => {
         router.replace({ params: { id: id.toString() } })
       }
     }
+
+    // Ensure loading state shows for at least 500ms for visual smoothness
+    const elapsed = Date.now() - startTime
+    if (elapsed < 500) {
+      await new Promise(resolve => setTimeout(resolve, 500 - elapsed))
+    }
+
+    saveStatus.value = 'saved'
+    setTimeout(() => {
+      if (saveStatus.value === 'saved')
+        saveStatus.value = 'idle'
+    }, 2000)
   }
   catch (e) {
     console.error('Auto-save failed', e)
     toast.error('自动保存失败')
+    saveStatus.value = 'idle'
   }
 }
 
@@ -255,7 +272,6 @@ onMounted(async () => {
 
 const onSave = () => {
   saveNote()
-  toast.success('保存成功')
 }
 
 const onHtmlChanged = (h: string) => {
@@ -373,12 +389,15 @@ const copyHtml = () => {
           theme="light"
           class="!h-full w-full"
           :toolbars="currentToolbars"
-          :preview="!isMobile"
+          :preview="false"
           :show-code-row="true"
           @on-save="onSave"
           @on-html-changed="onHtmlChanged"
         />
       </ClientOnly>
+
+      <!-- Save Status Indicator -->
+      <AppActionStatusIndicator :status="saveStatus" class="bottom-8 right-4" />
     </div>
   </div>
 </template>
@@ -389,6 +408,21 @@ const copyHtml = () => {
   --md-bk-color: hsl(var(--background));
   --md-color: hsl(var(--foreground));
   --md-border-color: hsl(var(--border));
+}
+
+/* 强制编辑器输入区域使用系统无衬线字体，覆盖默认的等宽字体 */
+.md-editor-input .cm-editor {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    'Noto Sans',
+    sans-serif !important;
 }
 
 .md-editor-toolbar-wrapper {

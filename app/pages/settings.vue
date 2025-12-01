@@ -8,6 +8,14 @@ const { setSetting, getSetting } = useSettingRepository()
 const { getAllEnvs, createEnv, deleteEnv } = useEnvironmentRepository()
 
 const customCss = ref('')
+// COS State
+const cosSecretId = ref('')
+const cosSecretKey = ref('')
+const cosBucket = ref('')
+const cosRegion = ref('')
+const cosPathPrefix = ref('')
+const cosCustomDomain = ref('')
+
 // const apiUrl = ref('')
 // const apiMethod = ref('POST')
 // const apiHeaders = ref('{}')
@@ -61,10 +69,14 @@ const handleDeleteEnv = async (id: number) => {
 
 onMounted(async () => {
   customCss.value = await getSetting('custom_css') || ''
-  // apiUrl.value = await getSetting('api_url') || ''
-  // apiMethod.value = await getSetting('api_method') || 'POST'
-  // apiHeaders.value = await getSetting('api_headers') || '{\n  "Content-Type": "application/json"\n}'
-  // apiBodyTemplate.value = await getSetting('api_body_template') || '{\n  "content": "{{content}}",\n  "html": "{{html}}"\n}'
+
+  // Load COS Settings
+  cosSecretId.value = await getSetting('secret_id') || ''
+  cosSecretKey.value = await getSetting('secret_key') || ''
+  cosBucket.value = await getSetting('bucket') || ''
+  cosRegion.value = await getSetting('region') || ''
+  cosPathPrefix.value = await getSetting('path_prefix') || ''
+  cosCustomDomain.value = await getSetting('custom_domain') || ''
 
   await loadEnvs()
 })
@@ -72,10 +84,15 @@ onMounted(async () => {
 const saveSettings = async () => {
   try {
     await setSetting('custom_css', customCss.value)
-    // await setSetting('api_url', apiUrl.value)
-    // await setSetting('api_method', apiMethod.value)
-    // await setSetting('api_headers', apiHeaders.value)
-    // await setSetting('api_body_template', apiBodyTemplate.value)
+
+    // Save COS Settings
+    await setSetting('secret_id', cosSecretId.value, 'cos')
+    await setSetting('secret_key', cosSecretKey.value, 'cos')
+    await setSetting('bucket', cosBucket.value, 'cos')
+    await setSetting('region', cosRegion.value, 'cos')
+    await setSetting('path_prefix', cosPathPrefix.value, 'cos')
+    await setSetting('custom_domain', cosCustomDomain.value, 'cos')
+
     toast.success('设置已保存')
   }
   catch {
@@ -99,6 +116,51 @@ const saveSettings = async () => {
       </div>
 
       <div class="space-y-6">
+        <!-- COS Settings -->
+        <Card>
+          <CardHeader>
+            <CardTitle class="flex items-center gap-2">
+              <Icon name="lucide:cloud" class="w-5 h-5" />
+              腾讯云 COS 设置
+            </CardTitle>
+            <CardDescription>配置对象存储以支持图片上传功能。</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-2">
+              <Label>SecretId</Label>
+              <Input v-model="cosSecretId" type="password" placeholder="AKID..." />
+            </div>
+            <div class="grid gap-2">
+              <Label>SecretKey</Label>
+              <Input v-model="cosSecretKey" type="password" placeholder="SecretKey..." />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="grid gap-2">
+                <Label>Bucket</Label>
+                <Input v-model="cosBucket" placeholder="example-1250000000" />
+              </div>
+              <div class="grid gap-2">
+                <Label>Region</Label>
+                <Input v-model="cosRegion" placeholder="ap-guangzhou" />
+              </div>
+            </div>
+            <div class="grid gap-2">
+              <Label>路径前缀 (可选)</Label>
+              <Input v-model="cosPathPrefix" placeholder="zotepad/images" />
+              <p class="text-xs text-muted-foreground">
+                上传文件的存储路径前缀，留空则存放在根目录。
+              </p>
+            </div>
+            <div class="grid gap-2">
+              <Label>自定义域名 (可选)</Label>
+              <Input v-model="cosCustomDomain" placeholder="https://cdn.example.com" />
+              <p class="text-xs text-muted-foreground">
+                配置后将使用此域名生成图片链接，请确保包含协议头 (http/https)。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         <!-- Custom CSS -->
         <Card>
           <CardHeader>

@@ -76,17 +76,23 @@ export function useWorkflowRunner() {
       throw new Error('API URL is required')
     }
 
+    // Helper to resolve a value from context
+    const resolveValue = (key: string): any => {
+      const keys = key.split('.')
+      let val: any = ctx
+      for (const k of keys) {
+        if (val === undefined || val === null)
+          break
+        val = val[k]
+      }
+      // console.log(`[Workflow] Resolved value for key "${key}":`, val)
+      return val
+    }
+
     // Helper to replace variables in a string
     const replaceString = (str: string) => {
       return str.replace(/\{\{([\w.]+)\}\}/g, (_, key) => {
-        // Support dot notation for nested objects (e.g. env.API_KEY)
-        const keys = key.split('.')
-        let val: any = ctx
-        for (const k of keys) {
-          if (val === undefined || val === null)
-            break
-          val = val[k]
-        }
+        const val = resolveValue(key)
 
         // If value is undefined (filtered out by schema), return empty string
         if (val === undefined)
@@ -121,6 +127,14 @@ export function useWorkflowRunner() {
         // Recursive function to replace variables in object values
         const processObject = (obj: any): any => {
           if (typeof obj === 'string') {
+            // Check for exact match {{key}} to preserve types (arrays, objects, numbers)
+            const exactMatch = obj.match(/^\{\{([\w.]+)\}\}$/)
+            if (exactMatch && exactMatch[1]) {
+              const val = resolveValue(exactMatch[1])
+              // If val is undefined, we might want to return null or keep the template?
+              // For now, let's return null if undefined to avoid breaking JSON structure with undefined
+              return val === undefined ? null : val
+            }
             return replaceString(obj)
           }
           if (Array.isArray(obj)) {
@@ -195,11 +209,16 @@ export function useWorkflowRunner() {
     }
   }
 
-  const runWorkflow = async (steps: WorkflowStep[], initialCtx: WorkflowContext, schema?: WorkflowSchemaField[]) => {
+  const runWorkflow = async (steps: WorkflowStep[], initialCtx: WorkflowContext, _schema?: WorkflowSchemaField[]) => {
     await info(`[Workflow] Starting workflow with ${steps.length} step(s)`)
 
     // Use full context by default, ignoring schema filtering for flexibility
     let currentCtx = { ...initialCtx }
+
+    // Alias images to photos for compatibility
+    if (currentCtx.images && !currentCtx.photos) {
+      currentCtx.photos = currentCtx.images
+    }
 
     // Inject System Variables & Environment Variables
     // These are trusted sources

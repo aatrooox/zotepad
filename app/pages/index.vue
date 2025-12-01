@@ -62,32 +62,39 @@ const handleCreate = async () => {
   }
 }
 
-const handleDelete = async (id: number, event?: Event) => {
-  // if (!confirm('Are you sure you want to delete this note?'))
-  //   return
+const handleDelete = (id: number, event?: Event) => {
+  toast('确定要删除这条笔记吗？', {
+    action: {
+      label: '删除',
+      onClick: async () => {
+        try {
+          // Animate deletion
+          if (event && event.target) {
+            const target = event.target as HTMLElement
+            const card = target.closest('.note-card')
+            if (card) {
+              await gsap.to(card, {
+                opacity: 0,
+                scale: 0.8,
+                duration: 0.2,
+                ease: 'power2.in',
+              })
+            }
+          }
 
-  try {
-    // Animate deletion
-    if (event && event.target) {
-      const target = event.target as HTMLElement
-      const card = target.closest('.note-card')
-      if (card) {
-        await gsap.to(card, {
-          opacity: 0,
-          scale: 0.8,
-          duration: 0.2,
-          ease: 'power2.in',
-        })
-      }
-    }
-
-    await deleteNote(id)
-    toast.success('笔记已删除')
-    await loadNotes()
-  }
-  catch {
-    toast.error('删除笔记失败')
-  }
+          await deleteNote(id)
+          toast.success('笔记已删除')
+          await loadNotes()
+        }
+        catch {
+          toast.error('删除笔记失败')
+        }
+      },
+    },
+    cancel: {
+      label: '取消',
+    },
+  })
 }
 
 const formatDate = (dateStr?: string) => {
