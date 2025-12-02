@@ -1,6 +1,31 @@
 # Changelog
 
 
+## v0.6.5
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.4...v0.6.5)
+
+### 🚀 Enhancements
+
+- 优化移动端展示 ([a765d57](https://github.com/aatrooox/zotepad/commit/a765d57))
+
+### 🩹 Fixes
+
+- 尝试修复api签名问题 ([a39d5f3](https://github.com/aatrooox/zotepad/commit/a39d5f3))
+
+### 📖 Documentation
+
+- Readme ([88d2d87](https://github.com/aatrooox/zotepad/commit/88d2d87))
+
+### 🏡 Chore
+
+- **release:** V0.6.4 ([732cac9](https://github.com/aatrooox/zotepad/commit/732cac9))
+- **build:** Release v0.6.4 ([d2334ba](https://github.com/aatrooox/zotepad/commit/d2334ba))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.6.4
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.3...v0.6.4)
