@@ -2,6 +2,7 @@
 import type { Workflow, WorkflowSchema } from '~/types/workflow'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import SchemaList from '~/components/workflow/SchemaList.vue'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
@@ -227,26 +228,10 @@ const formatDate = (dateStr?: string) => {
           </DialogContent>
         </Dialog>
 
-        <Dialog v-model:open="isImportDialogOpen">
-          <DialogTrigger as-child>
-            <Button variant="outline" size="lg" class="rounded-full">
-              <Icon name="lucide:download" class="w-5 h-5 mr-2" />
-              导入
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>导入推送</DialogTitle>
-              <DialogDescription>在下方粘贴推送 JSON。</DialogDescription>
-            </DialogHeader>
-            <Textarea v-model="importJson" placeholder="{ ... }" rows="10" class="font-mono text-xs" />
-            <DialogFooter>
-              <Button @click="handleImport">
-                导入
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button variant="outline" size="lg" class="rounded-full" @click="isImportDialogOpen = true">
+          <Icon name="lucide:download" class="w-5 h-5 mr-2" />
+          导入
+        </Button>
       </div>
     </div>
 
@@ -262,13 +247,9 @@ const formatDate = (dateStr?: string) => {
             </Button>
           </DialogTrigger>
         </Dialog>
-        <Dialog v-model:open="isImportDialogOpen">
-          <DialogTrigger as-child>
-            <Button variant="outline" size="sm" class="rounded-full">
-              <Icon name="lucide:download" class="w-4 h-4" />
-            </Button>
-          </DialogTrigger>
-        </Dialog>
+        <Button variant="outline" size="sm" class="rounded-full" @click="isImportDialogOpen = true">
+          <Icon name="lucide:download" class="w-4 h-4" />
+        </Button>
       </div>
     </div>
 
@@ -330,5 +311,29 @@ const formatDate = (dateStr?: string) => {
         </div>
       </div>
     </div>
+    <!-- Import Drawer -->
+    <Drawer v-model:open="isImportDialogOpen">
+      <DrawerContent>
+        <div class="mx-auto w-full max-w-sm">
+          <DrawerHeader>
+            <DrawerTitle>导入推送</DrawerTitle>
+            <DrawerDescription>在下方粘贴推送 JSON。</DrawerDescription>
+          </DrawerHeader>
+          <div class="p-4 pb-0">
+            <Textarea v-model="importJson" placeholder="{ ... }" class="font-mono text-xs min-h-[200px] max-h-[50vh] overflow-y-auto" />
+          </div>
+          <DrawerFooter>
+            <Button @click="handleImport">
+              导入
+            </Button>
+            <DrawerClose as-child>
+              <Button variant="outline">
+                取消
+              </Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </div>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>

@@ -18,7 +18,7 @@ android {
     compileSdk = 36
     namespace = "com.zzaoclub.zotepad"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.zzaoclub.zotepad"
         minSdk = 24
         targetSdk = 36
@@ -87,7 +87,7 @@ android {
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
