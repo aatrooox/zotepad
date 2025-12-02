@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.8.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.7.0...v0.8.0)
+
+### 🩹 Fixes
+
+- 关闭java代码混淆以修复cos上传问题 ([aef041b](https://github.com/aatrooox/zotepad/commit/aef041b))
+
+### 🏡 Chore
+
+- **build:** Release v0.7.0 ([5f7943e](https://github.com/aatrooox/zotepad/commit/5f7943e))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.7.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.5...v0.7.0)
