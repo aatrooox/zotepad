@@ -174,8 +174,8 @@ const formatDate = (dateStr?: string) => {
 
 <template>
   <div class="h-full flex flex-col bg-background/50">
-    <!-- Header -->
-    <div class="px-8 py-6 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <!-- Header - 桌面端显示完整头部，移动端精简 -->
+    <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-foreground">
           推送
@@ -206,25 +206,6 @@ const formatDate = (dateStr?: string) => {
                 <Label>描述</Label>
                 <Input v-model="newWorkflowDesc" placeholder="描述" />
               </div>
-              <!-- <div class="space-y-2">
-                <Label>关联 Schema (可选)</Label>
-                <Select v-model="newWorkflowSchemaId">
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择一个 Schema" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem :value="undefined">
-                      无 (不校验上下文)
-                    </SelectItem>
-                    <SelectItem v-for="schema in schemas" :key="schema.id" :value="schema.id">
-                      {{ schema.name }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p class="text-xs text-muted-foreground">
-                  Schema 定义了工作流所需的输入字段结构。
-                </p>
-              </div> -->
             </div>
             <DialogFooter>
               <Button variant="outline" @click="isCreateDialogOpen = false">
@@ -260,6 +241,25 @@ const formatDate = (dateStr?: string) => {
       </div>
     </div>
 
+    <!-- Mobile Header Actions -->
+    <div class="flex md:hidden px-4 py-3 items-center justify-end gap-2 border-b border-border/40">
+      <Dialog v-model:open="isCreateDialogOpen">
+        <DialogTrigger as-child>
+          <Button size="sm" class="rounded-full" @click="openCreateDialog">
+            <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
+            新建
+          </Button>
+        </DialogTrigger>
+      </Dialog>
+      <Dialog v-model:open="isImportDialogOpen">
+        <DialogTrigger as-child>
+          <Button variant="outline" size="sm" class="rounded-full">
+            <Icon name="lucide:download" class="w-4 h-4" />
+          </Button>
+        </DialogTrigger>
+      </Dialog>
+    </div>
+
     <!-- Tabs -->
     <div class="flex-1 overflow-hidden flex flex-col">
       <Tabs v-model="activeTab" class="flex-1 flex flex-col">
@@ -274,7 +274,7 @@ const formatDate = (dateStr?: string) => {
           </TabsList>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-8">
+        <div class="flex-1 overflow-y-auto p-4 md:p-8">
           <TabsContent value="workflows" class="mt-0 h-full">
             <div v-if="workflows.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6">
               <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4">
@@ -297,7 +297,7 @@ const formatDate = (dateStr?: string) => {
                 :ref="setCardRef"
                 class="group workflow-card list-item-hover rounded-lg mb-2 border border-transparent hover:border-border/60 bg-card/30"
               >
-                <div class="flex items-center p-4 gap-4">
+                <div class="flex items-center p-3 md:p-4 gap-3 md:gap-4">
                   <!-- Main Content Link -->
                   <NuxtLink :to="`/workflows/${workflow.id}`" class="flex-1 flex items-center gap-4 min-w-0">
                     <div class="flex-1 min-w-0">

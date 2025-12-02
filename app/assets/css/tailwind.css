@@ -108,4 +108,18 @@
   .list-item-hover {
     @apply hover:bg-accent/50 transition-colors duration-200 cursor-pointer border-b border-border/40 last:border-0;
   }
+
+  /* 安全区域适配 */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
 }

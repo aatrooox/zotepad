@@ -228,20 +228,21 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background/50">
+  <div class="h-full flex flex-col bg-background/50 pt-safe">
     <!-- Header -->
-    <div class="px-8 py-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
-      <div class="flex items-center gap-4">
+    <div class="px-4 md:px-8 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+      <div class="flex items-center gap-2 md:gap-4">
         <Button variant="ghost" size="icon" @click="router.back()">
           <Icon name="lucide:arrow-left" class="w-5 h-5" />
         </Button>
         <div>
-          <h1 class="text-xl font-bold tracking-tight text-foreground">
+          <h1 class="text-lg md:text-xl font-bold tracking-tight text-foreground">
             编辑推送
           </h1>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <!-- 桌面端按钮 -->
+      <div class="hidden md:flex items-center gap-2">
         <Button variant="outline" :disabled="isSaving" @click="handleExport">
           <Icon name="lucide:share" class="w-4 h-4 mr-2" />
           导出
@@ -255,6 +256,15 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
           保存
         </Button>
       </div>
+      <!-- 移动端按钮 -->
+      <div class="flex md:hidden items-center gap-1">
+        <Button variant="ghost" size="icon" :disabled="isSaving" @click="handleExport">
+          <Icon name="lucide:share" class="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="icon" :disabled="isSaving" @click="loadData">
+          <Icon name="lucide:rotate-ccw" class="w-4 h-4" />
+        </Button>
+      </div>
     </div>
 
     <!-- Content -->
@@ -262,15 +272,15 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
       <Icon name="lucide:loader-2" class="w-8 h-8 animate-spin text-muted-foreground" />
     </div>
 
-    <div v-else-if="workflow" class="flex-1 overflow-y-auto p-8">
-      <div class="max-w-4xl mx-auto space-y-8">
+    <div v-else-if="workflow" class="flex-1 overflow-y-auto p-4 md:p-8 pb-safe">
+      <div class="max-w-4xl mx-auto space-y-6 md:space-y-8">
         <!-- Basic Info -->
         <Card>
           <CardHeader>
             <CardTitle>基本信息</CardTitle>
           </CardHeader>
           <CardContent class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="space-y-2">
                 <Label>名称</Label>
                 <Input v-model="workflow.name" placeholder="推送名称" />
@@ -435,6 +445,15 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
           </div>
         </div>
       </div>
+
+      <!-- 移动端悬浮保存按钮 -->
+      <AppBottomActions class="md:hidden">
+        <Button class="flex-1" :disabled="isSaving" @click="handleSave">
+          <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-else name="lucide:save" class="w-4 h-4 mr-2" />
+          保存推送
+        </Button>
+      </AppBottomActions>
     </div>
   </div>
 </template>

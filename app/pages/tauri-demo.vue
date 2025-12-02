@@ -113,11 +113,11 @@ async function testStore() {
 </script>
 
 <template>
-  <div class="min-h-screen p-8">
+  <div class="min-h-screen p-4 md:p-8 pt-safe pb-safe">
     <div class="max-w-4xl mx-auto">
       <!-- 标题 -->
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-foreground mb-4">
+      <div class="text-center mb-6 md:mb-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-foreground mb-4">
           Tauri 插件演示
         </h1>
         <NuxtLink

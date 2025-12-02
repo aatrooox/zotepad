@@ -136,8 +136,8 @@ onBeforeUpdate(() => {
 
 <template>
   <div class="h-full flex flex-col bg-background/50">
-    <!-- Header -->
-    <div class="px-8 py-6 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <!-- Header - 桌面端完整显示，移动端精简 -->
+    <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-foreground">
           所有笔记
@@ -151,8 +151,17 @@ onBeforeUpdate(() => {
       </Button>
     </div>
 
+    <!-- Mobile Header -->
+    <div class="flex md:hidden px-4 py-3 items-center justify-between border-b border-border/40">
+      <span class="text-sm text-muted-foreground">{{ notes.length }} 篇笔记</span>
+      <Button size="sm" class="rounded-full" @click="handleCreate">
+        <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
+        新建
+      </Button>
+    </div>
+
     <!-- List -->
-    <div class="flex-1 overflow-y-auto p-8">
+    <div class="flex-1 overflow-y-auto p-4 md:p-8">
       <div v-if="notes.length === 0" class="h-[60vh] flex flex-col items-center justify-center text-muted-foreground space-y-6 animate-in fade-in zoom-in duration-500">
         <div class="w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center mb-4">
           <Icon name="lucide:file-plus" class="w-10 h-10 opacity-40" />

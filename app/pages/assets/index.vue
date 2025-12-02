@@ -103,7 +103,8 @@ onMounted(() => {
 
 <template>
   <div class="h-full flex flex-col bg-background/50">
-    <div class="px-8 py-6 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <!-- Desktop Header -->
+    <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-foreground">
           资源库
@@ -120,7 +121,17 @@ onMounted(() => {
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleUpload">
     </div>
 
-    <div class="flex-1 overflow-y-auto p-8">
+    <!-- Mobile Header -->
+    <div class="flex md:hidden px-4 py-3 items-center justify-between border-b border-border/40">
+      <span class="text-sm text-muted-foreground">{{ assets.length }} 个文件</span>
+      <Button size="sm" :disabled="isUploading" @click="triggerUpload">
+        <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
+        <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+        上传
+      </Button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-8 pb-safe">
       <div v-if="assets.length === 0" class="h-[60vh] flex flex-col items-center justify-center text-muted-foreground">
         <Icon name="lucide:image" class="w-12 h-12 opacity-20 mb-4" />
         <p>暂无图片</p>

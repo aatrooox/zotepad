@@ -273,7 +273,7 @@ async function handleRunWorkflow(workflow: Workflow) {
 
 <template>
   <div class="h-screen flex flex-col bg-background overflow-hidden">
-    <div class="flex-1 overflow-y-auto p-6 space-y-8">
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 pb-safe">
       <!-- Editor Section -->
       <div class="bg-card border rounded-xl shadow-sm overflow-hidden">
         <div class="h-[200px]">

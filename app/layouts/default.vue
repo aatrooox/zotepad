@@ -8,6 +8,24 @@ const { width } = useWindowSize()
 const isMobile = computed(() => width.value < 768)
 const isDrawerOpen = ref(false)
 
+const route = useRoute()
+
+// 根据路由获取页面标题
+const pageTitle = computed(() => {
+  const path = route.path
+  if (path === '/' || path.startsWith('/notes'))
+    return '笔记'
+  if (path.startsWith('/moments'))
+    return '动态'
+  if (path.startsWith('/assets'))
+    return '资源'
+  if (path.startsWith('/workflows'))
+    return '推送'
+  if (path === '/settings')
+    return '设置'
+  return 'ZotePad'
+})
+
 const toggleDrawer = () => {
   isDrawerOpen.value = !isDrawerOpen.value
 }
@@ -178,12 +196,12 @@ const version = config.public.version
     <!-- Main Content -->
     <main class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-background/50">
       <!-- Mobile Header -->
-      <header v-if="isMobile" class="h-16 border-b flex items-center px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 justify-between">
+      <header v-if="isMobile" class="h-14 border-b flex items-center px-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 justify-between pt-safe">
         <div class="flex items-center gap-3">
-          <Button variant="ghost" size="icon" class="rounded-xl" @click="toggleDrawer">
+          <Button variant="ghost" size="icon" class="rounded-xl -ml-2" @click="toggleDrawer">
             <Icon name="lucide:menu" class="w-5 h-5" />
           </Button>
-          <span class="font-bold text-lg tracking-tight">ZotePad</span>
+          <span class="font-bold text-lg tracking-tight">{{ pageTitle }}</span>
         </div>
       </header>
 

@@ -289,17 +289,31 @@ const copyHtml = () => {
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col bg-background">
+  <div class="absolute inset-0 flex flex-col bg-background pt-safe">
     <!-- Header / Toolbar Area -->
-    <header class="border-b px-6 py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0">
-      <div class="flex flex-col flex-1 gap-3 mr-8">
+    <header class="border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0">
+      <div class="flex flex-col flex-1 gap-2 md:gap-3 mr-4 md:mr-8">
+        <!-- 移动端返回按钮 -->
+        <div class="flex items-center gap-2 md:hidden">
+          <Button variant="ghost" size="icon" class="shrink-0 -ml-2" @click="router.push('/')">
+            <Icon name="lucide:arrow-left" class="w-5 h-5" />
+          </Button>
+          <input
+            v-model="title"
+            class="bg-transparent font-bold text-lg focus:outline-none text-foreground placeholder:text-muted-foreground/50 w-full tracking-tight"
+            placeholder="无标题笔记"
+            @input="debouncedSave"
+          >
+        </div>
+        <!-- 桌面端标题 -->
         <input
           v-model="title"
-          class="bg-transparent font-bold text-2xl focus:outline-none text-foreground placeholder:text-muted-foreground/50 w-full tracking-tight"
+          class="hidden md:block bg-transparent font-bold text-2xl focus:outline-none text-foreground placeholder:text-muted-foreground/50 w-full tracking-tight"
           placeholder="无标题笔记"
           @input="debouncedSave"
         >
-        <div class="flex items-center gap-2 flex-wrap">
+        <!-- 标签区域 - 移动端隐藏 -->
+        <div class="hidden md:flex items-center gap-2 flex-wrap">
           <Badge
             v-for="tag in tags"
             :key="tag"
@@ -321,11 +335,11 @@ const copyHtml = () => {
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1 md:gap-2">
         <Button
           variant="ghost"
           size="sm"
-          class="text-muted-foreground hover:text-foreground"
+          class="text-muted-foreground hover:text-foreground hidden md:flex"
           @click="copyHtml"
         >
           <Icon name="lucide:copy" class="w-4 h-4" />
@@ -373,7 +387,7 @@ const copyHtml = () => {
           </DialogContent>
         </Dialog>
 
-        <NuxtLink to="/settings">
+        <NuxtLink to="/settings" class="hidden md:block">
           <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground">
             <Icon name="lucide:settings" class="w-5 h-5" />
           </Button>
@@ -382,7 +396,7 @@ const copyHtml = () => {
     </header>
 
     <!-- Editor Area -->
-    <div ref="editorContainerRef" class="flex-1 overflow-hidden bg-background relative">
+    <div ref="editorContainerRef" class="flex-1 overflow-hidden bg-background relative pb-safe">
       <ClientOnly>
         <MdEditor
           v-model="content"

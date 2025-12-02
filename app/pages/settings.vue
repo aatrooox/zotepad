@@ -103,8 +103,9 @@ const saveSettings = async () => {
 
 <template>
   <div class="h-full overflow-y-auto">
-    <div class="container mx-auto p-4 max-w-2xl pb-20">
-      <div class="flex items-center gap-4 mb-6">
+    <div class="container mx-auto p-4 max-w-2xl pb-24 md:pb-20">
+      <!-- 桌面端显示返回按钮和标题 -->
+      <div class="hidden md:flex items-center gap-4 mb-6">
         <NuxtLink to="/">
           <Button variant="outline" size="icon">
             <Icon name="lucide:arrow-left" class="w-4 h-4" />
@@ -210,50 +211,12 @@ const saveSettings = async () => {
           </CardContent>
         </Card>
 
-        <!-- API Configuration -->
-        <!-- <Card>
-          <CardHeader>
-            <CardTitle>API 配置</CardTitle>
-            <CardDescription>配置笔记发送的目标地址。</CardDescription>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="space-y-2">
-              <Label>目标 URL</Label>
-              <Input v-model="apiUrl" placeholder="https://api.example.com/posts" />
-            </div>
+        <Button class="w-full hidden md:flex" @click="saveSettings">
+          保存设置
+        </Button>
+      </div>
 
-            <div class="space-y-2">
-              <Label>请求方法</Label>
-              <Select v-model="apiMethod">
-                <SelectTrigger>
-                  <SelectValue placeholder="选择方法" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="POST">
-                    POST
-                  </SelectItem>
-                  <SelectItem value="PUT">
-                    PUT
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="space-y-2">
-              <Label>请求头 (JSON)</Label>
-              <Textarea v-model="apiHeaders" class="font-mono h-24" />
-            </div>
-
-            <div class="space-y-2">
-              <Label>请求体模板 (JSON)</Label>
-              <p v-pre class="text-xs text-muted-foreground">
-                可用变量: {{ content }}, {{ html }}, {{ title }}
-              </p>
-              <Textarea v-model="apiBodyTemplate" class="font-mono h-32" />
-            </div>
-          </CardContent>
-        </Card> -->
-
+      <div class="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-background/80 backdrop-blur-md border-t border-border/40 z-50 md:hidden">
         <Button class="w-full" @click="saveSettings">
           保存设置
         </Button>
