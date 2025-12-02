@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.6.3
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.2...v0.6.3)
+
+### 🩹 Fixes
+
+- 尝试修改apk签名问题 ([2df0a5b](https://github.com/aatrooox/zotepad/commit/2df0a5b))
+
+### 🏡 Chore
+
+- **build:** Release v0.6.2 ([2246e78](https://github.com/aatrooox/zotepad/commit/2246e78))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.6.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.1...v0.6.2)
