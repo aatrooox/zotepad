@@ -98,6 +98,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  html, body, #__nuxt {
+    height: 100%;
+    overflow: hidden; /* Prevent body scroll, handle in app */
+  }
 }
 
 @layer components {
@@ -111,10 +116,22 @@
 
   /* 安全区域适配 */
   .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: env(safe-area-inset-top, 20px);
+  }
+  .pt-safe-offset-2 {
+    padding-top: calc(env(safe-area-inset-top, 20px) + 0.5rem);
+  }
+  .pt-safe-offset-4 {
+    padding-top: calc(env(safe-area-inset-top, 20px) + 1rem);
   }
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  .pb-safe-offset-2 {
+    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 0.5rem);
+  }
+  .pb-safe-offset-4 {
+    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 1rem);
   }
   .pl-safe {
     padding-left: env(safe-area-inset-left, 0px);

@@ -8,6 +8,7 @@ import { toast } from 'vue-sonner'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -33,6 +34,7 @@ const { getNote, createNote, updateNote } = useNoteRepository()
 const { getSetting } = useSettingRepository()
 const { getAllWorkflows } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
+const { uploadFile } = useCOSService()
 
 // Workflow state
 const isWorkflowDialogOpen = ref(false)
@@ -286,12 +288,25 @@ const copyHtml = () => {
   copy(htmlContent.value)
   toast.success('HTML 已复制到剪贴板')
 }
+
+const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
+  const uploadPromises = files.map(file => uploadFile(file))
+  try {
+    const results = await Promise.all(uploadPromises)
+    const urls = results.map(r => r.url)
+    callback(urls)
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('图片上传失败')
+  }
+}
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col bg-background pt-safe">
+  <div class="absolute inset-0 flex flex-col bg-background pt-safe-offset-4 md:pt-0">
     <!-- Header / Toolbar Area -->
-    <header class="border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0">
+    <header class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0">
       <div class="flex flex-col flex-1 gap-2 md:gap-3 mr-4 md:mr-8">
         <!-- 移动端返回按钮 -->
         <div class="flex items-center gap-2 md:hidden">
@@ -404,9 +419,11 @@ const copyHtml = () => {
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
+          preview-theme="github"
           :show-code-row="true"
           @on-save="onSave"
           @on-html-changed="onHtmlChanged"
+          @on-upload-img="onUploadImg"
         />
       </ClientOnly>
 

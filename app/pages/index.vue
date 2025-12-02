@@ -152,8 +152,8 @@ onBeforeUpdate(() => {
     </div>
 
     <!-- Mobile Header -->
-    <div class="flex md:hidden px-4 py-3 items-center justify-between border-b border-border/40">
-      <span class="text-sm text-muted-foreground">{{ notes.length }} 篇笔记</span>
+    <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2">
+      <span class="text-lg font-bold tracking-tight">笔记<span class="text-sm font-normal text-muted-foreground ml-1">{{ notes.length }}</span></span>
       <Button size="sm" class="rounded-full" @click="handleCreate">
         <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
         新建
@@ -220,7 +220,7 @@ onBeforeUpdate(() => {
             </NuxtLink>
 
             <!-- Actions -->
-            <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 relative z-10">
+            <div class="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 relative z-10">
               <button
                 class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer"
                 @click.stop.prevent="(e) => handleDelete(note.id, e)"

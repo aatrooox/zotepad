@@ -17,7 +17,6 @@ const router = useRouter()
 const isImportDialogOpen = ref(false)
 const isCreateDialogOpen = ref(false)
 const importJson = ref('')
-const activeTab = ref('workflows')
 const cardsRef = ref<HTMLElement[]>([])
 
 // Create Workflow Form
@@ -136,29 +135,39 @@ const handleImport = async () => {
   }
 }
 
-const handleDelete = async (id: number, event?: Event) => {
-  try {
-    // Animate deletion
-    if (event && event.target) {
-      const target = event.target as HTMLElement
-      const card = target.closest('.workflow-card')
-      if (card) {
-        await gsap.to(card, {
-          opacity: 0,
-          scale: 0.8,
-          duration: 0.2,
-          ease: 'power2.in',
-        })
-      }
-    }
+const handleDelete = (id: number, event?: Event) => {
+  toast('确定要删除该工作流吗？', {
+    action: {
+      label: '删除',
+      onClick: async () => {
+        try {
+          // Animate deletion
+          if (event && event.target) {
+            const target = event.target as HTMLElement
+            const card = target.closest('.workflow-card')
+            if (card) {
+              await gsap.to(card, {
+                opacity: 0,
+                scale: 0.8,
+                duration: 0.2,
+                ease: 'power2.in',
+              })
+            }
+          }
 
-    await deleteWorkflow(id)
-    toast.success('工作流已删除')
-    await loadData()
-  }
-  catch {
-    toast.error('删除工作流失败')
-  }
+          await deleteWorkflow(id)
+          toast.success('工作流已删除')
+          await loadData()
+        }
+        catch {
+          toast.error('删除工作流失败')
+        }
+      },
+    },
+    cancel: {
+      label: '取消',
+    },
+  })
 }
 
 const formatDate = (dateStr?: string) => {
@@ -242,102 +251,84 @@ const formatDate = (dateStr?: string) => {
     </div>
 
     <!-- Mobile Header Actions -->
-    <div class="flex md:hidden px-4 py-3 items-center justify-end gap-2 border-b border-border/40">
-      <Dialog v-model:open="isCreateDialogOpen">
-        <DialogTrigger as-child>
-          <Button size="sm" class="rounded-full" @click="openCreateDialog">
-            <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
-            新建
-          </Button>
-        </DialogTrigger>
-      </Dialog>
-      <Dialog v-model:open="isImportDialogOpen">
-        <DialogTrigger as-child>
-          <Button variant="outline" size="sm" class="rounded-full">
-            <Icon name="lucide:download" class="w-4 h-4" />
-          </Button>
-        </DialogTrigger>
-      </Dialog>
+    <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2">
+      <span class="text-lg font-bold tracking-tight">推送 <span class="text-sm font-normal text-muted-foreground ml-1">{{ workflows.length }}</span></span>
+      <div class="flex items-center gap-2">
+        <Dialog v-model:open="isCreateDialogOpen">
+          <DialogTrigger as-child>
+            <Button size="sm" class="rounded-full" @click="openCreateDialog">
+              <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
+              新建
+            </Button>
+          </DialogTrigger>
+        </Dialog>
+        <Dialog v-model:open="isImportDialogOpen">
+          <DialogTrigger as-child>
+            <Button variant="outline" size="sm" class="rounded-full">
+              <Icon name="lucide:download" class="w-4 h-4" />
+            </Button>
+          </DialogTrigger>
+        </Dialog>
+      </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex-1 overflow-hidden flex flex-col">
-      <Tabs v-model="activeTab" class="flex-1 flex flex-col">
-        <div class="px-8 pt-4 border-b bg-background/50">
-          <TabsList>
-            <TabsTrigger value="workflows">
-              我的推送
-            </TabsTrigger>
-            <!-- <TabsTrigger value="schemas">
-              Schema 管理
-            </TabsTrigger> -->
-          </TabsList>
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-4 md:p-8 pb-safe">
+      <div v-if="workflows.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6">
+        <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4">
+          <Icon name="lucide:workflow" class="w-8 h-8 opacity-40" />
         </div>
+        <div class="text-center space-y-2">
+          <h3 class="text-lg font-semibold text-foreground">
+            暂无推送
+          </h3>
+          <p class="max-w-xs mx-auto text-sm">
+            创建您的第一个推送以自动化任务。
+          </p>
+        </div>
+      </div>
 
-        <div class="flex-1 overflow-y-auto p-4 md:p-8">
-          <TabsContent value="workflows" class="mt-0 h-full">
-            <div v-if="workflows.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6">
-              <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4">
-                <Icon name="lucide:workflow" class="w-8 h-8 opacity-40" />
-              </div>
-              <div class="text-center space-y-2">
-                <h3 class="text-lg font-semibold text-foreground">
-                  暂无推送
-                </h3>
-                <p class="max-w-xs mx-auto text-sm">
-                  创建您的第一个推送以自动化任务。
-                </p>
-              </div>
-            </div>
+      <div v-else class="flex flex-col pb-20 max-w-4xl mx-auto">
+        <div
+          v-for="workflow in workflows"
+          :key="workflow.id"
+          :ref="setCardRef"
+          class="group workflow-card list-item-hover rounded-lg mb-2 border border-transparent hover:border-border/60 bg-card/30"
+        >
+          <div class="flex items-center p-3 md:p-4 gap-3 md:gap-4">
+            <!-- Main Content Link -->
+            <NuxtLink :to="`/workflows/${workflow.id}`" class="flex-1 flex items-center gap-4 min-w-0">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3 mb-1">
+                  <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
+                    {{ workflow.name || '无标题推送' }}
+                  </h3>
+                  <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                    <Icon name="lucide:clock" class="w-3 h-3" />
+                    {{ formatDate(workflow.updated_at) }}
+                  </span>
+                </div>
 
-            <div v-else class="flex flex-col pb-20 max-w-4xl mx-auto">
-              <div
-                v-for="workflow in workflows"
-                :key="workflow.id"
-                :ref="setCardRef"
-                class="group workflow-card list-item-hover rounded-lg mb-2 border border-transparent hover:border-border/60 bg-card/30"
-              >
-                <div class="flex items-center p-3 md:p-4 gap-3 md:gap-4">
-                  <!-- Main Content Link -->
-                  <NuxtLink :to="`/workflows/${workflow.id}`" class="flex-1 flex items-center gap-4 min-w-0">
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-3 mb-1">
-                        <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
-                          {{ workflow.name || '无标题推送' }}
-                        </h3>
-                        <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
-                          <Icon name="lucide:clock" class="w-3 h-3" />
-                          {{ formatDate(workflow.updated_at) }}
-                        </span>
-                      </div>
-
-                      <div class="flex items-center gap-2">
-                        <p class="text-sm text-muted-foreground truncate">
-                          {{ workflow.description || '暂无描述' }}
-                        </p>
-                      </div>
-                    </div>
-                  </NuxtLink>
-
-                  <!-- Actions -->
-                  <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 relative z-10">
-                    <button
-                      class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer"
-                      @click.stop.prevent="(e) => handleDelete(workflow.id, e)"
-                    >
-                      <Icon name="lucide:trash-2" class="w-4 h-4" />
-                    </button>
-                  </div>
+                <div class="flex items-center gap-2">
+                  <p class="text-sm text-muted-foreground truncate">
+                    {{ workflow.description || '暂无描述' }}
+                  </p>
                 </div>
               </div>
-            </div>
-          </TabsContent>
+            </NuxtLink>
 
-          <!-- <TabsContent value="schemas" class="mt-0">
-            <SchemaList />
-          </TabsContent> -->
+            <!-- Actions -->
+            <div class="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 relative z-10">
+              <button
+                class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer"
+                @click.stop.prevent="(e) => handleDelete(workflow.id, e)"
+              >
+                <Icon name="lucide:trash-2" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
-      </Tabs>
+      </div>
     </div>
   </div>
 </template>

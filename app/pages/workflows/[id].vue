@@ -228,9 +228,9 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background/50 pt-safe">
+  <div class="h-full flex flex-col bg-background/50 pt-safe-offset-4 md:pt-0">
     <!-- Header -->
-    <div class="px-4 md:px-8 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <div class="px-4 md:px-8 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md md:border-b md:border-border/40 md:mt-0">
       <div class="flex items-center gap-2 md:gap-4">
         <Button variant="ghost" size="icon" @click="router.back()">
           <Icon name="lucide:arrow-left" class="w-5 h-5" />

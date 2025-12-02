@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { WorkflowEnv } from '~/composables/repositories/useEnvironmentRepository'
 import { toast } from 'vue-sonner'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 
@@ -55,16 +56,26 @@ const handleAddEnv = async () => {
   }
 }
 
-const handleDeleteEnv = async (id: number) => {
-  try {
-    await deleteEnv(id)
-    await loadEnvs()
-    toast.success('环境变量已删除')
-  }
-  catch (e) {
-    console.error(e)
-    toast.error('删除失败')
-  }
+const handleDeleteEnv = (id: number) => {
+  toast('确定要删除该环境变量吗？', {
+    action: {
+      label: '删除',
+      onClick: async () => {
+        try {
+          await deleteEnv(id)
+          await loadEnvs()
+          toast.success('环境变量已删除')
+        }
+        catch (e) {
+          console.error(e)
+          toast.error('删除失败')
+        }
+      },
+    },
+    cancel: {
+      label: '取消',
+    },
+  })
 }
 
 onMounted(async () => {
@@ -103,6 +114,11 @@ const saveSettings = async () => {
 
 <template>
   <div class="h-full overflow-y-auto">
+    <!-- Mobile Header -->
+    <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2 shrink-0">
+      <span class="text-lg font-bold tracking-tight">设置</span>
+    </div>
+
     <div class="container mx-auto p-4 max-w-2xl pb-24 md:pb-20">
       <!-- 桌面端显示返回按钮和标题 -->
       <div class="hidden md:flex items-center gap-4 mb-6">
@@ -117,107 +133,131 @@ const saveSettings = async () => {
       </div>
 
       <div class="space-y-6">
-        <!-- COS Settings -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="flex items-center gap-2">
-              <Icon name="lucide:cloud" class="w-5 h-5" />
-              腾讯云 COS 设置
-            </CardTitle>
-            <CardDescription>配置对象存储以支持图片上传功能。</CardDescription>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="grid gap-2">
-              <Label>SecretId</Label>
-              <Input v-model="cosSecretId" type="password" placeholder="AKID..." />
-            </div>
-            <div class="grid gap-2">
-              <Label>SecretKey</Label>
-              <Input v-model="cosSecretKey" type="password" placeholder="SecretKey..." />
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="grid gap-2">
-                <Label>Bucket</Label>
-                <Input v-model="cosBucket" placeholder="example-1250000000" />
+        <Accordion type="multiple" collapsible class="w-full">
+          <!-- COS Settings -->
+          <AccordionItem value="cos">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="flex items-center gap-2 text-base font-semibold">
+                <Icon name="lucide:cloud" class="w-5 h-5" />
+                腾讯云 COS 设置
               </div>
-              <div class="grid gap-2">
-                <Label>Region</Label>
-                <Input v-model="cosRegion" placeholder="ap-guangzhou" />
-              </div>
-            </div>
-            <div class="grid gap-2">
-              <Label>路径前缀 (可选)</Label>
-              <Input v-model="cosPathPrefix" placeholder="zotepad/images" />
-              <p class="text-xs text-muted-foreground">
-                上传文件的存储路径前缀，留空则存放在根目录。
-              </p>
-            </div>
-            <div class="grid gap-2">
-              <Label>自定义域名 (可选)</Label>
-              <Input v-model="cosCustomDomain" placeholder="https://cdn.example.com" />
-              <p class="text-xs text-muted-foreground">
-                配置后将使用此域名生成图片链接，请确保包含协议头 (http/https)。
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- Custom CSS -->
-        <Card>
-          <CardHeader>
-            <CardTitle>自定义 CSS</CardTitle>
-            <CardDescription>应用自定义样式到预览和导出的 HTML。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Textarea v-model="customCss" placeholder="/* 在此处输入自定义 CSS */" class="font-mono h-32" />
-          </CardContent>
-        </Card>
-
-        <!-- Environment Variables -->
-        <Card>
-          <CardHeader>
-            <CardTitle>环境变量 (Secrets)</CardTitle>
-            <CardDescription>
-              配置敏感信息（如 API Key）。在推送配置中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="flex gap-2">
-              <Input v-model="newEnvKey" placeholder="键 (如 FEISHU_TOKEN)" class="flex-1" />
-              <Input v-model="newEnvValue" type="password" placeholder="值" class="flex-1" />
-              <Button @click="handleAddEnv">
-                添加
-              </Button>
-            </div>
-
-            <div v-if="envs.length > 0" class="border rounded-md divide-y">
-              <div v-for="env in envs" :key="env.id" class="flex items-center justify-between p-3 text-sm">
-                <div class="font-mono font-medium">
-                  {{ env.key }}
-                </div>
-                <div class="flex items-center gap-4">
-                  <div class="text-muted-foreground">
-                    ******
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>配置对象存储以支持图片上传功能。</CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-4 px-0 pb-2">
+                  <div class="grid gap-2">
+                    <Label>SecretId</Label>
+                    <Input v-model="cosSecretId" type="password" placeholder="AKID..." />
                   </div>
-                  <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="handleDeleteEnv(env.id)">
-                    <Icon name="lucide:trash-2" class="w-4 h-4" />
-                  </Button>
-                </div>
+                  <div class="grid gap-2">
+                    <Label>SecretKey</Label>
+                    <Input v-model="cosSecretKey" type="password" placeholder="SecretKey..." />
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="grid gap-2">
+                      <Label>Bucket</Label>
+                      <Input v-model="cosBucket" placeholder="example-1250000000" />
+                    </div>
+                    <div class="grid gap-2">
+                      <Label>Region</Label>
+                      <Input v-model="cosRegion" placeholder="ap-guangzhou" />
+                    </div>
+                  </div>
+                  <div class="grid gap-2">
+                    <Label>路径前缀 (可选)</Label>
+                    <Input v-model="cosPathPrefix" placeholder="zotepad/images" />
+                    <p class="text-xs text-muted-foreground">
+                      上传文件的存储路径前缀，留空则存放在根目录。
+                    </p>
+                  </div>
+                  <div class="grid gap-2">
+                    <Label>自定义域名 (可选)</Label>
+                    <Input v-model="cosCustomDomain" placeholder="https://cdn.example.com" />
+                    <p class="text-xs text-muted-foreground">
+                      配置后将使用此域名生成图片链接，请确保包含协议头 (http/https)。
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <!-- Custom CSS -->
+          <AccordionItem value="css">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="text-base font-semibold">
+                自定义 CSS
               </div>
-            </div>
-            <div v-else class="text-sm text-muted-foreground text-center py-2">
-              暂无环境变量
-            </div>
-          </CardContent>
-        </Card>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>应用自定义样式到预览和导出的 HTML。</CardDescription>
+                </CardHeader>
+                <CardContent class="px-0 pb-2">
+                  <Textarea v-model="customCss" placeholder="/* 在此处输入自定义 CSS */" class="font-mono h-32" />
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <!-- Environment Variables -->
+          <AccordionItem value="env">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="text-base font-semibold">
+                环境变量 (Secrets)
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>
+                    配置敏感信息（如 API Key）。在推送配置中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-4 px-0 pb-2">
+                  <div class="flex gap-2">
+                    <Input v-model="newEnvKey" placeholder="键 (如 FEISHU_TOKEN)" class="flex-1" />
+                    <Input v-model="newEnvValue" type="password" placeholder="值" class="flex-1" />
+                    <Button @click="handleAddEnv">
+                      添加
+                    </Button>
+                  </div>
+
+                  <div v-if="envs.length > 0" class="border rounded-md divide-y">
+                    <div v-for="env in envs" :key="env.id" class="flex items-center justify-between p-3 text-sm">
+                      <div class="font-mono font-medium">
+                        {{ env.key }}
+                      </div>
+                      <div class="flex items-center gap-4">
+                        <div class="text-muted-foreground">
+                          ******
+                        </div>
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="handleDeleteEnv(env.id)">
+                          <Icon name="lucide:trash-2" class="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-sm text-muted-foreground text-center py-2">
+                    暂无环境变量
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
         <Button class="w-full hidden md:flex" @click="saveSettings">
           保存设置
         </Button>
       </div>
 
-      <div class="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-background/80 backdrop-blur-md border-t border-border/40 z-50 md:hidden">
-        <Button class="w-full" @click="saveSettings">
+      <div class="fixed bottom-20 left-4 right-4 z-40 md:hidden">
+        <Button class="w-full shadow-lg" @click="saveSettings">
           保存设置
         </Button>
       </div>

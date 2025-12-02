@@ -122,8 +122,8 @@ onMounted(() => {
     </div>
 
     <!-- Mobile Header -->
-    <div class="flex md:hidden px-4 py-3 items-center justify-between border-b border-border/40">
-      <span class="text-sm text-muted-foreground">{{ assets.length }} 个文件</span>
+    <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2">
+      <span class="text-lg font-bold tracking-tight">资源 <span class="text-sm font-normal text-muted-foreground ml-1">{{ assets.length }}</span></span>
       <Button size="sm" :disabled="isUploading" @click="triggerUpload">
         <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
         <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
@@ -141,16 +141,16 @@ onMounted(() => {
         <div v-for="asset in assets" :key="asset.id" class="group relative aspect-square bg-card rounded-lg overflow-hidden border shadow-sm">
           <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy">
 
-          <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <Button variant="secondary" size="icon" class="h-8 w-8" title="复制链接" @click="copyUrl(asset.url)">
-              <Icon name="lucide:copy" class="w-4 h-4" />
+          <div class="absolute top-1 right-1 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+            <Button variant="secondary" size="icon" class="h-7 w-7 bg-background/80 backdrop-blur-sm" title="复制链接" @click="copyUrl(asset.url)">
+              <Icon name="lucide:copy" class="w-3.5 h-3.5" />
             </Button>
-            <Button variant="destructive" size="icon" class="h-8 w-8" title="删除" @click="handleDelete(asset.id)">
-              <Icon name="lucide:trash-2" class="w-4 h-4" />
+            <Button variant="destructive" size="icon" class="h-7 w-7 opacity-90" title="删除" @click="handleDelete(asset.id)">
+              <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
             </Button>
           </div>
 
-          <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
             {{ asset.filename }}
           </div>
         </div>

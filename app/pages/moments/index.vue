@@ -273,6 +273,11 @@ async function handleRunWorkflow(workflow: Workflow) {
 
 <template>
   <div class="h-screen flex flex-col bg-background overflow-hidden">
+    <!-- Mobile Header -->
+    <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2 shrink-0">
+      <span class="text-lg font-bold tracking-tight">动态 <span class="text-sm font-normal text-muted-foreground ml-1">{{ moments.length }}</span></span>
+    </div>
+
     <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 pb-safe">
       <!-- Editor Section -->
       <div class="bg-card border rounded-xl shadow-sm overflow-hidden">
@@ -281,6 +286,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <MdEditor
               v-model="content"
               theme="light"
+              preview-theme="github"
               class="!h-full w-full"
               :toolbars="toolbars"
               :preview="false"
@@ -328,7 +334,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <Button variant="ghost" size="sm" class="gap-2" :disabled="isUploading" @click="open()">
               <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
               <Icon v-else name="lucide:image" class="w-4 h-4" />
-              <span>{{ isUploading ? '上传中...' : '添加图片' }}</span>
+              <span>{{ isUploading ? '上传中...' : '上传图片' }}</span>
             </Button>
           </div>
           <Button :disabled="isPublishing || (!content.trim() && images.length === 0)" @click="handlePublish">
@@ -365,7 +371,7 @@ async function handleRunWorkflow(workflow: Workflow) {
           </div>
 
           <div class="prose prose-sm dark:prose-invert max-w-none mb-3">
-            <MdPreview :model-value="moment.content" />
+            <MdPreview :model-value="moment.content" preview-theme="github" />
           </div>
 
           <!-- Moment Images -->

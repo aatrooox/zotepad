@@ -1,4 +1,4 @@
-import { attachConsole, debug, error as pluginError, info, trace, warn } from '@tauri-apps/plugin-log'
+import { attachConsole, debug, info, error as pluginError, trace, warn } from '@tauri-apps/plugin-log'
 
 /**
  * 日志级别枚举
