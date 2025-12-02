@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.8.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.8.0...v0.8.1)
+
+### 🩹 Fixes
+
+- 移动端推送没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
+
+### 🏡 Chore
+
+- **build:** Release v0.8.0 ([ccf4e30](https://github.com/aatrooox/zotepad/commit/ccf4e30))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.8.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.7.0...v0.8.0)
