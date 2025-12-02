@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.7.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.5...v0.7.0)
+
+### 🚀 Enhancements
+
+- 优化交互效果; 优化体验 ([9617d73](https://github.com/aatrooox/zotepad/commit/9617d73))
+
+### 🏡 Chore
+
+- **build:** Release v0.6.5 ([da05fc4](https://github.com/aatrooox/zotepad/commit/da05fc4))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.6.5
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.4...v0.6.5)
