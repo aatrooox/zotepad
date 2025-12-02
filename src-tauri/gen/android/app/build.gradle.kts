@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -28,26 +29,43 @@ android {
     var releaseSigningConfigured = false
     signingConfigs {
         create("release") {
-            val envStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val envStorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
             if (envStorePath != null) {
-                storeFile = file(envStorePath)
-                storePassword = System.getenv("ANDROID_STORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-                releaseSigningConfigured = true
-                println("Configured release signing from environment variables")
-            } else {
-                val keystoreFile = rootProject.file("keystore.properties")
-                if (keystoreFile.exists()) {
+                val envStoreFile = File(envStorePath)
+                if (envStoreFile.exists()) {
+                    storeFile = envStoreFile
+                    storePassword = System.getenv("ANDROID_STORE_PASSWORD")
+                    keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                    keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                    releaseSigningConfigured = true
+                    println("Configured release signing from ANDROID_KEYSTORE_PATH=${envStoreFile.absolutePath}")
+                } else {
+                    println("ANDROID_KEYSTORE_PATH is set but file not found at ${envStoreFile.absolutePath}")
+                }
+            }
+
+            if (!releaseSigningConfigured) {
+                val candidateFiles = listOf(
+                    rootProject.file("keystore.properties"),
+                    rootProject.file("../keystore.properties"),
+                    rootProject.file("../../keystore.properties")
+                )
+                val keystoreFile = candidateFiles.firstOrNull { it.exists() }
+                if (keystoreFile != null) {
                     val props = Properties()
                     props.load(keystoreFile.inputStream())
                     keyAlias = props.getProperty("keyAlias")
                     keyPassword = props.getProperty("keyPassword")
-                    storeFile = file(props.getProperty("storeFile"))
+                    val storePath = props.getProperty("storeFile") ?: ""
+                    val resolvedStoreFile = File(storePath).let { candidate ->
+                        if (candidate.isAbsolute) candidate else File(keystoreFile.parentFile, storePath)
+                    }
+                    storeFile = resolvedStoreFile
                     storePassword = props.getProperty("storePassword")
                     releaseSigningConfigured = true
+                    println("Configured release signing from ${keystoreFile.absolutePath}")
                 } else {
-                    println("Release keystore not found at ${keystoreFile.absolutePath}, skipping signing config")
+                    println("Release keystore not found in expected locations, skipping signing config")
                 }
             }
         }
