@@ -264,6 +264,10 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
         <Button variant="ghost" size="icon" :disabled="isSaving" @click="loadData">
           <Icon name="lucide:rotate-ccw" class="w-4 h-4" />
         </Button>
+        <Button variant="ghost" size="icon" :disabled="isSaving" @click="handleSave">
+          <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+          <Icon v-else name="lucide:save" class="w-4 h-4" />
+        </Button>
       </div>
     </div>
 
@@ -447,13 +451,6 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
       </div>
 
       <!-- 移动端悬浮保存按钮 -->
-      <AppBottomActions class="md:hidden">
-        <Button class="flex-1" :disabled="isSaving" @click="handleSave">
-          <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-          <Icon v-else name="lucide:save" class="w-4 h-4 mr-2" />
-          保存推送
-        </Button>
-      </AppBottomActions>
     </div>
   </div>
 </template>
