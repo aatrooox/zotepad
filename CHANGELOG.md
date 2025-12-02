@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.6.4
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.3...v0.6.4)
+
+### 🩹 Fixes
+
+- 尝试修复api签名问题 ([a39d5f3](https://github.com/aatrooox/zotepad/commit/a39d5f3))
+
+### 🏡 Chore
+
+- **build:** Release v0.6.3 ([566717e](https://github.com/aatrooox/zotepad/commit/566717e))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.6.3
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.6.2...v0.6.3)
