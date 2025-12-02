@@ -39,6 +39,7 @@ jobs:
   build:
     needs: check-commit
     if: needs.check-commit.outputs.should-build == 'true'
+    environment: release
     permissions:
       contents: write
     strategy:
