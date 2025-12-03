@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.9.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.8.1...v0.9.0)
+
+### 🚀 Enhancements
+
+- 移植博客站的导出微信公众号功能; 支持 mermaid 导出 ([229e909](https://github.com/aatrooox/zotepad/commit/229e909))
+
+### 🩹 Fixes
+
+- 移动端推送没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
+- 优化公众号html的复制 ([b208d7c](https://github.com/aatrooox/zotepad/commit/b208d7c))
+- 优化代码块显示效果 ([e15af46](https://github.com/aatrooox/zotepad/commit/e15af46))
+- 优化待办列表显示效果 ([0d2c03f](https://github.com/aatrooox/zotepad/commit/0d2c03f))
+- 优化公众号内容排版 ([0d8f482](https://github.com/aatrooox/zotepad/commit/0d8f482))
+
+### 🏡 Chore
+
+- **release:** V0.8.1 ([674e0cc](https://github.com/aatrooox/zotepad/commit/674e0cc))
+- **build:** Release v0.8.1 ([dcd51e2](https://github.com/aatrooox/zotepad/commit/dcd51e2))
+- Cargo lock ([b8214e0](https://github.com/aatrooox/zotepad/commit/b8214e0))
+- 修改默认主题为 github ([0feb9be](https://github.com/aatrooox/zotepad/commit/0feb9be))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.8.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.8.0...v0.8.1)
