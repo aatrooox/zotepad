@@ -93,8 +93,7 @@ const STYLE_WHITELIST = [
 
 // 排除的类名
 const EXCLUDE_CLASS_LIST = [
-  'copy-button',
-  'md-editor-code-action',
+  'md-editor-copy-button', // 复制按钮
   'md-editor-icon',
   'md-editor-katex-inline', // 不支持 kateX 公式导出
   'md-editor-katex-block',
@@ -126,14 +125,26 @@ function getSupHtml(content: string): string {
 
 /**
  * 获取单个 DOM 的带内联样式的 HTML (所见即所得模式)
+ * @param node 要处理的节点
+ * @param references 链接引用数组
+ * @param targetStyles 目标样式属性列表
+ * @param isInCodeBlock 是否在代码块内 (用于空格处理)
  */
-function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetStyles?: string[]): string {
+function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetStyles?: string[], isInCodeBlock: boolean = false): string {
   if (!node)
     return ''
 
   // 文本节点
   if (node.nodeType === Node.TEXT_NODE) {
-    return node.nodeValue || ''
+    const text = node.nodeValue || ''
+    // 在代码块内，将空格转换为 &nbsp; 以防止被 HTML 合并
+    // 同时保留换行符
+    if (isInCodeBlock && text) {
+      return text
+        .replace(/ {2}/g, '\u00A0\u00A0') // 连续空格转为 &nbsp;
+        .replace(/^ /gm, '\u00A0') // 行首空格转为 &nbsp;
+    }
+    return text
   }
 
   // 注释节点
@@ -250,7 +261,8 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
   // 特殊处理：对于任务列表项、代码块头部、代码块内容，保留 display 属性以维持布局
   if (el.classList.contains('task-list-item')
     || el.classList.contains('md-editor-code-head')
-    || el.classList.contains('md-editor-code-head-dots')
+    || el.classList.contains('md-editor-code-flag') // 圆点容器
+    || el.classList.contains('md-editor-code-action') // 语言标识容器
     || tagName === 'pre'
     || tagName === 'code') {
     if (!attrsToExtract.includes('display'))
@@ -267,16 +279,14 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   // 特殊处理：代码块头部的圆点需要 height 和 width
   const parent = el.parentElement
-  const isCodeHeadDot = parent && parent.classList.contains('md-editor-code-head-dots') && tagName === 'span'
+  // 注意：实际类名是 md-editor-code-flag，不是 md-editor-code-head-dots
+  const isCodeHeadDot = parent && parent.classList.contains('md-editor-code-flag') && tagName === 'span'
+  // 如果是代码块头部的圆点，直接返回固定样式的 span，避免样式丢失
   if (isCodeHeadDot) {
-    if (!attrsToExtract.includes('height'))
-      attrsToExtract.push('height')
-    if (!attrsToExtract.includes('width'))
-      attrsToExtract.push('width')
-    if (!attrsToExtract.includes('display'))
-      attrsToExtract.push('display')
-    if (!attrsToExtract.includes('margin-right'))
-      attrsToExtract.push('margin-right')
+    const computedDotStyle = window.getComputedStyle(el)
+    const bgColor = computedDotStyle.backgroundColor || '#ff5f56'
+    // 强制设置圆点样式：固定 12px 圆形，带背景色和右间距
+    return `<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: ${bgColor}; margin-right: 8px;"></span>`
   }
 
   attrsToExtract.forEach((attr) => {
@@ -310,6 +320,17 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
         value = 'break-all'
       if (attr === 'overflow-x')
         value = 'auto'
+    }
+
+    // code 标签也需要保留空格
+    if (outTagName === 'code') {
+      if (attr === 'white-space')
+        value = 'pre-wrap'
+    }
+
+    // 微信公众号不支持 grid 布局，转换为 flex
+    if (attr === 'display' && value === 'grid') {
+      value = 'flex'
     }
 
     if (value) {
@@ -373,6 +394,109 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     }
   }
 
+  // 代码块头部特殊处理 (grid -> flex 布局兼容)
+  if (el.classList.contains('md-editor-code-head')) {
+    // 确保使用 flex 布局
+    const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+    if (displayIdx > -1)
+      styles.splice(displayIdx, 1)
+    styles.push('display: flex')
+    // 强制横向排列
+    const flexDirIdx = styles.findIndex(s => s.startsWith('flex-direction:'))
+    if (flexDirIdx > -1)
+      styles.splice(flexDirIdx, 1)
+    styles.push('flex-direction: row')
+    // 左右分布
+    if (!styles.some(s => s.startsWith('justify-content:'))) {
+      styles.push('justify-content: space-between')
+    }
+    // 垂直居中
+    if (!styles.some(s => s.startsWith('align-items:'))) {
+      styles.push('align-items: center')
+    }
+    // 移除固定宽度，让内容自适应
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    styles.push('width: 100%')
+    // 强制高度为紧凑的小细条
+    const heightIdx = styles.findIndex(s => s.startsWith('height:'))
+    if (heightIdx > -1)
+      styles.splice(heightIdx, 1)
+    // 移除可能导致高度问题的 line-height
+    const lineHeightIdx = styles.findIndex(s => s.startsWith('line-height:'))
+    if (lineHeightIdx > -1)
+      styles.splice(lineHeightIdx, 1)
+    styles.push('height: 32px')
+    styles.push('line-height: 32px')
+    styles.push('padding: 0 12px')
+  }
+
+  // 代码块头部的圆点容器特殊处理
+  if (el.classList.contains('md-editor-code-flag')) {
+    // 移除固定宽度，使用自适应
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    styles.push('width: auto')
+    // 确保是 flex
+    const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+    if (displayIdx > -1)
+      styles.splice(displayIdx, 1)
+    styles.push('display: flex')
+    styles.push('align-items: center')
+    styles.push('flex-direction: row')
+  }
+
+  // 代码块头部的语言标识容器特殊处理
+  if (el.classList.contains('md-editor-code-action')) {
+    // 移除固定宽度，使用自适应
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    styles.push('width: auto')
+    // 确保是 flex 横向排列
+    const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+    if (displayIdx > -1)
+      styles.splice(displayIdx, 1)
+    styles.push('display: flex')
+    styles.push('align-items: center')
+    styles.push('flex-direction: row')
+  }
+
+  // 语言标识 span 特殊处理
+  if (el.classList.contains('md-editor-code-lang')) {
+    // 移除固定宽度
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    styles.push('width: auto')
+    // 确保横向显示
+    const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+    if (displayIdx > -1)
+      styles.splice(displayIdx, 1)
+    styles.push('display: inline-block')
+    // 调整行高
+    const lineHeightIdx = styles.findIndex(s => s.startsWith('line-height:'))
+    if (lineHeightIdx > -1)
+      styles.splice(lineHeightIdx, 1)
+    styles.push('line-height: 1')
+  }
+
+  // code 标签特殊处理 (确保空格和换行保留)
+  if (outTagName === 'code') {
+    if (!styles.some(s => s.startsWith('white-space:'))) {
+      styles.push('white-space: pre-wrap')
+    }
+  }
+
+  // pre 标签特殊处理 (确保空格和换行保留)
+  if (outTagName === 'pre') {
+    if (!styles.some(s => s.startsWith('white-space:'))) {
+      styles.push('white-space: pre-wrap')
+    }
+  }
+
   // 图片特殊处理
   if (outTagName === 'img') {
     styles.push('max-width: 100% !important')
@@ -385,6 +509,9 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   const styleStr = styles.join(';')
 
+  // 判断当前是否在代码块内 (pre 或 code)
+  const currentIsCodeBlock = isInCodeBlock || ['pre', 'code'].includes(outTagName)
+
   // 递归处理子元素
   let childrenHtml = ''
   if (el.childNodes && el.childNodes.length > 0) {
@@ -395,10 +522,10 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
       // 这里我们采用更智能的策略：如果父级是 pre/code，子级 span (通常是高亮) 只保留颜色和字体样式
       let childTargetStyles: string[] | undefined
       if (['pre', 'code'].includes(outTagName) && child.nodeName === 'SPAN') {
-        childTargetStyles = ['color', 'font-weight', 'font-style', 'text-decoration', 'background-color']
+        childTargetStyles = ['color', 'font-weight', 'font-style', 'text-decoration', 'background-color', 'white-space']
       }
 
-      childrenHtml += getOneDomCssStyle(child, references, childTargetStyles)
+      childrenHtml += getOneDomCssStyle(child, references, childTargetStyles, currentIsCodeBlock)
     })
   }
   else {
