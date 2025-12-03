@@ -360,7 +360,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <div class="text-sm text-muted-foreground">
               {{ new Date(moment.created_at!).toLocaleString() }}
             </div>
-            <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex gap-2  transition-opacity">
               <Button variant="ghost" size="icon" class="h-8 w-8" @click="openWorkflowDialog(moment)">
                 <Icon name="lucide:workflow" class="w-4 h-4 text-primary" />
               </Button>
@@ -371,7 +371,7 @@ async function handleRunWorkflow(workflow: Workflow) {
           </div>
 
           <div class="prose prose-sm dark:prose-invert max-w-none mb-3">
-            <MdPreview :model-value="moment.content" preview-theme="github" />
+            <MdPreview :model-value="moment.content" preview-theme="github" :code-foldable="false" />
           </div>
 
           <!-- Moment Images -->

@@ -15,6 +15,6 @@ useHead({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    <Toaster class="pointer-events-auto" />
+    <Toaster class="pointer-events-auto" rich-colors theme="light" :duration="2500" />
   </div>
 </template>

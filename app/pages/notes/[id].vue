@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
 import type { Workflow } from '~/types/workflow'
+import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useClipboard, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor } from 'md-editor-v3'
@@ -10,6 +11,7 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
+import { copyToClipboard, getWeChatStyledHTML } from '~/utils/wechat-formatter'
 import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
@@ -289,6 +291,39 @@ const copyHtml = () => {
   toast.success('HTML 已复制到剪贴板')
 }
 
+const copyWeChatHtml = async () => {
+  if (!htmlContent.value) {
+    toast.error('没有可复制的内容')
+    return
+  }
+
+  // 尝试获取编辑器预览区域的 DOM
+  // md-editor-v3 的预览区域通常在 .md-editor-preview
+  const previewDom = document.querySelector('.md-editor-preview') as HTMLElement
+  if (!previewDom) {
+    toast.error('请确保预览模式已打开或内容已加载')
+    return
+  }
+
+  try {
+    const finalHtml = getWeChatStyledHTML(previewDom)
+    // 优先使用 ClipboardItem (支持 text/html 和 text/plain)
+    const success = await copyToClipboard(finalHtml)
+    if (success) {
+      toast.success('微信公众号格式已复制')
+    }
+    else {
+      // 回退到 Tauri 插件
+      await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
+      toast.success('微信公众号格式已复制 (Tauri)')
+    }
+  }
+  catch (e) {
+    console.error('WeChat copy failed', e)
+    toast.error('格式化复制失败')
+  }
+}
+
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
   const uploadPromises = files.map(file => uploadFile(file))
   try {
@@ -355,15 +390,26 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           variant="ghost"
           size="sm"
           class="text-muted-foreground hover:text-foreground hidden md:flex"
+          title="复制 HTML"
           @click="copyHtml"
         >
           <Icon name="lucide:copy" class="w-4 h-4" />
         </Button>
 
+        <Button
+          variant="ghost"
+          size="sm"
+          class="text-muted-foreground hover:text-foreground hidden md:flex"
+          title="复制为微信公众号格式"
+          @click="copyWeChatHtml"
+        >
+          <Icon name="ri:wechat-fill" class="w-4 h-4" />
+        </Button>
+
         <Dialog v-model:open="isWorkflowDialogOpen">
           <DialogTrigger as-child>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               :disabled="isRunningWorkflow"
               class="gap-2"
@@ -419,7 +465,8 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
-          preview-theme="github"
+          preview-theme="smart-blue"
+          :code-foldable="false"
           :show-code-row="true"
           @on-save="onSave"
           @on-html-changed="onHtmlChanged"
