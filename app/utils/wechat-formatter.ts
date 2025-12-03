@@ -77,16 +77,16 @@ const STYLE_WHITELIST = [
   'margin-right',
   'margin-bottom',
   'margin-left',
-  'display',
+  // 'display', // 移除 display，防止 flex 布局复制导致缺少对齐属性错乱
   'width',
   'max-width',
-  'height',
+  // 'height', // 移除 height，防止高度固定导致内容溢出
   'list-style-type',
   'list-style-position',
   'white-space',
   'word-break',
   'overflow-x',
-  'vertical-align',
+  // 'vertical-align', // 移除 vertical-align，防止基线对齐问题
   'box-sizing',
   'text-size-adjust', // demo
 ]
@@ -96,6 +96,8 @@ const EXCLUDE_CLASS_LIST = [
   'copy-button',
   'md-editor-code-action',
   'md-editor-icon',
+  'md-editor-katex-inline', // 不支持 kateX 公式导出
+  'md-editor-katex-block',
   // 'not-prose', // 排除不需要样式的元素
 ]
 
@@ -108,10 +110,24 @@ const EXCLUDE_CLASS_LIST = [
 // const htmlCache: Record<string, Record<string, string>> = {}
 // const styleValueCache: Record<string, string> = {}
 
+interface LinkReference {
+  text: string
+  url: string
+}
+
+/**
+ * 生成自定义的上标 HTML (用于替代 sup 标签)
+ */
+function getSupHtml(content: string): string {
+  // 微信公众号不支持伪元素(inline style无法定义)，且 position: relative 兼容性不佳
+  // 改用 vertical-align: super 配合 line-height: 0
+  return `<span style="font-size: 0.75em; vertical-align: super; line-height: 0; margin: 0 2px;">${content}</span>`
+}
+
 /**
  * 获取单个 DOM 的带内联样式的 HTML (所见即所得模式)
  */
-function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
+function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetStyles?: string[]): string {
   if (!node)
     return ''
 
@@ -137,7 +153,24 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
   if (tagName === 'input' && (el.getAttribute('type') === 'checkbox' || el.classList.contains('task-list-item-checkbox'))) {
     const isChecked = el.hasAttribute('checked') || (el as HTMLInputElement).checked
     // 使用 emoji 替代 checkbox
-    return `<span style="display: inline-block; margin-right: 4px; vertical-align: middle;">${isChecked ? '✅' : '⬜'}</span>`
+    // 强制使用 inline-block 并微调位置，确保在 flex 容器中也能正常显示
+    // 使用 center 对齐
+    return `<span style="display: inline-block; margin-right: 6px; line-height: 1; font-size: 1.1em;">${isChecked ? '✅' : '⬜'}</span>`
+  }
+
+  // sup 标签处理 (使用自定义样式替代)
+  if (tagName === 'sup') {
+    // 递归处理子元素以保留内部样式
+    let childrenHtml = ''
+    if (el.hasChildNodes()) {
+      Array.from(el.childNodes).forEach((child) => {
+        childrenHtml += getOneDomCssStyle(child, references)
+      })
+    }
+    else {
+      childrenHtml = el.innerHTML
+    }
+    return getSupHtml(childrenHtml)
   }
 
   // Mermaid 图表处理 (转为图片)
@@ -181,7 +214,7 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
     if (el.hasChildNodes()) {
       let childrenHtml = ''
       Array.from(el.childNodes).forEach((child) => {
-        childrenHtml += getOneDomCssStyle(child)
+        childrenHtml += getOneDomCssStyle(child, references)
       })
       return childrenHtml
     }
@@ -193,17 +226,58 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
     outTagName = 'section'
   }
 
-  // 缓存检查 (基于 outerHTML，注意：如果 outerHTML 包含动态内容可能不准，但在静态渲染后通常没问题)
-  // 为了准确性，这里只对没有子元素的简单元素做缓存，或者谨慎使用
-  // demo 中是直接使用 outerHTML 做 key。
-  // 这里为了稳妥，暂时不启用激进缓存，因为 outerHTML 包含 class，但我们可能需要重新计算 style
-
+  // 链接处理 (a -> span + sup)
+  let linkSupHtml = ''
+  if (outTagName === 'a') {
+    const href = el.getAttribute('href')
+    // 简单的外部链接判断 (包含 http 且不是锚点)
+    if (href && (href.startsWith('http') || href.startsWith('//'))) {
+      const text = el.textContent || ''
+      references.push({ text, url: href })
+      const index = references.length
+      linkSupHtml = getSupHtml(`[${index}]`)
+      // 将 a 标签转换为 span，保留样式但移除链接功能
+      outTagName = 'span'
+    }
+  }
   // 获取计算样式
   const computedStyle = window.getComputedStyle(el)
   const styles: string[] = []
 
   // 确定要提取的属性列表
-  const attrsToExtract = (targetStyles && targetStyles.length > 0) ? targetStyles : STYLE_WHITELIST
+  const attrsToExtract = (targetStyles && targetStyles.length > 0) ? targetStyles : [...STYLE_WHITELIST]
+
+  // 特殊处理：对于任务列表项、代码块头部、代码块内容，保留 display 属性以维持布局
+  if (el.classList.contains('task-list-item')
+    || el.classList.contains('md-editor-code-head')
+    || el.classList.contains('md-editor-code-head-dots')
+    || tagName === 'pre'
+    || tagName === 'code') {
+    if (!attrsToExtract.includes('display'))
+      attrsToExtract.push('display')
+    if (!attrsToExtract.includes('align-items'))
+      attrsToExtract.push('align-items')
+    if (!attrsToExtract.includes('justify-content'))
+      attrsToExtract.push('justify-content')
+    if (!attrsToExtract.includes('flex-direction'))
+      attrsToExtract.push('flex-direction')
+    if (!attrsToExtract.includes('flex-wrap'))
+      attrsToExtract.push('flex-wrap')
+  }
+
+  // 特殊处理：代码块头部的圆点需要 height 和 width
+  const parent = el.parentElement
+  const isCodeHeadDot = parent && parent.classList.contains('md-editor-code-head-dots') && tagName === 'span'
+  if (isCodeHeadDot) {
+    if (!attrsToExtract.includes('height'))
+      attrsToExtract.push('height')
+    if (!attrsToExtract.includes('width'))
+      attrsToExtract.push('width')
+    if (!attrsToExtract.includes('display'))
+      attrsToExtract.push('display')
+    if (!attrsToExtract.includes('margin-right'))
+      attrsToExtract.push('margin-right')
+  }
 
   attrsToExtract.forEach((attr) => {
     const camelAttr = attr.replace(/-([a-z])/g, g => (g[1] ? g[1].toUpperCase() : ''))
@@ -243,6 +317,62 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
     }
   })
 
+  // 修正：微信公众号对 margin 支持不佳，尝试将块级元素的垂直 margin 转换为 padding
+  // 这样可以避免 margin 合并问题，以及部分情况下 margin 失效导致的内容挤压
+  // if (['p', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(outTagName)) {
+  //   const newStyles: string[] = []
+  //   styles.forEach((s) => {
+  //     if (s.startsWith('margin-top:')) {
+  //       newStyles.push(s.replace('margin-top:', 'padding-top:'))
+  //     }
+  //     else if (s.startsWith('margin-bottom:')) {
+  //       newStyles.push(s.replace('margin-bottom:', 'padding-bottom:'))
+  //     }
+  //     else {
+  //       newStyles.push(s)
+  //     }
+  //   })
+  //   styles.length = 0
+  //   styles.push(...newStyles)
+  // }
+
+  // 列表特殊处理 (ul/ol)
+  if (outTagName === 'ul' || outTagName === 'ol') {
+    // 确保有上下间距 (使用 padding)
+    if (!styles.some(s => s.startsWith('padding-top:'))) {
+      styles.push('padding-top: 8px')
+    }
+    if (!styles.some(s => s.startsWith('padding-bottom:'))) {
+      styles.push('padding-bottom: 8px')
+    }
+    // 确保左侧有内边距
+    if (!styles.some(s => s.startsWith('padding-left:'))) {
+      styles.push('padding-left: 20px')
+    }
+  }
+
+  // 列表项特殊处理 (li)
+  if (outTagName === 'li') {
+    if (!styles.some(s => s.startsWith('padding-bottom:'))) {
+      styles.push('padding-bottom: 4px')
+    }
+    // 强制移除 list-style，防止任务列表出现双重标记
+    if (el.classList.contains('task-list-item')) {
+      styles.push('list-style: none')
+
+      // 强制 Flex 布局
+      // 先移除可能存在的 display (比如 block)
+      const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+      if (displayIdx > -1)
+        styles.splice(displayIdx, 1)
+      styles.push('display: flex')
+
+      if (!styles.some(s => s.startsWith('align-items:'))) {
+        styles.push('align-items: center')
+      }
+    }
+  }
+
   // 图片特殊处理
   if (outTagName === 'img') {
     styles.push('max-width: 100% !important')
@@ -268,7 +398,7 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
         childTargetStyles = ['color', 'font-weight', 'font-style', 'text-decoration', 'background-color']
       }
 
-      childrenHtml += getOneDomCssStyle(child, childTargetStyles)
+      childrenHtml += getOneDomCssStyle(child, references, childTargetStyles)
     })
   }
   else {
@@ -303,7 +433,8 @@ function getOneDomCssStyle(node: Node, targetStyles?: string[]): string {
     return `<${outTagName} ${attrs.join(' ')} />`
   }
 
-  return `<${outTagName} ${attrs.join(' ')}>${childrenHtml}</${outTagName}>`
+  // 如果是链接，在内容后面追加上标
+  return `<${outTagName} ${attrs.join(' ')}>${childrenHtml}</${outTagName}>${linkSupHtml}`
 }
 
 /**
@@ -325,15 +456,32 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
     background-position: center center;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 16px;
-    line-height: 1.8;
     color: #333;
     word-wrap: break-word;
   `.replace(/\s+/g, ' ').trim()
 
+  const references: LinkReference[] = []
   let contentHtml = ''
   Array.from(rootEl.childNodes).forEach((child) => {
-    contentHtml += getOneDomCssStyle(child)
+    contentHtml += getOneDomCssStyle(child, references)
   })
+
+  // 生成相关链接部分
+  let referencesHtml = ''
+  if (references.length > 0) {
+    const refList = references.map((ref, index) => {
+      return `<li style="margin-bottom: 5px;">[${index + 1}] ${ref.text}: ${ref.url}</li>`
+    }).join('')
+
+    referencesHtml = `
+      <section style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;">
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">相关链接</h3>
+        <ul style="font-size: 14px; color: #666; padding-left: 20px; margin: 0;">
+          ${refList}
+        </ul>
+      </section>
+    `
+  }
 
   const footer = `
     <section style="margin-top: 32px; text-align: center; font-size: 12px; color: #999;">
@@ -341,7 +489,7 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
     </section>
   `
 
-  return `<section style="${containerStyle}">${contentHtml}${footer}</section>`
+  return `<section style="${containerStyle}">${contentHtml}${referencesHtml}${footer}</section>`
 }
 
 /**
