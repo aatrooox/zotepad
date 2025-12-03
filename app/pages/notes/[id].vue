@@ -282,13 +282,14 @@ const onHtmlChanged = (h: string) => {
   htmlContent.value = h
 }
 
-const copyHtml = () => {
-  if (!htmlContent.value) {
+// 复制原始markdown
+const copyMarkdown = () => {
+  if (!content.value) {
     toast.error('没有可复制的内容')
     return
   }
-  copy(htmlContent.value)
-  toast.success('HTML 已复制到剪贴板')
+  copy(content.value)
+  toast.success('Markdown 已复制到剪贴板')
 }
 
 const copyWeChatHtml = async () => {
@@ -390,8 +391,8 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           variant="ghost"
           size="sm"
           class="text-muted-foreground hover:text-foreground hidden md:flex"
-          title="复制 HTML"
-          @click="copyHtml"
+          title="复制 Markdown"
+          @click="copyMarkdown"
         >
           <Icon name="lucide:copy" class="w-4 h-4" />
         </Button>
@@ -465,7 +466,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
-          preview-theme="smart-blue"
+          preview-theme="vuepress"
           :code-foldable="false"
           :show-code-row="true"
           @on-save="onSave"

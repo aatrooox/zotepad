@@ -55,6 +55,7 @@ const STYLE_WHITELIST = [
   'color',
   'text-align',
   'line-height',
+  'letter-spacing', // 字间距
   'text-decoration',
   'background-color',
   'background-image',
@@ -165,7 +166,7 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     const isChecked = el.hasAttribute('checked') || (el as HTMLInputElement).checked
     // 使用 emoji 替代 checkbox
     // 强制使用 inline-flex 并垂直居中，确保在 flex 容器中对齐
-    return `<span style="display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; width: 1.2em; height: 1.2em; font-size: 1em;">${isChecked ? '✅' : '⬜'}</span>`
+    return `<span style="display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; width: 1.2em; height: 1.2em; font-size: 1em;">${isChecked ? '✅' : '❌'}</span>`
   }
 
   // sup 标签处理 (使用自定义样式替代)
@@ -337,38 +338,13 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     }
   })
 
-  // 修正：微信公众号对 margin 支持不佳，尝试将块级元素的垂直 margin 转换为 padding
-  // 这样可以避免 margin 合并问题，以及部分情况下 margin 失效导致的内容挤压
-  // if (['p', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(outTagName)) {
-  //   const newStyles: string[] = []
-  //   styles.forEach((s) => {
-  //     if (s.startsWith('margin-top:')) {
-  //       newStyles.push(s.replace('margin-top:', 'padding-top:'))
-  //     }
-  //     else if (s.startsWith('margin-bottom:')) {
-  //       newStyles.push(s.replace('margin-bottom:', 'padding-bottom:'))
-  //     }
-  //     else {
-  //       newStyles.push(s)
-  //     }
-  //   })
-  //   styles.length = 0
-  //   styles.push(...newStyles)
-  // }
-
-  // 列表特殊处理 (ul/ol)
-  if (outTagName === 'ul' || outTagName === 'ol') {
-    // 确保有上下间距 (使用 padding)
-    if (!styles.some(s => s.startsWith('padding-top:'))) {
-      styles.push('padding-top: 8px')
-    }
-    if (!styles.some(s => s.startsWith('padding-bottom:'))) {
-      styles.push('padding-bottom: 8px')
-    }
-    // 确保左侧有内边距
-    if (!styles.some(s => s.startsWith('padding-left:'))) {
-      styles.push('padding-left: 20px')
-    }
+  // 文本类元素强制添加字间距 (使用 1px 而非 em，兼容性更好)
+  // 需要先移除可能已存在的 letter-spacing，再强制设置
+  if (['p', 'span', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'strong'].includes(outTagName)) {
+    const letterSpacingIdx = styles.findIndex(s => s.startsWith('letter-spacing:'))
+    if (letterSpacingIdx > -1)
+      styles.splice(letterSpacingIdx, 1)
+    styles.push('letter-spacing: 2px')
   }
 
   // 列表项特殊处理 (li)
@@ -500,8 +476,37 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   // 图片特殊处理
   if (outTagName === 'img') {
-    styles.push('max-width: 100% !important')
-    styles.push('height: auto !important')
+    // 获取图片在页面上的实际渲染尺寸
+    const rect = el.getBoundingClientRect()
+    const renderedWidth = rect.width
+    const renderedHeight = rect.height
+
+    // 移除可能存在的固定宽高
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    const heightIdx = styles.findIndex(s => s.startsWith('height:'))
+    if (heightIdx > -1)
+      styles.splice(heightIdx, 1)
+    const maxWidthIdx = styles.findIndex(s => s.startsWith('max-width:'))
+    if (maxWidthIdx > -1)
+      styles.splice(maxWidthIdx, 1)
+
+    // 使用渲染尺寸，但限制最大宽度为100%
+    if (renderedWidth > 0) {
+      styles.push(`width: ${Math.round(renderedWidth)}px`)
+      styles.push(`max-width: 100%`)
+    }
+    else {
+      styles.push('max-width: 100%')
+    }
+    if (renderedHeight > 0) {
+      styles.push(`height: ${Math.round(renderedHeight)}px`)
+    }
+    else {
+      styles.push('height: auto')
+    }
+
     if (!styles.some(s => s.startsWith('display:'))) {
       styles.push('display: block')
       styles.push('margin: 10px auto')
@@ -586,6 +591,7 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
     font-size: 16px;
     color: #333;
     word-wrap: break-word;
+    letter-spacing: 2px;
   `.replace(/\s+/g, ' ').trim()
 
   const references: LinkReference[] = []
