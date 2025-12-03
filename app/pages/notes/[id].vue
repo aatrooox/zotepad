@@ -466,7 +466,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
-          preview-theme="vuepress"
+          preview-theme="github"
           :code-foldable="false"
           :show-code-row="true"
           @on-save="onSave"
