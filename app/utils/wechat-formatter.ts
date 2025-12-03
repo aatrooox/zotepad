@@ -164,9 +164,8 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
   if (tagName === 'input' && (el.getAttribute('type') === 'checkbox' || el.classList.contains('task-list-item-checkbox'))) {
     const isChecked = el.hasAttribute('checked') || (el as HTMLInputElement).checked
     // 使用 emoji 替代 checkbox
-    // 强制使用 inline-block 并微调位置，确保在 flex 容器中也能正常显示
-    // 使用 center 对齐
-    return `<span style="display: inline-block; margin-right: 6px; line-height: 1; font-size: 1.1em;">${isChecked ? '✅' : '⬜'}</span>`
+    // 强制使用 inline-flex 并垂直居中，确保在 flex 容器中对齐
+    return `<span style="display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; width: 1.2em; height: 1.2em; font-size: 1em;">${isChecked ? '✅' : '⬜'}</span>`
   }
 
   // sup 标签处理 (使用自定义样式替代)
@@ -388,9 +387,11 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
         styles.splice(displayIdx, 1)
       styles.push('display: flex')
 
-      if (!styles.some(s => s.startsWith('align-items:'))) {
-        styles.push('align-items: center')
-      }
+      // 强制移除可能存在的 align-items: normal，然后设置为 center
+      const alignIdx = styles.findIndex(s => s.startsWith('align-items:'))
+      if (alignIdx > -1)
+        styles.splice(alignIdx, 1)
+      styles.push('align-items: center')
     }
   }
 
