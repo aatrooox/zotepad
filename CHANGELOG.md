@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.11.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.10.0...v0.11.0)
+
+### 🚀 Enhancements
+
+- 整合文章和动态到一个菜单下; 优化设置里的文案; 修复移动端复制公众号格式 ([eb388a1](https://github.com/aatrooox/zotepad/commit/eb388a1))
+- 桌面端启动时新增一个http服务器 ([63029b7](https://github.com/aatrooox/zotepad/commit/63029b7))
+- 本机ip获取修复; 优化app样式 ([abe19d4](https://github.com/aatrooox/zotepad/commit/abe19d4))
+
+### 🏡 Chore
+
+- **release:** V0.10.0 ([89cee26](https://github.com/aatrooox/zotepad/commit/89cee26))
+- **build:** Release v0.10.0 ([bb692bd](https://github.com/aatrooox/zotepad/commit/bb692bd))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.10.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.9.0...v0.10.0)
