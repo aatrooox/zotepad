@@ -11,7 +11,7 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
-import { copyToClipboard, getWeChatStyledHTML } from '~/utils/wechat-formatter'
+import { copyToClipboard, getWeChatMinimalHTML, getWeChatStyledHTML } from '~/utils/wechat-formatter'
 import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
@@ -337,6 +337,35 @@ const copyWeChatHtml = async () => {
   }
 }
 
+// 精简版复制 - 适用于手机端公众号助手
+const copyWeChatMinimalHtml = async () => {
+  await nextTick()
+
+  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
+  if (!previewDom) {
+    toast.error('预览内容未加载')
+    return
+  }
+
+  try {
+    const finalHtml = getWeChatMinimalHTML(previewDom)
+    const success = await copyToClipboard(finalHtml)
+    if (success) {
+      toast.success('精简版格式已复制（适合手机端）')
+      isWeChatPreviewOpen.value = false
+    }
+    else {
+      await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
+      toast.success('精简版格式已复制 (Tauri)')
+      isWeChatPreviewOpen.value = false
+    }
+  }
+  catch (e) {
+    console.error('WeChat minimal copy failed', e)
+    toast.error('格式化复制失败')
+  }
+}
+
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
   const uploadPromises = files.map(file => uploadFile(file))
   try {
@@ -526,13 +555,22 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         </div>
         <!-- 悬浮在底部的按钮区域 -->
         <div class="shrink-0 border-t bg-background px-4 py-4">
-          <div class="mx-auto flex gap-2" style="max-width: 375px;">
-            <Button class="flex-1" @click="copyWeChatHtml">
-              <Icon name="ri:wechat-fill" class="w-4 h-4 mr-2" />
-              复制到剪贴板
-            </Button>
+          <div class="mx-auto flex flex-col gap-2" style="max-width: 375px;">
+            <div class="flex gap-2">
+              <Button class="flex-1" @click="copyWeChatHtml">
+                <Icon name="ri:wechat-fill" class="w-4 h-4 mr-2" />
+                完整样式
+              </Button>
+              <Button class="flex-1" variant="outline" @click="copyWeChatMinimalHtml">
+                <Icon name="lucide:smartphone" class="w-4 h-4 mr-2" />
+                精简样式
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground text-center">
+              完整样式适合网页端，精简样式适合手机端公众号助手
+            </p>
             <DrawerClose as-child>
-              <Button variant="outline">
+              <Button variant="ghost" size="sm">
                 关闭
               </Button>
             </DrawerClose>

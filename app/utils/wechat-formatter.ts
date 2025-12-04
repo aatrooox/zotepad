@@ -237,6 +237,11 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     outTagName = 'section'
   }
 
+  // h1-h6 -> section (避免移动端编辑器覆盖标题标签的默认样式)
+  if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(outTagName)) {
+    outTagName = 'section'
+  }
+
   // 链接处理 (a -> span + sup)
   let linkSupHtml = ''
   if (outTagName === 'a') {
@@ -340,11 +345,17 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   // 文本类元素强制添加字间距 (使用 1px 而非 em，兼容性更好)
   // 需要先移除可能已存在的 letter-spacing，再强制设置
+  // 同时移除固定宽度，避免预览窗口宽度影响实际显示
   if (['p', 'span', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'strong'].includes(outTagName)) {
     const letterSpacingIdx = styles.findIndex(s => s.startsWith('letter-spacing:'))
     if (letterSpacingIdx > -1)
       styles.splice(letterSpacingIdx, 1)
     styles.push('letter-spacing: 2px')
+
+    // 移除固定宽度，让文本元素自适应容器
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
   }
 
   // 列表项特殊处理 (li)
@@ -624,6 +635,27 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
   `
 
   return `<section style="${containerStyle}">${contentHtml}${referencesHtml}${footer}</section>`
+}
+
+/**
+ * 生成精简版微信公众号格式的 HTML (适用于手机端公众号助手)
+ * 直接复用完整版样式，只是压缩 HTML 移除换行和空白
+ * 手机端编辑器会把 HTML 中的换行当作内容显示
+ */
+export const getWeChatMinimalHTML = (rootEl: HTMLElement): string => {
+  if (!rootEl)
+    return ''
+
+  // 获取完整版 HTML
+  let result = getWeChatStyledHTML(rootEl)
+
+  // 压缩 HTML：移除标签之间的换行和多余空白 (手机端编辑器会把换行当作内容)
+  result = result
+    .replace(/>\s+</g, '><') // 移除标签之间的空白
+    .replace(/\n\s*/g, '') // 移除换行和缩进
+    .trim()
+
+  return result
 }
 
 /**
