@@ -7,7 +7,7 @@ import SchemaList from '~/components/workflow/SchemaList.vue'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
 
-useHead({ title: '推送' })
+useHead({ title: '流' })
 
 const { getAllWorkflows, createWorkflow, deleteWorkflow } = useWorkflowRepository()
 const { getAllSchemas } = useWorkflowSchemaRepository()
@@ -188,7 +188,7 @@ const formatDate = (dateStr?: string) => {
     <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-foreground">
-          推送
+          流
         </h1>
         <p class="text-muted-foreground text-sm mt-1">
           自动化您的任务处理流程
@@ -199,18 +199,18 @@ const formatDate = (dateStr?: string) => {
           <DialogTrigger as-child>
             <Button size="lg" class="rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300" @click="openCreateDialog">
               <Icon name="lucide:plus" class="w-5 h-5 mr-2" />
-              新建推送
+              新建流
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>新建推送</DialogTitle>
-              <DialogDescription>创建一个新的自动化推送。</DialogDescription>
+              <DialogTitle>新建流</DialogTitle>
+              <DialogDescription>创建一个新的自动化流。</DialogDescription>
             </DialogHeader>
             <div class="space-y-4 py-4">
               <div class="space-y-2">
                 <Label>名称</Label>
-                <Input v-model="newWorkflowName" placeholder="推送名称" />
+                <Input v-model="newWorkflowName" placeholder="流名称" />
               </div>
               <div class="space-y-2">
                 <Label>描述</Label>
@@ -237,7 +237,7 @@ const formatDate = (dateStr?: string) => {
 
     <!-- Mobile Header Actions -->
     <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2">
-      <span class="text-lg font-bold tracking-tight">推送 <span class="text-sm font-normal text-muted-foreground ml-1">{{ workflows.length }}</span></span>
+      <span class="text-lg font-bold tracking-tight">流 <span class="text-sm font-normal text-muted-foreground ml-1">{{ workflows.length }}</span></span>
       <div class="flex items-center gap-2">
         <Dialog v-model:open="isCreateDialogOpen">
           <DialogTrigger as-child>
@@ -261,10 +261,10 @@ const formatDate = (dateStr?: string) => {
         </div>
         <div class="text-center space-y-2">
           <h3 class="text-lg font-semibold text-foreground">
-            暂无推送
+            暂无流
           </h3>
           <p class="max-w-xs mx-auto text-sm">
-            创建您的第一个推送以自动化任务。
+            创建您的第一个流以自动化任务。
           </p>
         </div>
       </div>
@@ -282,7 +282,7 @@ const formatDate = (dateStr?: string) => {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-1">
                   <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
-                    {{ workflow.name || '无标题推送' }}
+                    {{ workflow.name || '无标题流' }}
                   </h3>
                   <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
                     <Icon name="lucide:clock" class="w-3 h-3" />
@@ -316,8 +316,8 @@ const formatDate = (dateStr?: string) => {
       <DrawerContent>
         <div class="mx-auto w-full max-w-sm">
           <DrawerHeader>
-            <DrawerTitle>导入推送</DrawerTitle>
-            <DrawerDescription>在下方粘贴推送 JSON。</DrawerDescription>
+            <DrawerTitle>导入流</DrawerTitle>
+            <DrawerDescription>在下方粘贴流 JSON。</DrawerDescription>
           </DrawerHeader>
           <div class="p-4 pb-0">
             <Textarea v-model="importJson" placeholder="{ ... }" class="font-mono text-xs min-h-[200px] max-h-[50vh] overflow-y-auto" />

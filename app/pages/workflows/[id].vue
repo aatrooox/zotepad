@@ -237,7 +237,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
         </Button>
         <div>
           <h1 class="text-lg md:text-xl font-bold tracking-tight text-foreground">
-            编辑推送
+            编辑流
           </h1>
         </div>
       </div>
@@ -287,7 +287,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="space-y-2">
                 <Label>名称</Label>
-                <Input v-model="workflow.name" placeholder="推送名称" />
+                <Input v-model="workflow.name" placeholder="流名称" />
               </div>
               <!-- <div class="space-y-2">
                 <Label>关联 Schema (可选)</Label>

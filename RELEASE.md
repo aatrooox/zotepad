@@ -19,7 +19,7 @@ pnpm quick-release major   # 0.1.1 -> 1.0.0
 脚本会自动：
 1. 同步更新所有文件的版本号
 2. 使用 changelogen 更新版本号、生成 changelog 并创建 GitHub release
-3. 推送更改到远程仓库
+3. 流更改到远程仓库
 4. 触发 GitHub Actions 构建并将构建产物上传到现有 release
 
 ## 自动发版流程
@@ -30,14 +30,14 @@ pnpm quick-release major   # 0.1.1 -> 1.0.0
 # 更新版本号（可选）
 # 编辑 src-tauri/tauri.conf.json 中的 version 字段
 
-# 创建并推送标签
+# 创建并流标签
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
 ### 2. 自动构建
 
-推送标签后，GitHub Actions 会自动触发构建流程：
+流标签后，GitHub Actions 会自动触发构建流程：
 
 - **macOS 构建器**：构建 Universal macOS DMG（支持 Intel 和 Apple Silicon）
 - **Ubuntu 构建器**：构建 Android APK（ARM64 架构）

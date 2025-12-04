@@ -22,7 +22,7 @@ use tauri::{AppHandle, Emitter};
 #[cfg(not(mobile))]
 use tokio::sync::Mutex;
 #[cfg(not(mobile))]
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 // HTTP Server 状态，持有 Tauri AppHandle
 #[cfg(not(mobile))]
@@ -47,12 +47,34 @@ struct SendNotificationRequest {
     body: String,
 }
 
+// 健康检查响应结构
+#[cfg(not(mobile))]
+#[derive(Serialize)]
+struct HealthCheckData {
+    message: String,
+    timestamp: u64,
+    server_ip: String,
+}
+
 // 健康检查端点
 #[cfg(not(mobile))]
-async fn health_check() -> Json<ApiResponse<String>> {
+async fn health_check() -> Json<ApiResponse<HealthCheckData>> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    
+    let server_ip = get_local_ip_internal();
+    
     Json(ApiResponse {
         success: true,
-        data: Some("ZotePad HTTP Server is running".to_string()),
+        data: Some(HealthCheckData {
+            message: "ZotePad HTTP Server is running".to_string(),
+            timestamp,
+            server_ip,
+        }),
         message: None,
     })
 }
@@ -110,13 +132,12 @@ async fn emit_event(
 // 启动 HTTP 服务器 (仅桌面端)
 #[cfg(not(mobile))]
 async fn start_http_server(app_handle: AppHandle, port: u16) {
+    use axum::http::{header, HeaderValue, Method};
+    
     let state = Arc::new(Mutex::new(HttpServerState { app_handle }));
 
-    // 配置 CORS
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // 配置 CORS - 使用 permissive() 完全开放
+    let cors = CorsLayer::permissive();
 
     // 构建路由
     let app = Router::new()
@@ -127,11 +148,84 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
         .layer(cors)
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", port);
-    log::info!("Starting HTTP server on http://{}", addr);
+    // 监听 0.0.0.0 以允许局域网访问
+    let addr = format!("0.0.0.0:{}", port);
+    let local_ip = get_local_ip_internal();
+    log::info!("Starting HTTP server on http://{}:{}", local_ip, port);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+// 获取本机局域网 IP（内部函数）
+#[cfg(not(mobile))]
+fn get_local_ip_internal() -> String {
+    use std::net::UdpSocket;
+    
+    // 方法1: 尝试通过连接外部地址获取本地 IP
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                let ip = addr.ip().to_string();
+                // 过滤掉代理软件的虚拟网卡 IP (198.18.x.x 是 Clash 等代理常用的)
+                if !ip.starts_with("198.18.") && !ip.starts_with("169.254.") {
+                    return ip;
+                }
+            }
+        }
+    }
+    
+    // 方法2: 遍历所有网络接口，查找局域网 IP
+    #[cfg(target_os = "windows")]
+    {
+        // 在 Windows 上尝试用 hostname 命令获取
+        if let Ok(output) = std::process::Command::new("hostname").output() {
+            if let Ok(hostname) = String::from_utf8(output.stdout) {
+                let hostname = hostname.trim();
+                // 尝试通过 DNS 解析本机名
+                if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(&format!("{}:0", hostname)) {
+                    for addr in addrs {
+                        let ip = addr.ip().to_string();
+                        if ip.starts_with("192.168.") || ip.starts_with("10.") || ip.starts_with("172.") {
+                            return ip;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 方法3: 绑定到常见局域网网段测试
+    for prefix in &["192.168.", "10.", "172.16.", "172.17.", "172.18."] {
+        if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+            // 尝试连接到该网段的网关（假设 .1）
+            let test_addr = format!("{}1.1:80", prefix);
+            if socket.connect(&test_addr).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip().to_string();
+                    if ip.starts_with(prefix) {
+                        return ip;
+                    }
+                }
+            }
+        }
+    }
+    
+    "127.0.0.1".to_string()
+}
+
+// Tauri 命令：获取本机局域网 IP
+#[cfg(not(mobile))]
+#[tauri::command]
+fn get_local_ip() -> String {
+    get_local_ip_internal()
+}
+
+// Tauri 命令：获取 HTTP 服务器端口
+#[cfg(not(mobile))]
+#[tauri::command]
+fn get_http_server_port() -> u16 {
+    54577
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -289,6 +383,12 @@ pub fn run() {
                 })
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![
+            #[cfg(not(mobile))]
+            get_local_ip,
+            #[cfg(not(mobile))]
+            get_http_server_port,
+        ])
         .setup(|app| {
             // HTTP 服务器只在桌面端启动
             #[cfg(not(mobile))]

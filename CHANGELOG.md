@@ -27,7 +27,7 @@
 
 ### 🩹 Fixes
 
-- 移动端推送没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
+- 移动端流没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
 - 优化公众号html的复制 ([b208d7c](https://github.com/aatrooox/zotepad/commit/b208d7c))
 - 优化代码块显示效果 ([e15af46](https://github.com/aatrooox/zotepad/commit/e15af46))
 - 优化待办列表显示效果 ([0d2c03f](https://github.com/aatrooox/zotepad/commit/0d2c03f))
@@ -50,7 +50,7 @@
 
 ### 🩹 Fixes
 
-- 移动端推送没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
+- 移动端流没显示保存按钮 ([0a42d03](https://github.com/aatrooox/zotepad/commit/0a42d03))
 
 ### 🏡 Chore
 
@@ -249,7 +249,7 @@
 
 ### 🩹 Fixes
 
-- 推送相关bug修复 ([7ac9f40](https://github.com/aatrooox/zotepad/commit/7ac9f40))
+- 流相关bug修复 ([7ac9f40](https://github.com/aatrooox/zotepad/commit/7ac9f40))
 
 ### 🏡 Chore
 
@@ -265,7 +265,7 @@
 
 ### 🚀 Enhancements
 
-- 完善推送机制 ([8ddfd39](https://github.com/aatrooox/zotepad/commit/8ddfd39))
+- 完善流机制 ([8ddfd39](https://github.com/aatrooox/zotepad/commit/8ddfd39))
 
 ### 🩹 Fixes
 

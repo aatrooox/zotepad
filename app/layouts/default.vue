@@ -133,7 +133,7 @@ const showTabBar = computed(() => {
             ]"
           >
             <Icon name="lucide:workflow" class="w-5 h-5 shrink-0" />
-            <span class="font-medium transition-opacity duration-200" :class="isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 hidden'">推送</span>
+            <span class="font-medium transition-opacity duration-200" :class="isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 hidden'">流</span>
           </NuxtLink>
           <NuxtLink
             to="/settings"

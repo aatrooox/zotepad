@@ -82,14 +82,14 @@ console.log('✅ 版本号更新完成！')
 
 if (autoMode) {
   console.log('🔄 自动执行后续步骤...')
-  console.log('⬆️ 推送到远程仓库...')
+  console.log('⬆️ 流到远程仓库...')
   try {
     execSync('git push --follow-tags', { stdio: 'inherit', cwd: rootDir })
     console.log('🎉 自动发布完成！')
     console.log('📋 GitHub Actions 将自动构建并更新现有 Release')
   }
   catch (error) {
-    console.error('❌ 推送失败', error)
+    console.error('❌ 流失败', error)
     process.exit(1)
   }
 }
@@ -97,7 +97,7 @@ else {
   console.log('')
   console.log('📋 接下来请手动执行以下步骤:')
   console.log('1. 检查生成的 CHANGELOG.md 和 package.json 文件')
-  console.log('2. 推送更改和标签:')
+  console.log('2. 流更改和标签:')
   console.log('   git push --follow-tags')
   console.log('3. GitHub Actions 将自动构建并更新现有 Release')
   console.log('')

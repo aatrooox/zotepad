@@ -53,7 +53,7 @@ const loadWorkflows = async () => {
   }
   catch (e) {
     console.error(e)
-    toast.error('加载推送配置失败')
+    toast.error('加载流配置失败')
   }
 }
 
@@ -67,7 +67,7 @@ const handleRunWorkflow = async (workflow: Workflow) => {
       steps = JSON.parse(workflow.steps)
     }
     catch {
-      toast.error('无效的推送步骤')
+      toast.error('无效的流步骤')
       return
     }
 
@@ -90,21 +90,21 @@ const handleRunWorkflow = async (workflow: Workflow) => {
       }
     }
 
-    toast.info(`正在执行推送: ${workflow.name}`)
+    toast.info(`正在执行流: ${workflow.name}`)
     const result = await runWorkflow(steps, ctx, schemaFields)
 
     // Check for errors in logs
     const errors = result.logs.filter(l => l.status === 'error')
     if (errors.length > 0 && errors[0]) {
-      toast.error(`推送失败: ${errors[0].error}`)
+      toast.error(`流失败: ${errors[0].error}`)
     }
     else {
-      toast.success('推送执行成功')
+      toast.success('流执行成功')
     }
   }
   catch (e: any) {
     console.error(e)
-    toast.error(`推送执行失败: ${e.message}`)
+    toast.error(`流执行失败: ${e.message}`)
   }
   finally {
     isRunningWorkflow.value = false
@@ -434,14 +434,14 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>选择推送目标</DialogTitle>
+              <DialogTitle>选择流目标</DialogTitle>
               <DialogDescription>
-                选择要将此笔记推送到的目标。
+                选择要将此笔记流到的目标。
               </DialogDescription>
             </DialogHeader>
             <div class="py-4 space-y-2 max-h-[60vh] overflow-y-auto">
               <div v-if="workflows.length === 0" class="text-center text-muted-foreground py-4">
-                未找到推送配置。 <NuxtLink to="/workflows" class="text-primary hover:underline">
+                未找到流配置。 <NuxtLink to="/workflows" class="text-primary hover:underline">
                   创建一个
                 </NuxtLink>。
               </div>

@@ -3,17 +3,25 @@ import type { Asset } from '~/types/models'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { toast } from 'vue-sonner'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
+import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useCOSService } from '~/composables/useCOSService'
 
 useHead({ title: '资源库 - ZotePad' })
 
 const { getAllAssets, createAsset, deleteAsset } = useAssetRepository()
 const { uploadFile } = useCOSService()
+const { getSetting, setSetting } = useSettingRepository()
 
 const assets = ref<Asset[]>([])
 const isUploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const viewMode = ref<'grid' | 'list'>('grid')
+
+// 切换视图模式并保存
+const toggleViewMode = async (mode: 'grid' | 'list') => {
+  viewMode.value = mode
+  await setSetting('assets_view_mode', mode, 'ui')
+}
 
 const loadAssets = async () => {
   try {
@@ -110,7 +118,13 @@ const formatFileSize = (bytes?: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载保存的视图模式
+  const savedViewMode = await getSetting('assets_view_mode')
+  if (savedViewMode === 'grid' || savedViewMode === 'list') {
+    viewMode.value = savedViewMode
+  }
+
   loadAssets()
 })
 </script>
@@ -134,7 +148,7 @@ onMounted(() => {
             class="p-2 rounded-md transition-colors"
             :class="viewMode === 'grid' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
             title="网格视图"
-            @click="viewMode = 'grid'"
+            @click="toggleViewMode('grid')"
           >
             <Icon name="lucide:grid-2x2" class="w-4 h-4" />
           </button>
@@ -142,7 +156,7 @@ onMounted(() => {
             class="p-2 rounded-md transition-colors"
             :class="viewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
             title="列表视图"
-            @click="viewMode = 'list'"
+            @click="toggleViewMode('list')"
           >
             <Icon name="lucide:list" class="w-4 h-4" />
           </button>
@@ -164,7 +178,7 @@ onMounted(() => {
         <button
           class="p-2 rounded-md text-muted-foreground hover:text-foreground transition-colors"
           :title="viewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'"
-          @click="viewMode = viewMode === 'grid' ? 'list' : 'grid'"
+          @click="toggleViewMode(viewMode === 'grid' ? 'list' : 'grid')"
         >
           <Icon :name="viewMode === 'grid' ? 'lucide:list' : 'lucide:grid-2x2'" class="w-5 h-5" />
         </button>

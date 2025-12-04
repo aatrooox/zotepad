@@ -83,7 +83,7 @@ function updateVersion(newVersion) {
     console.log('\n下一步:')
     console.log(`1. 提交更改: git add . && git commit -m "chore: bump version to v${newVersion}"`)
     console.log(`2. 创建标签: git tag v${newVersion}`)
-    console.log(`3. 推送标签: git push origin v${newVersion}`)
+    console.log(`3. 流标签: git push origin v${newVersion}`)
     console.log('4. GitHub Actions 将自动构建发布包')
   }
   catch (error) {

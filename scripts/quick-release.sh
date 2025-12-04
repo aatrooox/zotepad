@@ -86,8 +86,8 @@ if [ "$AUTO_MODE" = true ]; then
 
     echo "🔄 自动执行后续步骤..."
     
-    # changelogen 已自动创建标签和 release，只需要推送
-    echo "⬆️ 推送到远程仓库..."
+    # changelogen 已自动创建标签和 release，只需要流
+    echo "⬆️ 流到远程仓库..."
     git push --follow-tags
     
     echo "🎉 自动发布完成！"
@@ -97,7 +97,7 @@ else
     echo ""
     echo "📋 接下来请手动执行以下步骤:"
     echo "1. 检查生成的 CHANGELOG.md 和 package.json 文件"
-    echo "2. 推送更改和标签:"
+    echo "2. 流更改和标签:"
     echo "   git push --follow-tags"
     echo "3. GitHub Actions 将自动构建并更新现有 Release"
     echo ""
