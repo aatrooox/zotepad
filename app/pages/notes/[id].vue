@@ -4,7 +4,7 @@ import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useClipboard, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
-import { MdEditor } from 'md-editor-v3'
+import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
@@ -31,6 +31,10 @@ const htmlContent = ref('')
 const customCss = ref('')
 const editorContainerRef = ref(null)
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+
+// WeChat preview drawer state
+const isWeChatPreviewOpen = ref(false)
+const wechatPreviewRef = ref<HTMLElement | null>(null)
 
 const { getNote, createNote, updateNote } = useNoteRepository()
 const { getSetting } = useSettingRepository()
@@ -292,17 +296,23 @@ const copyMarkdown = () => {
   toast.success('Markdown 已复制到剪贴板')
 }
 
-const copyWeChatHtml = async () => {
-  if (!htmlContent.value) {
+// 打开微信预览 Drawer
+const openWeChatPreview = () => {
+  if (!content.value) {
     toast.error('没有可复制的内容')
     return
   }
+  isWeChatPreviewOpen.value = true
+}
 
-  // 尝试获取编辑器预览区域的 DOM
-  // md-editor-v3 的预览区域通常在 .md-editor-preview
-  const previewDom = document.querySelector('.md-editor-preview') as HTMLElement
+// 从预览 Drawer 中复制 HTML
+const copyWeChatHtml = async () => {
+  // 等待 DOM 更新
+  await nextTick()
+
+  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
   if (!previewDom) {
-    toast.error('请确保预览模式已打开或内容已加载')
+    toast.error('预览内容未加载')
     return
   }
 
@@ -312,11 +322,13 @@ const copyWeChatHtml = async () => {
     const success = await copyToClipboard(finalHtml)
     if (success) {
       toast.success('微信公众号格式已复制')
+      isWeChatPreviewOpen.value = false
     }
     else {
       // 回退到 Tauri 插件
       await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
       toast.success('微信公众号格式已复制 (Tauri)')
+      isWeChatPreviewOpen.value = false
     }
   }
   catch (e) {
@@ -342,8 +354,8 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 <template>
   <div class="absolute inset-0 flex flex-col bg-background pt-safe-offset-4 md:pt-0">
     <!-- Header / Toolbar Area -->
-    <header class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0">
-      <div class="flex flex-col flex-1 gap-2 md:gap-3 mr-4 md:mr-8">
+    <header class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0 gap-2">
+      <div class="flex flex-col flex-1 gap-2 md:gap-3 min-w-0">
         <!-- 移动端返回按钮 -->
         <div class="flex items-center gap-2 md:hidden">
           <Button variant="ghost" size="icon" class="shrink-0 -ml-2" @click="router.push('/')">
@@ -386,11 +398,11 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-1 md:gap-2">
+      <div class="flex items-center gap-1 md:gap-2 shrink-0">
         <Button
           variant="ghost"
-          size="sm"
-          class="text-muted-foreground hover:text-foreground hidden md:flex"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
           title="复制 Markdown"
           @click="copyMarkdown"
         >
@@ -399,10 +411,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
         <Button
           variant="ghost"
-          size="sm"
-          class="text-muted-foreground hover:text-foreground hidden md:flex"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
           title="复制为微信公众号格式"
-          @click="copyWeChatHtml"
+          @click="openWeChatPreview"
         >
           <Icon name="ri:wechat-fill" class="w-4 h-4" />
         </Button>
@@ -411,9 +423,9 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           <DialogTrigger as-child>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               :disabled="isRunningWorkflow"
-              class="gap-2"
+              class="w-8 h-8 md:w-9 md:h-9"
               @click="loadWorkflows"
             >
               <Icon v-if="isRunningWorkflow" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
@@ -449,9 +461,9 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           </DialogContent>
         </Dialog>
 
-        <NuxtLink to="/settings" class="hidden md:block">
-          <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground">
-            <Icon name="lucide:settings" class="w-5 h-5" />
+        <NuxtLink to="/settings">
+          <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9">
+            <Icon name="lucide:settings" class="w-4 h-4 md:w-5 md:h-5" />
           </Button>
         </NuxtLink>
       </div>
@@ -478,6 +490,56 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
       <!-- Save Status Indicator -->
       <AppActionStatusIndicator :status="saveStatus" class="bottom-8 right-4" />
     </div>
+
+    <!-- WeChat Preview Drawer -->
+    <Drawer v-model:open="isWeChatPreviewOpen">
+      <DrawerContent class="max-h-[85vh] flex flex-col">
+        <DrawerHeader class="text-left shrink-0">
+          <DrawerTitle>微信公众号预览</DrawerTitle>
+          <DrawerDescription>预览移动端样式，点击复制按钮将 HTML 复制到剪贴板</DrawerDescription>
+        </DrawerHeader>
+        <div class="flex-1 overflow-y-auto px-4 pb-4">
+          <!-- 居中显示的移动端宽度容器 -->
+          <div class="mx-auto" style="max-width: 850px;">
+            <!-- 模拟手机屏幕外框 -->
+            <div class="bg-muted/30 rounded-2xl p-3 border border-border/50">
+              <!-- 手机顶部状态栏模拟 -->
+              <div class="flex items-center justify-center mb-2">
+                <div class="w-20 h-1 bg-muted-foreground/20 rounded-full" />
+              </div>
+              <!-- 内容区域 -->
+              <div
+                ref="wechatPreviewRef"
+                class="bg-white rounded-xl overflow-hidden shadow-sm p-4"
+              >
+                <ClientOnly>
+                  <MdPreview
+                    :model-value="content"
+                    preview-theme="github"
+                    :code-foldable="false"
+                    class="wechat-preview-content"
+                  />
+                </ClientOnly>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 悬浮在底部的按钮区域 -->
+        <div class="shrink-0 border-t bg-background px-4 py-4">
+          <div class="mx-auto flex gap-2" style="max-width: 375px;">
+            <Button class="flex-1" @click="copyWeChatHtml">
+              <Icon name="ri:wechat-fill" class="w-4 h-4 mr-2" />
+              复制到剪贴板
+            </Button>
+            <DrawerClose as-child>
+              <Button variant="outline">
+                关闭
+              </Button>
+            </DrawerClose>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>
 
@@ -506,5 +568,15 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 .md-editor-toolbar-wrapper {
   border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
+}
+
+/* WeChat Preview Styles */
+.wechat-preview-content {
+  --md-bk-color: #ffffff;
+  --md-color: #333333;
+}
+
+.wechat-preview-content .md-editor-preview-wrapper {
+  padding: 16px !important;
 }
 </style>

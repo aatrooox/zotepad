@@ -13,6 +13,7 @@ const { uploadFile } = useCOSService()
 const assets = ref<Asset[]>([])
 const isUploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const viewMode = ref<'grid' | 'list'>('grid')
 
 const loadAssets = async () => {
   try {
@@ -96,6 +97,19 @@ const triggerUpload = () => {
   fileInput.value?.click()
 }
 
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) {
+    return '未知大小'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 onMounted(() => {
   loadAssets()
 })
@@ -113,22 +127,53 @@ onMounted(() => {
           {{ assets.length }} 个文件
         </p>
       </div>
-      <Button :disabled="isUploading" @click="triggerUpload">
-        <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-        <Icon v-else name="lucide:upload" class="w-4 h-4 mr-2" />
-        上传图片
-      </Button>
+      <div class="flex items-center gap-2">
+        <!-- View Mode Toggle -->
+        <div class="flex items-center bg-muted/50 rounded-lg p-1">
+          <button
+            class="p-2 rounded-md transition-colors"
+            :class="viewMode === 'grid' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            title="网格视图"
+            @click="viewMode = 'grid'"
+          >
+            <Icon name="lucide:grid-2x2" class="w-4 h-4" />
+          </button>
+          <button
+            class="p-2 rounded-md transition-colors"
+            :class="viewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            title="列表视图"
+            @click="viewMode = 'list'"
+          >
+            <Icon name="lucide:list" class="w-4 h-4" />
+          </button>
+        </div>
+        <Button :disabled="isUploading" @click="triggerUpload">
+          <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-else name="lucide:upload" class="w-4 h-4 mr-2" />
+          上传图片
+        </Button>
+      </div>
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleUpload">
     </div>
 
     <!-- Mobile Header -->
     <div class="flex md:hidden px-4 pb-3 pt-safe-offset-4 items-center justify-between mt-2">
       <span class="text-lg font-bold tracking-tight">资源 <span class="text-sm font-normal text-muted-foreground ml-1">{{ assets.length }}</span></span>
-      <Button size="sm" :disabled="isUploading" @click="triggerUpload">
-        <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
-        <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
-        上传
-      </Button>
+      <div class="flex items-center gap-2">
+        <!-- View Mode Toggle -->
+        <button
+          class="p-2 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+          :title="viewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'"
+          @click="viewMode = viewMode === 'grid' ? 'list' : 'grid'"
+        >
+          <Icon :name="viewMode === 'grid' ? 'lucide:list' : 'lucide:grid-2x2'" class="w-5 h-5" />
+        </button>
+        <Button size="sm" :disabled="isUploading" @click="triggerUpload">
+          <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
+          <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+          上传
+        </Button>
+      </div>
     </div>
 
     <div class="flex-1 overflow-y-auto p-4 md:p-8 pb-safe">
@@ -137,7 +182,8 @@ onMounted(() => {
         <p>暂无图片</p>
       </div>
 
-      <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <!-- Grid View -->
+      <div v-else-if="viewMode === 'grid'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div v-for="asset in assets" :key="asset.id" class="group relative aspect-square bg-card rounded-lg overflow-hidden border shadow-sm">
           <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy">
 
@@ -152,6 +198,40 @@ onMounted(() => {
 
           <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
             {{ asset.filename }}
+          </div>
+        </div>
+      </div>
+
+      <!-- List View -->
+      <div v-else class="flex flex-col gap-2 max-w-4xl mx-auto">
+        <div
+          v-for="asset in assets"
+          :key="asset.id"
+          class="group flex items-center gap-4 p-3 bg-card rounded-lg border hover:border-border/60 transition-colors"
+        >
+          <!-- Thumbnail -->
+          <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
+            <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
+          </div>
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm truncate">
+              {{ asset.filename }}
+            </p>
+            <p class="text-xs text-muted-foreground mt-0.5">
+              {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
+            </p>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyUrl(asset.url)">
+              <Icon name="lucide:copy" class="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleDelete(asset.id)">
+              <Icon name="lucide:trash-2" class="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>

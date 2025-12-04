@@ -2,9 +2,8 @@
 const route = useRoute()
 
 const tabs = [
-  { name: '笔记', icon: 'lucide:file-text', path: '/' },
+  { name: '记录', icon: 'lucide:file-text', path: '/' },
   { name: '资源', icon: 'lucide:image', path: '/assets' },
-  { name: '动态', icon: 'lucide:camera', path: '/moments' },
   { name: '推送', icon: 'lucide:workflow', path: '/workflows' },
   { name: '设置', icon: 'lucide:settings', path: '/settings' },
 ]

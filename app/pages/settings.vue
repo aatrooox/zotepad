@@ -138,14 +138,14 @@ const saveSettings = async () => {
           <AccordionItem value="cos">
             <AccordionTrigger class="hover:no-underline">
               <div class="flex items-center gap-2 text-base font-semibold">
-                <Icon name="lucide:cloud" class="w-5 h-5" />
-                腾讯云 COS 设置
+                <!-- <Icon name="lucide:cloud" class="w-5 h-5" /> -->
+                资源
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
-                  <CardDescription>配置对象存储以支持图片上传功能。</CardDescription>
+                  <CardDescription>配置对象存储（腾讯云COS）以支持图片上传功能。</CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
                   <div class="grid gap-2">
@@ -185,37 +185,18 @@ const saveSettings = async () => {
             </AccordionContent>
           </AccordionItem>
 
-          <!-- Custom CSS -->
-          <AccordionItem value="css">
-            <AccordionTrigger class="hover:no-underline">
-              <div class="text-base font-semibold">
-                自定义 CSS
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Card class="border-0 shadow-none">
-                <CardHeader class="px-0 pt-0">
-                  <CardDescription>应用自定义样式到预览和导出的 HTML。</CardDescription>
-                </CardHeader>
-                <CardContent class="px-0 pb-2">
-                  <Textarea v-model="customCss" placeholder="/* 在此处输入自定义 CSS */" class="font-mono h-32" />
-                </CardContent>
-              </Card>
-            </AccordionContent>
-          </AccordionItem>
-
           <!-- Environment Variables -->
           <AccordionItem value="env">
             <AccordionTrigger class="hover:no-underline">
               <div class="text-base font-semibold">
-                环境变量 (Secrets)
+                推送
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
                   <CardDescription>
-                    配置敏感信息（如 API Key）。在推送配置中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。
+                    配置敏感信息（如 API Key）。在推送、拉取API中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。
                   </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
@@ -245,6 +226,43 @@ const saveSettings = async () => {
                   <div v-else class="text-sm text-muted-foreground text-center py-2">
                     暂无环境变量
                   </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <!-- Custom CSS -->
+          <AccordionItem value="css">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="text-base font-semibold">
+                记录 （开发中）
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>自定义文章样式。</CardDescription>
+                </CardHeader>
+                <CardContent class="px-0 pb-2">
+                  <Textarea v-model="customCss" placeholder="/* 目前还不可用 */" class="font-mono h-32" />
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="system">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="text-base font-semibold">
+                系统设置
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>还没有任何设置</CardDescription>
+                </CardHeader>
+                <CardContent class="px-0 pb-2">
+                  <!-- <Textarea v-model="customCss" placeholder="/* 目前还不可用 */" class="font-mono h-32" /> -->
                 </CardContent>
               </Card>
             </AccordionContent>
