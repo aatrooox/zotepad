@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.12.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.11.0...v0.12.0)
+
+### 🩹 Fixes
+
+- 解决公众号手机端编辑器兼容问题 ([dbd77a1](https://github.com/aatrooox/zotepad/commit/dbd77a1))
+
+### 🏡 Chore
+
+- **build:** Release v0.11.0 ([b44005c](https://github.com/aatrooox/zotepad/commit/b44005c))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.11.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.10.0...v0.11.0)
