@@ -31,6 +31,13 @@ tauri-plugin-store = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-http = "2"
 tauri-plugin-clipboard-manager = "2"
+
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
 version = "2"
+
+# HTTP Server (仅桌面端)
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors"] }
