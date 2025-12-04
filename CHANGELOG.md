@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.10.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.9.0...v0.10.0)
+
+### 🚀 Enhancements
+
+- 整合文章和动态到一个菜单下; 优化设置里的文案; 修复移动端复制公众号格式 ([eb388a1](https://github.com/aatrooox/zotepad/commit/eb388a1))
+
+### 🏡 Chore
+
+- **build:** Release v0.9.0 ([1f22f06](https://github.com/aatrooox/zotepad/commit/1f22f06))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.9.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.8.1...v0.9.0)
