@@ -5,10 +5,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { WORKFLOW_TYPES } from '~/types/workflow'
 
 const { setSetting, getSetting } = useSettingRepository()
 const { getAllEnvs, createEnv, deleteEnv } = useEnvironmentRepository()
-const { createWorkflow, getAllWorkflows, deleteWorkflow } = useWorkflowRepository()
+const { createWorkflow, getAllWorkflows, deleteWorkflow, getSystemWorkflow, upsertSystemWorkflow } = useWorkflowRepository()
 
 // 检测是否在 Tauri 桌面端
 const isTauriDesktop = ref(false)
@@ -274,16 +275,15 @@ const wxMissingEnvs = computed(() => {
   return WX_REQUIRED_ENVS.filter(key => !configuredKeys.includes(key))
 })
 
-// 加载公众号草稿箱配置
+// 加载公众号草稿箱配置（检查系统工作流是否存在）
 async function loadWxConfig() {
-  const workflows = await getAllWorkflows()
-  const wxWorkflow = workflows?.find(w => w.name === WX_WORKFLOW_NAME)
+  const wxWorkflow = await getSystemWorkflow(WORKFLOW_TYPES.SYSTEM_WX_DRAFT)
   if (wxWorkflow) {
     wxWorkflowId.value = wxWorkflow.id
   }
 }
 
-// 创建公众号草稿箱工作流
+// 创建公众号草稿箱工作流（系统工作流，用户不可编辑）
 async function createWxWorkflow() {
   if (wxMissingEnvs.value.length > 0) {
     toast.error(`请先配置环境变量：${wxMissingEnvs.value.join(', ')}`)
@@ -292,16 +292,7 @@ async function createWxWorkflow() {
 
   isCreatingWxWorkflow.value = true
   try {
-    // 检查是否已有该 workflow
-    const workflows = await getAllWorkflows()
-    const existingWorkflow = workflows?.find(w => w.name === WX_WORKFLOW_NAME)
-
-    if (existingWorkflow) {
-      // 如果已存在，删除旧的再创建新的
-      await deleteWorkflow(existingWorkflow.id)
-    }
-
-    // 创建工作流，第一步获取 Access Token
+    // 创建工作流，第一步获取 Access Token，第二步上传素材
     const steps = [
       {
         id: 'get-access-token',
@@ -313,22 +304,59 @@ async function createWxWorkflow() {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
         },
-        // 请求体使用加密数据，在运行时通过脚本处理
         body: JSON.stringify({
-          encrypted: '{{encrypted_wx_credentials}}',
+          appId: '{{env.WX_APPID}}',
+          appSecret: '{{env.WX_APPSECRET}}',
         }),
         timeout: 10000,
       },
+      {
+        id: 'upload-wx-material',
+        name: '🖼️ 上传图片素材',
+        type: 'api',
+        url: 'https://zzao.club/api/v1/wx/cgi-bin/material/add_material',
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer {{env.ZZCLUB_PAT}}',
+        },
+        body: '',
+        timeout: 60000, // 上传可能较慢
+      },
+      {
+        id: 'add-to-wx-draft',
+        name: '📝 上传到草稿箱',
+        type: 'api',
+        url: 'https://zzao.club/api/v1/wx/cgi-bin/draft/add',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
+        },
+        body: JSON.stringify({
+          access_token: '{{step1.data.accessToken}}',
+          articles: [
+            {
+              article_type: 'news',
+              title: '{{title}}',
+              content: '{{html}}',
+              thumb_media_id: '{{step2.data.coverMediaId}}',
+            },
+          ],
+        }),
+        timeout: 30000,
+      },
     ]
 
-    const newId = await createWorkflow(
+    // 使用 upsert 创建或更新系统工作流
+    const newId = await upsertSystemWorkflow(
+      WORKFLOW_TYPES.SYSTEM_WX_DRAFT,
       WX_WORKFLOW_NAME,
-      '上传文章至微信公众号草稿箱（需配置环境变量）',
+      '上传文章至微信公众号草稿箱（系统内置，不可编辑）',
       steps,
     )
     wxWorkflowId.value = newId ?? null
 
-    toast.success('工作流已创建！请在「流」页面查看和测试。')
+    toast.success('工作流已创建！')
   }
   catch (e: any) {
     console.error('Failed to create wx workflow:', e)
@@ -773,39 +801,26 @@ const saveSettings = async () => {
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
                   <CardDescription>
-                    一键创建「上传至公众号草稿箱」工作流。需要先配置相关环境变量。
+                    创建「上传至公众号草稿箱」流。
                   </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
                   <!-- 环境变量状态 -->
                   <div class="space-y-2">
-                    <Label class="text-sm">所需环境变量</Label>
-                    <div class="flex flex-wrap gap-2">
-                      <span
-                        v-for="envKey in WX_REQUIRED_ENVS"
-                        :key="envKey"
-                        class="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono rounded-md"
-                        :class="wxMissingEnvs.includes(envKey)
-                          ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                          : 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20'"
-                      >
-                        <Icon
-                          :name="wxMissingEnvs.includes(envKey) ? 'lucide:x-circle' : 'lucide:check-circle'"
-                          class="w-3 h-3"
-                        />
-                        {{ envKey }}
-                      </span>
-                    </div>
-                    <p v-if="wxMissingEnvs.length > 0" class="text-xs text-destructive">
-                      请先在「环境变量」中配置缺失的变量
-                    </p>
+                    <!-- 缺失变量时显示快速配置入口 -->
+                    <AppMissingEnvDrawer
+                      v-if="wxMissingEnvs.length > 0"
+                      :missing-variables="wxMissingEnvs.map(k => `env.${k}`)"
+                      variant="inline"
+                      @saved="loadEnvs"
+                    />
                   </div>
 
                   <!-- 已创建状态 -->
                   <div v-if="wxWorkflowId" class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                     <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
                       <Icon name="lucide:check-circle" class="w-4 h-4" />
-                      <span class="text-sm font-medium">已创建工作流</span>
+                      <span class="text-sm font-medium">已创建流</span>
                     </div>
                     <p class="text-xs text-muted-foreground mt-1">
                       可在「流」页面找到「{{ WX_WORKFLOW_NAME }}」进行测试和编辑。

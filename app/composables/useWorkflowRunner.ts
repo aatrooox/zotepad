@@ -1,4 +1,5 @@
 import type { ExecutionLog, WorkflowSchemaField, WorkflowStep } from '~/types/workflow'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { debug, info, error as logError } from '@tauri-apps/plugin-log'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useTauriHTTP } from '~/composables/useTauriHTTP'
@@ -7,6 +8,13 @@ import { encryptObjectForServer } from '~/lib/clientCrypto'
 // 需要加密请求体的 API URL
 const ENCRYPTED_API_URLS = [
   'https://zzao.club/api/v1/wx/cgi-bin/token',
+  'http://localhost:4775/api/v1/wx/cgi-bin/token',
+]
+
+// 微信素材上传接口 - 需要特殊处理 (FormData + 遍历 photos)
+const WX_MATERIAL_UPLOAD_URLS = [
+  'https://zzao.club/api/v1/wx/cgi-bin/material/add_material',
+  'http://localhost:4775/api/v1/wx/cgi-bin/material/add_material',
 ]
 
 export interface WorkflowContext {
@@ -168,6 +176,13 @@ export function useWorkflowRunner() {
       await debug(`[Workflow] API Body: ${body.substring(0, 200)}${body.length > 200 ? '...' : ''}`)
     }
 
+    // ============ 微信素材上传特殊处理 ============
+    // 检测到素材上传接口时，遍历 photos 数组逐个上传
+    if (WX_MATERIAL_UPLOAD_URLS.some(apiUrl => url.startsWith(apiUrl))) {
+      await info(`[Workflow] Detected WX material upload API, executing batch upload`)
+      return executeWxMaterialUpload(url, headers, ctx)
+    }
+
     // 检查是否需要加密请求体
     if (body && ENCRYPTED_API_URLS.some(apiUrl => url.startsWith(apiUrl))) {
       await info(`[Workflow] Encrypting request body for secure API`)
@@ -209,7 +224,168 @@ export function useWorkflowRunner() {
     }
 
     await info(`[Workflow] API Response: Success (${response.status})`)
+    await info(`[Workflow] API Response Start ==========================`)
+    await info(JSON.stringify(response.data, null, 2))
+    await info(`[Workflow] API Response EDN ==========================`)
     return response.data
+  }
+
+  /**
+   * 微信素材上传特殊处理
+   * 遍历 photos 数组，将每个图片 URL 下载后转为 FormData 上传到微信
+   * 返回 { uploadedMedia: [...], imageUrlMap: { 原始URL: 微信URL } }
+   */
+  async function executeWxMaterialUpload(
+    apiUrl: string,
+    headers: Record<string, string>,
+    ctx: WorkflowContext,
+  ) {
+    const photos: string[] = ctx.photos || []
+    if (photos.length === 0) {
+      await logError('[Workflow] No photos to upload')
+      throw new Error('No photos available for upload. Please add at least one image.')
+    }
+
+    await info(`[Workflow] Starting WX material upload for ${photos.length} photo(s)`)
+
+    // 获取 access_token (从上一步的输出中获取)
+    const accessToken = ctx.step1?.data?.accessToken
+    if (!accessToken) {
+      await logError('[Workflow] Access token not found in context (step1.data.accessToken)')
+      throw new Error('Access token not found. Please ensure step 1 (get token) completed successfully.')
+    }
+
+    const uploadedMedia: Array<{
+      originalUrl: string
+      mediaId: string
+      wxUrl: string
+      index: number
+    }> = []
+    const imageUrlMap: Record<string, string> = {}
+
+    for (let i = 0; i < photos.length; i++) {
+      const photoUrl = photos[i]
+      if (!photoUrl)
+        continue
+
+      await info(`[Workflow] Uploading photo ${i + 1}/${photos.length}: ${photoUrl.substring(0, 80)}...`)
+
+      try {
+        // 1. 下载远程图片
+        await debug(`[Workflow] Downloading image from: ${photoUrl}`)
+        const imageResponse = await tauriFetch(photoUrl)
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to download image: HTTP ${imageResponse.status}`)
+        }
+
+        const imageBlob = await imageResponse.blob()
+        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+
+        // 从 URL 提取文件名，或使用默认名
+        const urlParts = photoUrl.split('/')
+        let filename = urlParts[urlParts.length - 1] || `image_${i}.jpg`
+        // 移除 query string
+        filename = filename.split('?')[0] || filename
+
+        await debug(`[Workflow] Image downloaded: ${imageBlob.size} bytes, type: ${contentType}, name: ${filename}`)
+
+        // 2. 构建 FormData
+        const formData = new FormData()
+        formData.append('access_token', accessToken)
+        formData.append('type', 'image')
+        // 创建 File 对象
+        const file = new File([imageBlob], filename, { type: contentType })
+        formData.append('media', file)
+
+        // 3. 上传到微信（通过代理服务器）
+        // 注意：这里需要用原生 fetch 因为 FormData 需要自动设置 boundary
+        const uploadHeaders: Record<string, string> = {}
+        // 只保留 Authorization header，Content-Type 由 FormData 自动设置
+        if (headers.Authorization) {
+          uploadHeaders.Authorization = headers.Authorization
+        }
+
+        const uploadResponse = await tauriFetch(apiUrl, {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text()
+          throw new Error(`Upload failed: HTTP ${uploadResponse.status} - ${errorText}`)
+        }
+
+        const result = await uploadResponse.json() as {
+          code?: number
+          message?: string
+          data?: { media_id?: string, url?: string }
+          // 微信原始返回格式可能是这样
+          media_id?: string
+          url?: string
+          errcode?: number
+          errmsg?: string
+        }
+
+        // 调试：打印完整响应
+        await info(`[Workflow] Upload response: ${JSON.stringify(result)}`)
+
+        // 兼容多种返回格式
+        let mediaId: string | undefined
+        let wxUrl: string | undefined
+
+        // 格式1: 代理服务器包装格式 { code, data: { media_id, url } }
+        if (result.data?.media_id) {
+          mediaId = result.data.media_id
+          wxUrl = result.data.url
+        }
+        // 格式2: 微信原始格式 { media_id, url }
+        else if (result.media_id) {
+          mediaId = result.media_id
+          wxUrl = result.url
+        }
+
+        // 检查是否有错误
+        if (result.errcode && result.errcode !== 0) {
+          throw new Error(`WeChat API error: ${result.errcode} - ${result.errmsg || 'Unknown'}`)
+        }
+
+        if (!mediaId) {
+          throw new Error(`Upload API error: No media_id in response. Raw: ${JSON.stringify(result)}`)
+        }
+
+        const finalWxUrl = wxUrl || ''
+
+        uploadedMedia.push({
+          originalUrl: photoUrl,
+          mediaId,
+          wxUrl: finalWxUrl,
+          index: i,
+        })
+        imageUrlMap[photoUrl] = finalWxUrl
+
+        await info(`[Workflow] Photo ${i + 1} uploaded successfully. media_id: ${mediaId}`)
+      }
+      catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err)
+        await logError(`[Workflow] Failed to upload photo ${i + 1}: ${errMsg}`)
+        throw new Error(`Failed to upload photo ${i + 1} (${photoUrl}): ${errMsg}`)
+      }
+    }
+
+    await info(`[Workflow] All ${photos.length} photo(s) uploaded successfully`)
+
+    // 返回上传结果，包含映射关系供后续步骤使用
+    return {
+      code: 200,
+      message: 'All photos uploaded successfully',
+      data: {
+        uploadedMedia,
+        imageUrlMap,
+        coverMediaId: uploadedMedia[0]?.mediaId || '', // 第一张作为封面
+        totalUploaded: uploadedMedia.length,
+      },
+    }
   }
 
   async function executeScriptStep(step: WorkflowStep, ctx: WorkflowContext) {
@@ -272,7 +448,9 @@ export function useWorkflowRunner() {
 
     const logs: ExecutionLog[] = []
 
-    for (const step of steps) {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]!
+      const stepIndex = i + 1 // 索引从 1 开始
       const startTime = Date.now()
       const log: ExecutionLog = {
         stepId: step.id,
@@ -287,12 +465,15 @@ export function useWorkflowRunner() {
         const output = await executeStep(step, currentCtx)
         log.output = output
 
-        // If output is an object, merge it into context
+        // 将步骤输出存储到 step1, step2, ... 中，避免后续步骤覆盖
         if (typeof output === 'object' && output !== null) {
-          currentCtx = { ...currentCtx, ...output }
+          currentCtx = {
+            ...currentCtx,
+            [`step${stepIndex}`]: output,
+          }
         }
 
-        await info(`[Workflow] Step "${step.name}" completed successfully`)
+        await info(`[Workflow] Step "${step.name}" (step${stepIndex}) completed successfully`)
       }
       catch (e: any) {
         log.status = 'error'

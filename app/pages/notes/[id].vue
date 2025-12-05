@@ -6,12 +6,14 @@ import { useClipboard, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
+import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
-import { copyToClipboard, getWeChatMinimalHTML, getWeChatStyledHTML } from '~/utils/wechat-formatter'
+import { WORKFLOW_TYPES } from '~/types/workflow'
+import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
@@ -38,7 +40,8 @@ const wechatPreviewRef = ref<HTMLElement | null>(null)
 
 const { getNote, createNote, updateNote } = useNoteRepository()
 const { getSetting } = useSettingRepository()
-const { getAllWorkflows } = useWorkflowRepository()
+const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
+const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
 
@@ -46,6 +49,37 @@ const { uploadFile } = useCOSService()
 const isWorkflowDialogOpen = ref(false)
 const workflows = ref<Workflow[]>([])
 const isRunningWorkflow = ref(false)
+
+// 微信草稿箱系统工作流状态
+const wxDraftWorkflow = ref<Workflow | null>(null)
+const wxDraftReady = ref(false) // 工作流存在且环境变量已配置
+const isUploadingToDraft = ref(false)
+const WX_REQUIRED_ENVS = ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET']
+
+// 检查微信草稿箱工作流是否可用
+const checkWxDraftWorkflow = async () => {
+  try {
+    // 获取系统工作流
+    const workflow = await getSystemWorkflow(WORKFLOW_TYPES.SYSTEM_WX_DRAFT)
+    wxDraftWorkflow.value = workflow
+
+    if (!workflow) {
+      wxDraftReady.value = false
+      return
+    }
+
+    // 检查环境变量是否已配置
+    const envs = await getAllEnvs() || []
+    const configuredKeys = envs.map(e => e.key)
+    const missingEnvs = WX_REQUIRED_ENVS.filter(key => !configuredKeys.includes(key))
+
+    wxDraftReady.value = missingEnvs.length === 0
+  }
+  catch (e) {
+    console.error('Failed to check wx draft workflow', e)
+    wxDraftReady.value = false
+  }
+}
 
 const loadWorkflows = async () => {
   try {
@@ -238,6 +272,9 @@ onMounted(async () => {
   }
 
   try {
+    // 检查微信草稿箱工作流
+    await checkWxDraftWorkflow()
+
     // Load Custom CSS
     customCss.value = await getSetting('custom_css') || ''
 
@@ -305,38 +342,6 @@ const openWeChatPreview = () => {
   isWeChatPreviewOpen.value = true
 }
 
-// 从预览 Drawer 中复制 HTML
-const copyWeChatHtml = async () => {
-  // 等待 DOM 更新
-  await nextTick()
-
-  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
-  if (!previewDom) {
-    toast.error('预览内容未加载')
-    return
-  }
-
-  try {
-    const finalHtml = getWeChatStyledHTML(previewDom)
-    // 优先使用 ClipboardItem (支持 text/html 和 text/plain)
-    const success = await copyToClipboard(finalHtml)
-    if (success) {
-      toast.success('微信公众号格式已复制')
-      isWeChatPreviewOpen.value = false
-    }
-    else {
-      // 回退到 Tauri 插件
-      await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
-      toast.success('微信公众号格式已复制 (Tauri)')
-      isWeChatPreviewOpen.value = false
-    }
-  }
-  catch (e) {
-    console.error('WeChat copy failed', e)
-    toast.error('格式化复制失败')
-  }
-}
-
 // 精简版复制 - 适用于手机端公众号助手
 const copyWeChatMinimalHtml = async () => {
   await nextTick()
@@ -363,6 +368,82 @@ const copyWeChatMinimalHtml = async () => {
   catch (e) {
     console.error('WeChat minimal copy failed', e)
     toast.error('格式化复制失败')
+  }
+}
+
+// 发送到微信草稿箱
+const sendToWxDraft = async () => {
+  if (!wxDraftWorkflow.value || !wxDraftReady.value) {
+    toast.error('请先在设置中配置微信公众号工作流')
+    return
+  }
+
+  await nextTick()
+
+  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
+  if (!previewDom) {
+    toast.error('预览内容未加载')
+    return
+  }
+
+  isUploadingToDraft.value = true
+  try {
+    // 获取处理后的 HTML 和图片列表
+    const finalHtml = getWeChatMinimalHTML(previewDom)
+
+    // 提取图片 URL
+    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g
+    const photos: string[] = []
+    let match = imgRegex.exec(finalHtml)
+    while (match !== null) {
+      if (match[1]) {
+        photos.push(match[1])
+      }
+      match = imgRegex.exec(finalHtml)
+    }
+
+    // 解析工作流步骤
+    let steps = []
+    try {
+      steps = JSON.parse(wxDraftWorkflow.value.steps)
+    }
+    catch {
+      toast.error('无效的工作流步骤')
+      return
+    }
+    // 如果没图片，给用户传一张zotepad的图作为一种宣传
+    if (photos.length === 0) {
+      photos.push('https://img.zzao.club/zotepad/1764937926926_g2uj75oxn4p.png')
+    }
+    // 构建上下文
+    const ctx = {
+      title: title.value || '无标题',
+      content: content.value,
+      html: finalHtml,
+      photos,
+      tags: tags.value,
+      noteId: noteId.value,
+    }
+
+    toast.info('正在上传到草稿箱...')
+    const result = await runWorkflow(steps, ctx)
+
+    // 检查执行结果
+    const errors = result.logs.filter(l => l.status === 'error')
+    if (errors.length > 0 && errors[0]) {
+      toast.error(`上传失败: ${errors[0].error}`)
+    }
+    else {
+      toast.success('已成功上传到草稿箱！')
+      isWeChatPreviewOpen.value = false
+    }
+  }
+  catch (e: any) {
+    console.error('Failed to send to wx draft', e)
+    toast.error(`上传失败: ${e.message}`)
+  }
+  finally {
+    isUploadingToDraft.value = false
   }
 }
 
@@ -557,18 +638,21 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         <div class="shrink-0 border-t bg-background px-4 py-4">
           <div class="mx-auto flex flex-col gap-2" style="max-width: 375px;">
             <div class="flex gap-2">
-              <Button class="flex-1" @click="copyWeChatHtml">
-                <Icon name="ri:wechat-fill" class="w-4 h-4 mr-2" />
-                完整样式
+              <Button class="flex-1" @click="copyWeChatMinimalHtml">
+                <Icon name="lucide:copy" class="w-4 h-4 mr-2" />
+                复制样式
               </Button>
-              <Button class="flex-1" variant="outline" @click="copyWeChatMinimalHtml">
-                <Icon name="lucide:smartphone" class="w-4 h-4 mr-2" />
-                精简样式
+              <Button
+                class="flex-1"
+                :disabled="!wxDraftReady || isUploadingToDraft"
+                :title="!wxDraftWorkflow ? '请先在设置中生成微信工作流' : !wxDraftReady ? '请先配置所需环境变量' : '发送到微信草稿箱'"
+                @click="sendToWxDraft"
+              >
+                <Icon v-if="isUploadingToDraft" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+                <Icon v-else name="ri:wechat-fill" class="w-4 h-4 mr-2" />
+                发送到草稿箱
               </Button>
             </div>
-            <p class="text-xs text-muted-foreground text-center">
-              完整样式适合网页端，精简样式适合手机端公众号助手
-            </p>
             <DrawerClose as-child>
               <Button variant="ghost" size="sm">
                 关闭

@@ -366,6 +366,12 @@ pub fn run() {
               ",
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 10,
+                            description: "add_type_to_workflows",
+                            sql: "ALTER TABLE workflows ADD COLUMN type TEXT DEFAULT 'user';",
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

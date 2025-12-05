@@ -1,4 +1,4 @@
-import type { Workflow, WorkflowSchema } from '~/types/workflow'
+import type { Workflow, WorkflowSchema, WorkflowType } from '~/types/workflow'
 import { useAsyncState } from '~/utils/async'
 import { useTauriSQL } from '../useTauriSQL'
 
@@ -6,11 +6,11 @@ export function useWorkflowRepository() {
   const { execute, select } = useTauriSQL()
   const { isLoading, error, runAsync } = useAsyncState()
 
-  const createWorkflow = (name: string, description: string, steps: any[], schemaId?: number) =>
+  const createWorkflow = (name: string, description: string, steps: any[], schemaId?: number, type: WorkflowType = 'user') =>
     runAsync(async () => {
       const result = await execute(
-        'INSERT INTO workflows (name, description, steps, schema_id) VALUES (?, ?, ?, ?)',
-        [name, description, JSON.stringify(steps), schemaId || null],
+        'INSERT INTO workflows (name, description, steps, schema_id, type) VALUES (?, ?, ?, ?, ?)',
+        [name, description, JSON.stringify(steps), schemaId || null, type],
       )
       return result.lastInsertId as number
     }, 'Failed to create workflow')
@@ -32,18 +32,15 @@ export function useWorkflowRepository() {
       return workflow || null
     }, 'Failed to get workflow')
 
+  // 获取用户工作流列表（排除系统工作流）
   const getAllWorkflows = () =>
     runAsync(async () => {
-      // Simple fetch, maybe join later if needed for list view
-      // For now, let's do a LEFT JOIN to get schema name if possible, or just fetch workflows
-      // SQLite JSON support is limited for object construction in older versions, so let's keep it simple
-      // or do a manual join in JS if list is small.
-
-      // Let's try a SQL JOIN to get schema data directly if we want to display schema name in list
+      // 只查询非系统工作流（type 不以 'system:' 开头）
       const query = `
         SELECT w.*, s.name as schema_name, s.fields as schema_fields
         FROM workflows w
         LEFT JOIN workflow_schemas s ON w.schema_id = s.id
+        WHERE w.type IS NULL OR w.type = 'user' OR NOT w.type LIKE 'system:%'
         ORDER BY w.updated_at DESC
       `
       const results = await select<any[]>(query)
@@ -56,6 +53,7 @@ export function useWorkflowRepository() {
           description: row.description,
           steps: row.steps,
           schema_id: row.schema_id,
+          type: row.type || 'user',
           created_at: row.created_at,
           updated_at: row.updated_at,
         }
@@ -69,6 +67,45 @@ export function useWorkflowRepository() {
         return wf
       })
     }, 'Failed to list workflows')
+
+  // 根据类型获取系统工作流
+  const getSystemWorkflow = (type: WorkflowType) =>
+    runAsync(async () => {
+      const workflows = await select<Workflow[]>('SELECT * FROM workflows WHERE type = ?', [type])
+      const workflow = workflows[0]
+
+      if (workflow && workflow.schema_id) {
+        const schemas = await select<WorkflowSchema[]>('SELECT * FROM workflow_schemas WHERE id = ?', [workflow.schema_id])
+        if (schemas[0]) {
+          workflow.schema = schemas[0]
+        }
+      }
+
+      return workflow || null
+    }, 'Failed to get system workflow')
+
+  // 创建或更新系统工作流（根据 type 查找，存在则更新，不存在则创建）
+  const upsertSystemWorkflow = (type: WorkflowType, name: string, description: string, steps: any[], schemaId?: number) =>
+    runAsync(async () => {
+      // 先检查是否存在
+      const existing = await select<Workflow[]>('SELECT id FROM workflows WHERE type = ?', [type])
+
+      if (existing.length > 0 && existing[0]) {
+        // 更新现有的
+        await execute(
+          'UPDATE workflows SET name = ?, description = ?, steps = ?, schema_id = ?, updated_at = CURRENT_TIMESTAMP WHERE type = ?',
+          [name, description, JSON.stringify(steps), schemaId || null, type],
+        )
+        return existing[0].id
+      }
+
+      // 创建新的
+      const result = await execute(
+        'INSERT INTO workflows (name, description, steps, schema_id, type) VALUES (?, ?, ?, ?, ?)',
+        [name, description, JSON.stringify(steps), schemaId || null, type],
+      )
+      return result.lastInsertId as number
+    }, 'Failed to upsert system workflow')
 
   const updateWorkflow = (id: number, name: string, description: string, steps: any[], schemaId?: number) =>
     runAsync(() => execute(
@@ -85,6 +122,8 @@ export function useWorkflowRepository() {
     createWorkflow,
     getWorkflow,
     getAllWorkflows,
+    getSystemWorkflow,
+    upsertSystemWorkflow,
     updateWorkflow,
     deleteWorkflow,
   }

@@ -80,24 +80,29 @@ export const SYSTEM_VARIABLES = [
  * 验证变量可用性
  * @param variables 使用的变量列表
  * @param envKeys 已配置的环境变量 key 列表
- * @returns 缺失的变量列表
+ * @returns 缺失的变量列表（仅返回需要用户配置的环境变量）
  */
 export function validateVariables(variables: string[], envKeys: string[]): string[] {
   const missing: string[] = []
 
   variables.forEach((variable) => {
-    // 环境变量格式: env.XXX
+    // 环境变量格式: env.XXX - 需要用户配置
     if (variable.startsWith('env.')) {
       const envKey = variable.slice(4) // 去掉 'env.' 前缀
       if (!envKeys.includes(envKey)) {
         missing.push(variable)
       }
     }
-    // 系统变量
-    else if (!SYSTEM_VARIABLES.includes(variable)) {
-      // 既不是系统变量，也不是 env. 开头，可能是用户写错了
-      missing.push(variable)
+    // 步骤输出变量格式: step1, step1.data.xxx, step2.xxx 等 - 运行时自动产生，忽略
+    else if (/^step\d+/.test(variable)) {
+      // 忽略，这些是上一步骤的输出，运行时会自动注入
     }
+    // 系统变量 - 内置可用
+    else if (SYSTEM_VARIABLES.includes(variable)) {
+      // 忽略，这些是系统内置变量
+    }
+    // 其他未知变量 - 可能是用户写错了，但不在这里报错
+    // 因为可能是用户自定义的上下文变量
   })
 
   return missing

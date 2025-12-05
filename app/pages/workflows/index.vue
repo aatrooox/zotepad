@@ -313,14 +313,6 @@ const formatDate = (dateStr?: string) => {
                     {{ workflow.description || '暂无描述' }}
                   </p>
                 </div>
-
-                <!-- 缺失变量警告 -->
-                <div v-if="getMissingVariables(workflow).length > 0" class="flex items-center gap-1 mt-1">
-                  <Icon name="lucide:alert-triangle" class="w-3 h-3 text-destructive shrink-0" />
-                  <span class="text-xs text-destructive truncate">
-                    缺失变量: {{ getMissingVariables(workflow).join(', ') }}
-                  </span>
-                </div>
               </div>
             </NuxtLink>
 
@@ -333,6 +325,15 @@ const formatDate = (dateStr?: string) => {
                 <Icon name="lucide:trash-2" class="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          <!-- 缺失变量警告 - 放在卡片底部，NuxtLink 外面 -->
+          <div v-if="getMissingVariables(workflow).length > 0" class="px-3 md:px-4 pb-3">
+            <AppMissingEnvDrawer
+              :missing-variables="getMissingVariables(workflow)"
+              variant="inline"
+              @saved="loadData"
+            />
           </div>
         </div>
       </div>
