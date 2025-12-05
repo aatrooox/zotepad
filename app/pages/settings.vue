@@ -33,6 +33,13 @@ const isSavingSyncConfig = ref(false)
 const syncWorkflowId = ref<number | null>(null)
 const SYNC_WORKFLOW_NAME = '🔗 局域网同步测试'
 
+// 公众号草稿箱配置
+const isCreatingWxWorkflow = ref(false)
+const wxWorkflowId = ref<number | null>(null)
+const WX_WORKFLOW_NAME = '📤 上传至公众号草稿箱'
+// 用户需要配置的环境变量（CRYPTO_SECRET_KEY 是项目级别，已在构建时注入）
+const WX_REQUIRED_ENVS = ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET']
+
 // 获取服务器地址
 async function loadServerInfo() {
   if (!isTauriDesktop.value) {
@@ -261,6 +268,102 @@ async function deleteSyncConfig() {
   })
 }
 
+// 检查公众号草稿箱所需环境变量是否已配置
+const wxMissingEnvs = computed(() => {
+  const configuredKeys = envs.value.map(e => e.key)
+  return WX_REQUIRED_ENVS.filter(key => !configuredKeys.includes(key))
+})
+
+// 加载公众号草稿箱配置
+async function loadWxConfig() {
+  const workflows = await getAllWorkflows()
+  const wxWorkflow = workflows?.find(w => w.name === WX_WORKFLOW_NAME)
+  if (wxWorkflow) {
+    wxWorkflowId.value = wxWorkflow.id
+  }
+}
+
+// 创建公众号草稿箱工作流
+async function createWxWorkflow() {
+  if (wxMissingEnvs.value.length > 0) {
+    toast.error(`请先配置环境变量：${wxMissingEnvs.value.join(', ')}`)
+    return
+  }
+
+  isCreatingWxWorkflow.value = true
+  try {
+    // 检查是否已有该 workflow
+    const workflows = await getAllWorkflows()
+    const existingWorkflow = workflows?.find(w => w.name === WX_WORKFLOW_NAME)
+
+    if (existingWorkflow) {
+      // 如果已存在，删除旧的再创建新的
+      await deleteWorkflow(existingWorkflow.id)
+    }
+
+    // 创建工作流，第一步获取 Access Token
+    const steps = [
+      {
+        id: 'get-access-token',
+        name: '🔑 获取微信 Access Token',
+        type: 'api',
+        url: 'https://zzao.club/api/v1/wx/cgi-bin/token',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
+        },
+        // 请求体使用加密数据，在运行时通过脚本处理
+        body: JSON.stringify({
+          encrypted: '{{encrypted_wx_credentials}}',
+        }),
+        timeout: 10000,
+      },
+    ]
+
+    const newId = await createWorkflow(
+      WX_WORKFLOW_NAME,
+      '上传文章至微信公众号草稿箱（需配置环境变量）',
+      steps,
+    )
+    wxWorkflowId.value = newId ?? null
+
+    toast.success('工作流已创建！请在「流」页面查看和测试。')
+  }
+  catch (e: any) {
+    console.error('Failed to create wx workflow:', e)
+    toast.error(`创建失败: ${e.message}`)
+  }
+  finally {
+    isCreatingWxWorkflow.value = false
+  }
+}
+
+// 删除公众号草稿箱配置
+async function deleteWxWorkflow() {
+  toast('确定要删除公众号草稿箱工作流吗？', {
+    action: {
+      label: '删除',
+      onClick: async () => {
+        try {
+          if (wxWorkflowId.value) {
+            await deleteWorkflow(wxWorkflowId.value)
+            wxWorkflowId.value = null
+          }
+          toast.success('工作流已删除')
+        }
+        catch (e: any) {
+          console.error('Failed to delete wx workflow:', e)
+          toast.error(`删除失败: ${e.message}`)
+        }
+      },
+    },
+    cancel: {
+      label: '取消',
+    },
+  })
+}
+
 const loadEnvs = async () => {
   try {
     const result = await getAllEnvs()
@@ -353,6 +456,9 @@ onMounted(async () => {
   if (!isTauriDesktop.value) {
     await loadSyncConfig()
   }
+
+  // 加载公众号草稿箱配置
+  await loadWxConfig()
 })
 
 const saveSettings = async () => {
@@ -650,6 +756,88 @@ const saveSettings = async () => {
                         删除同步配置
                       </Button>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <!-- 公众号草稿箱 -->
+          <AccordionItem value="wechat">
+            <AccordionTrigger class="hover:no-underline">
+              <div class="text-base font-semibold">
+                公众号
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card class="border-0 shadow-none">
+                <CardHeader class="px-0 pt-0">
+                  <CardDescription>
+                    一键创建「上传至公众号草稿箱」工作流。需要先配置相关环境变量。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-4 px-0 pb-2">
+                  <!-- 环境变量状态 -->
+                  <div class="space-y-2">
+                    <Label class="text-sm">所需环境变量</Label>
+                    <div class="flex flex-wrap gap-2">
+                      <span
+                        v-for="envKey in WX_REQUIRED_ENVS"
+                        :key="envKey"
+                        class="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono rounded-md"
+                        :class="wxMissingEnvs.includes(envKey)
+                          ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                          : 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20'"
+                      >
+                        <Icon
+                          :name="wxMissingEnvs.includes(envKey) ? 'lucide:x-circle' : 'lucide:check-circle'"
+                          class="w-3 h-3"
+                        />
+                        {{ envKey }}
+                      </span>
+                    </div>
+                    <p v-if="wxMissingEnvs.length > 0" class="text-xs text-destructive">
+                      请先在「环境变量」中配置缺失的变量
+                    </p>
+                  </div>
+
+                  <!-- 已创建状态 -->
+                  <div v-if="wxWorkflowId" class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <Icon name="lucide:check-circle" class="w-4 h-4" />
+                      <span class="text-sm font-medium">已创建工作流</span>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      可在「流」页面找到「{{ WX_WORKFLOW_NAME }}」进行测试和编辑。
+                    </p>
+                  </div>
+
+                  <!-- 操作按钮 -->
+                  <div class="flex gap-2">
+                    <Button
+                      class="flex-1"
+                      :disabled="isCreatingWxWorkflow || wxMissingEnvs.length > 0"
+                      @click="createWxWorkflow"
+                    >
+                      <Icon
+                        :name="isCreatingWxWorkflow ? 'lucide:loader-2' : 'lucide:plus'"
+                        class="w-4 h-4 mr-1"
+                        :class="{ 'animate-spin': isCreatingWxWorkflow }"
+                      />
+                      {{ wxWorkflowId ? '重新创建工作流' : '创建工作流' }}
+                    </Button>
+                  </div>
+
+                  <div v-if="wxWorkflowId" class="pt-2 border-t">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="text-destructive hover:text-destructive w-full"
+                      @click="deleteWxWorkflow"
+                    >
+                      <Icon name="lucide:trash-2" class="w-3 h-3 mr-1" />
+                      删除工作流
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

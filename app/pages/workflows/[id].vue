@@ -5,6 +5,7 @@ import { toast } from 'vue-sonner'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
+import { extractStepVariables, extractWorkflowVariables, validateVariables } from '~/composables/useVariableValidator'
 
 interface HeaderItem {
   id: string
@@ -72,6 +73,34 @@ const availableVariables = computed(() => {
 
   return [...vars, ...envVars]
 })
+
+// 检测所有步骤中的缺失变量
+const missingVariables = computed(() => {
+  const stepsAsWorkflowSteps: WorkflowStep[] = steps.value.map((step) => {
+    const headers = step.headersList.reduce((acc, item) => {
+      if (item.key) {
+        acc[item.key] = item.value
+      }
+      return acc
+    }, {} as Record<string, string>)
+    return { ...step, headers }
+  })
+  const usedVariables = extractWorkflowVariables(stepsAsWorkflowSteps)
+  return validateVariables(usedVariables, envKeys.value)
+})
+
+// 获取单个步骤的缺失变量
+const getStepMissingVariables = (step: EditableWorkflowStep): string[] => {
+  const headers = step.headersList.reduce((acc, item) => {
+    if (item.key) {
+      acc[item.key] = item.value
+    }
+    return acc
+  }, {} as Record<string, string>)
+  const stepWithHeaders: WorkflowStep = { ...step, headers }
+  const usedVariables = extractStepVariables(stepWithHeaders)
+  return validateVariables(usedVariables, envKeys.value)
+}
 
 const generateId = () => {
   return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -278,6 +307,18 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
 
     <div v-else-if="workflow" class="flex-1 overflow-y-auto p-4 md:p-8 pb-safe">
       <div class="max-w-4xl mx-auto space-y-6 md:space-y-8">
+        <!-- 全局缺失变量警告 -->
+        <div v-if="missingVariables.length > 0" class="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <div class="flex items-center gap-2 text-destructive">
+            <Icon name="lucide:alert-triangle" class="w-4 h-4 shrink-0" />
+            <span class="text-sm font-medium">存在未配置的变量</span>
+          </div>
+          <p class="text-xs text-muted-foreground mt-1">
+            以下变量未在环境变量中配置，运行时可能出错：
+            <span class="font-mono text-destructive">{{ missingVariables.join(', ') }}</span>
+          </p>
+        </div>
+
         <!-- Basic Info -->
         <Card>
           <CardHeader>
@@ -359,6 +400,13 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                       <Icon name="lucide:trash-2" class="w-4 h-4" />
                     </Button>
                   </div>
+                </div>
+                <!-- 步骤缺失变量警告 -->
+                <div v-if="getStepMissingVariables(step).length > 0" class="flex items-center gap-1.5 mt-2 text-destructive">
+                  <Icon name="lucide:alert-triangle" class="w-3.5 h-3.5 shrink-0" />
+                  <span class="text-xs">
+                    缺失变量: {{ getStepMissingVariables(step).join(', ') }}
+                  </span>
                 </div>
               </CardHeader>
               <CardContent class="space-y-4">

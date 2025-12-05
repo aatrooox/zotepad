@@ -33,6 +33,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       version: packageJson.version,
+      // 项目级别的加密密钥，构建时从环境变量注入
+      cryptoSecretKey: process.env.NUXT_PUBLIC_CRYPTO_SECRET_KEY || '',
     },
   },
   devServer: { host: process.env.TAURI_DEV_HOST || 'localhost' },

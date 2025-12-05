@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import type { Workflow, WorkflowSchema } from '~/types/workflow'
+import type { Workflow, WorkflowSchema, WorkflowStep } from '~/types/workflow'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import SchemaList from '~/components/workflow/SchemaList.vue'
+import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
+import { extractWorkflowVariables, validateVariables } from '~/composables/useVariableValidator'
 
 useHead({ title: '流' })
 
 const { getAllWorkflows, createWorkflow, deleteWorkflow } = useWorkflowRepository()
 const { getAllSchemas } = useWorkflowSchemaRepository()
+const { getAllEnvs } = useEnvironmentRepository()
 
 const workflows = ref<Workflow[]>([])
 const schemas = ref<WorkflowSchema[]>([])
+const envKeys = ref<string[]>([])
 const router = useRouter()
 const isImportDialogOpen = ref(false)
 const isCreateDialogOpen = ref(false)
@@ -24,6 +28,18 @@ const cardsRef = ref<HTMLElement[]>([])
 const newWorkflowName = ref('')
 const newWorkflowDesc = ref('')
 const newWorkflowSchemaId = ref<number | undefined>(undefined)
+
+// 获取工作流的缺失变量
+const getMissingVariables = (workflow: Workflow): string[] => {
+  try {
+    const steps: WorkflowStep[] = JSON.parse(workflow.steps)
+    const usedVariables = extractWorkflowVariables(steps)
+    return validateVariables(usedVariables, envKeys.value)
+  }
+  catch {
+    return []
+  }
+}
 
 const animateCards = () => {
   if (cardsRef.value.length) {
@@ -49,12 +65,14 @@ const animateCards = () => {
 
 const loadData = async () => {
   try {
-    const [wfData, schemaData] = await Promise.all([
+    const [wfData, schemaData, envData] = await Promise.all([
       getAllWorkflows(),
       getAllSchemas(),
+      getAllEnvs(),
     ])
     workflows.value = wfData || []
     schemas.value = schemaData || []
+    envKeys.value = envData?.map(e => e.key) || []
     nextTick(() => {
       animateCards()
     })
@@ -294,6 +312,14 @@ const formatDate = (dateStr?: string) => {
                   <p class="text-sm text-muted-foreground truncate">
                     {{ workflow.description || '暂无描述' }}
                   </p>
+                </div>
+
+                <!-- 缺失变量警告 -->
+                <div v-if="getMissingVariables(workflow).length > 0" class="flex items-center gap-1 mt-1">
+                  <Icon name="lucide:alert-triangle" class="w-3 h-3 text-destructive shrink-0" />
+                  <span class="text-xs text-destructive truncate">
+                    缺失变量: {{ getMissingVariables(workflow).join(', ') }}
+                  </span>
                 </div>
               </div>
             </NuxtLink>

@@ -2,6 +2,12 @@ import type { ExecutionLog, WorkflowSchemaField, WorkflowStep } from '~/types/wo
 import { debug, info, error as logError } from '@tauri-apps/plugin-log'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useTauriHTTP } from '~/composables/useTauriHTTP'
+import { encryptObjectForServer } from '~/lib/clientCrypto'
+
+// 需要加密请求体的 API URL
+const ENCRYPTED_API_URLS = [
+  'https://zzao.club/api/v1/wx/cgi-bin/token',
+]
 
 export interface WorkflowContext {
   title: string
@@ -15,44 +21,44 @@ export function useWorkflowRunner() {
   const { request, error: httpError } = useTauriHTTP()
   const { getEnvObject } = useEnvironmentRepository()
 
-  function validateContext(schema: WorkflowSchemaField[], ctx: WorkflowContext) {
-    const missingFields: string[] = []
-    const invalidFields: string[] = []
+  // function validateContext(schema: WorkflowSchemaField[], ctx: WorkflowContext) {
+  //   const missingFields: string[] = []
+  //   const invalidFields: string[] = []
 
-    for (const field of schema) {
-      const value = ctx[field.key]
+  //   for (const field of schema) {
+  //     const value = ctx[field.key]
 
-      // Check required
-      if (field.required && (value === undefined || value === null || value === '')) {
-        missingFields.push(field.key)
-        continue
-      }
+  //     // Check required
+  //     if (field.required && (value === undefined || value === null || value === '')) {
+  //       missingFields.push(field.key)
+  //       continue
+  //     }
 
-      // Check type (if value exists)
-      if (value !== undefined && value !== null) {
-        if (field.type === 'json') {
-          if (typeof value !== 'object') {
-            invalidFields.push(`${field.key} (expected json/object, got ${typeof value})`)
-          }
-        }
-        else if (typeof value !== field.type) {
-          // Allow number to string conversion implicitly in many cases, but strict check here?
-          // Let's be strict for now, or allow string->number if it parses?
-          // For simplicity, strict JS typeof check
-          invalidFields.push(`${field.key} (expected ${field.type}, got ${typeof value})`)
-        }
-      }
-    }
+  //     // Check type (if value exists)
+  //     if (value !== undefined && value !== null) {
+  //       if (field.type === 'json') {
+  //         if (typeof value !== 'object') {
+  //           invalidFields.push(`${field.key} (expected json/object, got ${typeof value})`)
+  //         }
+  //       }
+  //       else if (typeof value !== field.type) {
+  //         // Allow number to string conversion implicitly in many cases, but strict check here?
+  //         // Let's be strict for now, or allow string->number if it parses?
+  //         // For simplicity, strict JS typeof check
+  //         invalidFields.push(`${field.key} (expected ${field.type}, got ${typeof value})`)
+  //       }
+  //     }
+  //   }
 
-    if (missingFields.length > 0 || invalidFields.length > 0) {
-      const errorParts = []
-      if (missingFields.length > 0)
-        errorParts.push(`Missing required fields: ${missingFields.join(', ')}`)
-      if (invalidFields.length > 0)
-        errorParts.push(`Invalid field types: ${invalidFields.join(', ')}`)
-      throw new Error(`Context validation failed: ${errorParts.join('; ')}`)
-    }
-  }
+  //   if (missingFields.length > 0 || invalidFields.length > 0) {
+  //     const errorParts = []
+  //     if (missingFields.length > 0)
+  //       errorParts.push(`Missing required fields: ${missingFields.join(', ')}`)
+  //     if (invalidFields.length > 0)
+  //       errorParts.push(`Invalid field types: ${invalidFields.join(', ')}`)
+  //     throw new Error(`Context validation failed: ${errorParts.join('; ')}`)
+  //   }
+  // }
 
   async function executeStep(step: WorkflowStep, ctx: WorkflowContext): Promise<any> {
     await debug(`[Workflow] Executing step: ${step.name} (${step.type})`)
@@ -160,6 +166,28 @@ export function useWorkflowRunner() {
       }
 
       await debug(`[Workflow] API Body: ${body.substring(0, 200)}${body.length > 200 ? '...' : ''}`)
+    }
+
+    // 检查是否需要加密请求体
+    if (body && ENCRYPTED_API_URLS.some(apiUrl => url.startsWith(apiUrl))) {
+      await info(`[Workflow] Encrypting request body for secure API`)
+      try {
+        const bodyObj = JSON.parse(body)
+        // 从 runtimeConfig 获取项目级别的加密密钥
+        const config = useRuntimeConfig()
+        const secretKey = config.public.cryptoSecretKey
+        if (!secretKey) {
+          throw new Error('Crypto secret key is not configured')
+        }
+        const encrypted = await encryptObjectForServer(bodyObj, secretKey)
+        body = JSON.stringify({ encrypted })
+        await debug(`[Workflow] Body encrypted successfully`)
+      }
+      catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err)
+        await logError(`[Workflow] Failed to encrypt body: ${errMsg}`)
+        throw new Error(`Failed to encrypt request body: ${errMsg}`)
+      }
     }
 
     const response = await request(url, {
