@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.13.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.12.0...v0.13.0)
+
+### 🚀 Enhancements
+
+- 增加公众号授权流程 ([a4087bc](https://github.com/aatrooox/zotepad/commit/a4087bc))
+- 完善发布到公众号草稿箱的工作流 ([5aa9938](https://github.com/aatrooox/zotepad/commit/5aa9938))
+
+### 🩹 Fixes
+
+- 解决公众号手机端编辑器兼容问题 ([dbd77a1](https://github.com/aatrooox/zotepad/commit/dbd77a1))
+
+### 🏡 Chore
+
+- **release:** V0.12.0 ([457952c](https://github.com/aatrooox/zotepad/commit/457952c))
+- **build:** Release v0.12.0 ([9fbaccf](https://github.com/aatrooox/zotepad/commit/9fbaccf))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.12.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.11.0...v0.12.0)
