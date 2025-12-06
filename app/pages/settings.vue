@@ -10,7 +10,8 @@ import { WORKFLOW_TYPES } from '~/types/workflow'
 const { setSetting, getSetting } = useSettingRepository()
 const { getAllEnvs, createEnv, deleteEnv } = useEnvironmentRepository()
 const { createWorkflow, getAllWorkflows, deleteWorkflow, getSystemWorkflow, upsertSystemWorkflow } = useWorkflowRepository()
-
+const config = useRuntimeConfig()
+const version = config.public.version
 // 检测是否在 Tauri 桌面端
 const isTauriDesktop = ref(false)
 
@@ -871,6 +872,7 @@ const saveSettings = async () => {
                   <CardDescription>还没有任何设置</CardDescription>
                 </CardHeader>
                 <CardContent class="px-0 pb-2">
+                  版本：v{{ version }}
                   <!-- <Textarea v-model="customCss" placeholder="/* 目前还不可用 */" class="font-mono h-32" /> -->
                 </CardContent>
               </Card>

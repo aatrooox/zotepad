@@ -34,6 +34,21 @@ const customCss = ref('')
 const editorContainerRef = ref(null)
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 
+// Keyboard safe area padding (mobile)
+const keyboardPadding = ref(0)
+const keyboardSafeStyle = computed(() => ({
+  paddingBottom: `calc(${keyboardPadding.value}px + env(safe-area-inset-bottom, 0px))`,
+}))
+
+const updateKeyboardInset = () => {
+  if (typeof window === 'undefined' || !window.visualViewport)
+    return
+
+  const vv = window.visualViewport
+  const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
+  keyboardPadding.value = inset
+}
+
 // WeChat preview drawer state
 const isWeChatPreviewOpen = ref(false)
 const wechatPreviewRef = ref<HTMLElement | null>(null)
@@ -187,12 +202,15 @@ const toolbars: ToolbarNames[] = [
 // Mobile specific toolbar (simplified)
 const mobileToolbars: ToolbarNames[] = [
   'bold',
+  'underline',
+  'italic',
+  'codeRow',
   'image',
   'link',
   'quote',
   'code',
+  'mermaid',
   '-',
-  'preview',
   'save',
 ]
 
@@ -271,6 +289,13 @@ onMounted(async () => {
     })
   }
 
+  // Keyboard inset listener for Android 15+ / mobile
+  if (typeof window !== 'undefined' && window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateKeyboardInset)
+    window.visualViewport.addEventListener('scroll', updateKeyboardInset)
+    updateKeyboardInset()
+  }
+
   try {
     // 检查微信草稿箱工作流
     await checkWxDraftWorkflow()
@@ -312,6 +337,13 @@ onMounted(async () => {
   catch (e) {
     console.error('Failed to load note', e)
     toast.error('加载笔记失败')
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined' && window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateKeyboardInset)
+    window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
   }
 })
 
@@ -462,7 +494,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col bg-background pt-safe-offset-4 md:pt-0">
+  <div
+    class="relative min-h-[100dvh] flex flex-col bg-background pt-safe-offset-4 md:pt-0 overflow-auto md:overflow-hidden"
+    :style="keyboardSafeStyle"
+  >
     <!-- Header / Toolbar Area -->
     <header class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0 gap-2">
       <div class="flex flex-col flex-1 gap-2 md:gap-3 min-w-0">
@@ -580,7 +615,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     </header>
 
     <!-- Editor Area -->
-    <div ref="editorContainerRef" class="flex-1 overflow-hidden bg-background relative pb-safe">
+    <div ref="editorContainerRef" class="flex-1 bg-background relative pb-safe overflow-auto md:overflow-hidden">
       <ClientOnly>
         <MdEditor
           v-model="content"
@@ -690,6 +725,29 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 .md-editor-toolbar-wrapper {
   border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
+}
+
+/* Mobile: move toolbar to bottom for easier typing */
+@media (max-width: 767px) {
+  :deep(.md-editor) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.md-editor-toolbar-wrapper) {
+    order: 2;
+    border-top: 1px solid hsl(var(--border) / 0.5) !important;
+    border-bottom: 0 !important;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: hsl(var(--background));
+  }
+
+  :deep(.md-editor-content) {
+    order: 1;
+    min-height: 0;
+  }
 }
 
 /* WeChat Preview Styles */

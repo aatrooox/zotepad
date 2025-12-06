@@ -67,7 +67,7 @@ const showTabBar = computed(() => {
 </script>
 
 <template>
-  <div class="h-full bg-background text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-hidden">
+  <div class="h-full bg-background text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-auto md:overflow-hidden">
     <!-- Desktop Sidebar -->
     <aside
       v-if="!isMobile"
@@ -161,11 +161,11 @@ const showTabBar = computed(() => {
     <!-- <Drawer v-model:open="isDrawerOpen"> ... </Drawer> -->
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-background/50 relative">
+    <main class="flex-1 flex flex-col min-w-0 h-full overflow-auto md:overflow-hidden bg-background/50 relative">
       <!-- Mobile Header (Removed, pages handle their own headers) -->
       <!-- <header v-if="isMobile" ...> ... </header> -->
 
-      <div class="flex-1 flex flex-col overflow-hidden relative" :class="{ 'pb-18': showTabBar }">
+      <div class="flex-1 flex flex-col overflow-auto md:overflow-hidden relative" :class="{ 'pb-18': showTabBar }">
         <slot />
       </div>
     </main>
