@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.13.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.1...v0.13.2)
+
+### 🩹 Fixes
+
+- 支持本地调试时运行一个dev版本的app ([621ce94](https://github.com/aatrooox/zotepad/commit/621ce94))
+
+### 🏡 Chore
+
+- **build:** Release v0.13.1 ([7dc79cb](https://github.com/aatrooox/zotepad/commit/7dc79cb))
+- Android ([c144a27](https://github.com/aatrooox/zotepad/commit/c144a27))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.13.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.0...v0.13.1)
