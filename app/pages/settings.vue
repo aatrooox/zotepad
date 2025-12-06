@@ -293,7 +293,7 @@ async function createWxWorkflow() {
 
   isCreatingWxWorkflow.value = true
   try {
-    // 创建工作流，第一步获取 Access Token，第二步上传素材
+    // 创建工作流，第一步获取 Access Token，第二步上传素材并替换 HTML 图片 URL
     const steps = [
       {
         id: 'get-access-token',
@@ -339,7 +339,7 @@ async function createWxWorkflow() {
             {
               article_type: 'news',
               title: '{{title}}',
-              content: '{{html}}',
+              content: '{{step2.data.html}}',
               thumb_media_id: '{{step2.data.coverMediaId}}',
             },
           ],

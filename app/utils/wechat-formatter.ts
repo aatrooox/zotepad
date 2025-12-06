@@ -1,3 +1,5 @@
+import { debug, info, error as logError } from '@tauri-apps/plugin-log'
+
 // 微信公众号允许的标签白名单
 const ALLOWED_TAGS = [
   'h1',
@@ -655,6 +657,9 @@ export const getWeChatMinimalHTML = (rootEl: HTMLElement): string => {
     .replace(/\n\s*/g, '') // 移除换行和缩进
     .trim()
 
+  info(`[copy wx html]  =================================`)
+  info(result)
+  info(`[copy wx html]  =================================`)
   return result
 }
 

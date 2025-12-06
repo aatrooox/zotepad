@@ -388,12 +388,12 @@ const copyWeChatMinimalHtml = async () => {
     const finalHtml = getWeChatMinimalHTML(previewDom)
     const success = await copyToClipboard(finalHtml)
     if (success) {
-      toast.success('精简版格式已复制（适合手机端）')
+      toast.success('已复制')
       isWeChatPreviewOpen.value = false
     }
     else {
       await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
-      toast.success('精简版格式已复制 (Tauri)')
+      toast.success('已复制')
       isWeChatPreviewOpen.value = false
     }
   }

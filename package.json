@@ -10,6 +10,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev -p 4577",
+    "android:dev": "pnpm tauri android dev --open",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",

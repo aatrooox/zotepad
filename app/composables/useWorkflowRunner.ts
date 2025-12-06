@@ -362,7 +362,9 @@ export function useWorkflowRunner() {
           wxUrl: finalWxUrl,
           index: i,
         })
-        imageUrlMap[photoUrl] = finalWxUrl
+
+        // 仅当微信返回了可用的 URL 时才替换；否则保留原图地址，避免替换成空字符串
+        imageUrlMap[photoUrl] = finalWxUrl || photoUrl
 
         await info(`[Workflow] Photo ${i + 1} uploaded successfully. media_id: ${mediaId}`)
       }
@@ -375,6 +377,20 @@ export function useWorkflowRunner() {
 
     await info(`[Workflow] All ${photos.length} photo(s) uploaded successfully`)
 
+    // 将 HTML/图片列表中的原始链接替换为微信返回的链接
+    const originalHtml = ctx.html || ''
+    let replacedHtml = originalHtml
+    const escapeReg = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    for (const [orig, wx] of Object.entries(imageUrlMap)) {
+      if (!orig || !wx)
+        continue
+      const reg = new RegExp(escapeReg(orig), 'g')
+      replacedHtml = replacedHtml.replace(reg, wx)
+    }
+    const replacedPhotos = (ctx.photos || []).map((url: string) => imageUrlMap[url] || url)
+
+    await info(`[Workflow] Image URL replacements applied: ${Object.keys(imageUrlMap).length} mapping(s)`)
+
     // 返回上传结果，包含映射关系供后续步骤使用
     return {
       code: 200,
@@ -384,6 +400,8 @@ export function useWorkflowRunner() {
         imageUrlMap,
         coverMediaId: uploadedMedia[0]?.mediaId || '', // 第一张作为封面
         totalUploaded: uploadedMedia.length,
+        html: replacedHtml,
+        photos: replacedPhotos,
       },
     }
   }
@@ -469,6 +487,7 @@ export function useWorkflowRunner() {
         if (typeof output === 'object' && output !== null) {
           currentCtx = {
             ...currentCtx,
+            ...output, // merge returned fields into context (e.g., updated html/photos)
             [`step${stepIndex}`]: output,
           }
         }
