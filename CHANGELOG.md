@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.13.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.0...v0.13.1)
+
+### 🩹 Fixes
+
+- 修复移动端键盘遮挡问题 ([dc3207d](https://github.com/aatrooox/zotepad/commit/dc3207d))
+
+### 🏡 Chore
+
+- **build:** Release v0.13.0 ([0411c8a](https://github.com/aatrooox/zotepad/commit/0411c8a))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.13.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.12.0...v0.13.0)
