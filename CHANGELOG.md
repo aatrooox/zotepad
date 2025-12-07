@@ -1,6 +1,29 @@
 # Changelog
 
 
+## v0.13.3
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.2...v0.13.3)
+
+### 🩹 Fixes
+
+- 支持本地调试时运行一个dev版本的app ([621ce94](https://github.com/aatrooox/zotepad/commit/621ce94))
+
+### 🏡 Chore
+
+- Android ([c144a27](https://github.com/aatrooox/zotepad/commit/c144a27))
+- **release:** V0.13.2 ([33f18c2](https://github.com/aatrooox/zotepad/commit/33f18c2))
+- **build:** Release v0.13.2 ([3cd6d31](https://github.com/aatrooox/zotepad/commit/3cd6d31))
+- 修改设置名称 ([ceb3d81](https://github.com/aatrooox/zotepad/commit/ceb3d81))
+
+### 🎨 Styles
+
+- 优化移动端展示; 工具栏移到底部 ([de10b16](https://github.com/aatrooox/zotepad/commit/de10b16))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.13.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.1...v0.13.2)
