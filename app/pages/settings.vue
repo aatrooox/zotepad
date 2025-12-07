@@ -536,8 +536,8 @@ const saveSettings = async () => {
           <AccordionItem value="cos">
             <AccordionTrigger class="hover:no-underline">
               <div class="flex items-center gap-2 text-base font-semibold">
-                <!-- <Icon name="lucide:cloud" class="w-5 h-5" /> -->
-                资源
+                <Icon name="lucide:cloud" class="w-5 h-5" />
+                对象存储 (COS)
               </div>
             </AccordionTrigger>
             <AccordionContent>
@@ -587,7 +587,7 @@ const saveSettings = async () => {
           <AccordionItem value="env">
             <AccordionTrigger class="hover:no-underline">
               <div class="text-base font-semibold">
-                流
+                环境变量
               </div>
             </AccordionTrigger>
             <AccordionContent>
