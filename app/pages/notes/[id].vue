@@ -729,12 +729,13 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 /* Mobile: move toolbar to bottom for easier typing */
 @media (max-width: 767px) {
-  :deep(.md-editor) {
+  .md-editor {
     display: flex;
     flex-direction: column;
+    justify-content: flex-end;
   }
 
-  :deep(.md-editor-toolbar-wrapper) {
+  .md-editor-toolbar-wrapper {
     order: 2;
     border-top: 1px solid hsl(var(--border) / 0.5) !important;
     border-bottom: 0 !important;
@@ -744,7 +745,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     background: hsl(var(--background));
   }
 
-  :deep(.md-editor-content) {
+  .md-editor-content {
     order: 1;
     min-height: 0;
   }
