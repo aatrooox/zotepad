@@ -1,6 +1,32 @@
 # Changelog
 
 
+## v0.14.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.3...v0.14.0)
+
+### 🚀 Enhancements
+
+- 增加同步功能; 优化设置页面代码结构 ([f4b9c9c](https://github.com/aatrooox/zotepad/commit/f4b9c9c))
+
+### 🩹 Fixes
+
+- 环境判断错误 ([d0cd628](https://github.com/aatrooox/zotepad/commit/d0cd628))
+- 桌面端判断错误问题 ([c5e5326](https://github.com/aatrooox/zotepad/commit/c5e5326))
+- 修复同步时，没有先加载其他设备最新数据的问题 ([d9d10b2](https://github.com/aatrooox/zotepad/commit/d9d10b2))
+- 重构同步核心逻辑 ([409795b](https://github.com/aatrooox/zotepad/commit/409795b))
+- 优化拉取策略 ([a683aec](https://github.com/aatrooox/zotepad/commit/a683aec))
+
+### 🏡 Chore
+
+- 修改设置名称 ([ceb3d81](https://github.com/aatrooox/zotepad/commit/ceb3d81))
+- **release:** V0.13.3 ([0c4c38c](https://github.com/aatrooox/zotepad/commit/0c4c38c))
+- **build:** Release v0.13.3 ([995cb17](https://github.com/aatrooox/zotepad/commit/995cb17))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.13.3
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.2...v0.13.3)
