@@ -11,7 +11,7 @@ import { useTauriStore } from '~/composables/useTauriStore'
 const config = useRuntimeConfig()
 const version = config.public.version
 const store = useTauriStore()
-const { isTauriEnvironment, isDesktop } = useEnvironment()
+const { isDesktop } = useEnvironment()
 
 // COS 和通用设置
 const customCss = ref('')
@@ -76,7 +76,7 @@ const {
 
 // desktopServerUrl 变化时自动更新 syncServerAddress 和 serverUrl
 watch(desktopServerUrl, (newUrl) => {
-  if (isTauriEnvironment.value && newUrl) {
+  if (isDesktop.value && newUrl) {
     syncServerAddress.value = newUrl
     serverUrl.value = newUrl
   }
@@ -119,7 +119,7 @@ async function initSettingsPage() {
   await loadEnvs()
   await loadSystemWorkflows()
 
-  if (isTauriEnvironment.value) {
+  if (isDesktop.value) {
     await loadServerInfo()
   }
 
