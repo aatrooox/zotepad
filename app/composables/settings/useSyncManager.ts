@@ -343,83 +343,34 @@ export function useSyncManager() {
       const pushResult = await pushLocalChanges(currentVersion)
       console.log('[Sync] 推送完成, pushResult=', pushResult)
 
-      // 推送后可能产生冲突,需要先拉取解决
-      if (pushResult.conflict) {
-        console.log('[Sync] 推送冲突,先拉取远程变更')
-        const pullResult = await pullRemoteChanges(currentVersion)
-        // 再次尝试推送
-        const retryPushResult = await pushLocalChanges(pullResult.maxPulledVersion || pullResult.lastServerVersion)
+      // 无论是否有推送，都进行拉取
+      // 1. 如果刚才推送了，拉取可以把新版本号同步回来（解决重复推送问题）
+      // 2. 如果没推送，拉取可以获取服务器上的新数据
+      console.log('[Sync] 拉取远程变更...')
+      const pullResult = await pullRemoteChanges(currentVersion)
 
-        // 冲突解决后,使用服务器返回的版本号
-        const finalVersion = retryPushResult.server_version || pullResult.lastServerVersion
+      const finalVersion = Math.max(pullResult.lastServerVersion, pushResult.server_version, currentVersion)
 
-        console.log('[Sync] 冲突解决:', {
-          pullVersion: pullResult.maxPulledVersion,
-          serverVersion: retryPushResult.server_version,
-          finalVersion,
-          pulled: pullResult.pulled,
-          pushed: retryPushResult.applied,
-        })
-
-        // 总是更新 lastVersion 为服务器版本号
-        lastVersion.value = finalVersion
-        await setSetting('sync_last_version', String(finalVersion), 'sync')
-        console.log('[Sync] 更新 lastVersion 到:', finalVersion)
-
-        lastSyncSummary.value = { pulled: pullResult.pulled, pushed: retryPushResult.applied, at: Date.now() }
-        await setSetting('sync_last_summary', JSON.stringify(lastSyncSummary.value), 'sync')
-        bumpTotalSyncCounts(lastSyncSummary.value.pulled, lastSyncSummary.value.pushed)
-        syncStatus.value = '已同步（解决冲突）'
-
-        if (lastSyncSummary.value.pulled > 0 || lastSyncSummary.value.pushed > 0) {
-          const parts: string[] = []
-          if (lastSyncSummary.value.pulled > 0) {
-            parts.push(`拉取 ${lastSyncSummary.value.pulled} 条`)
-          }
-          if (lastSyncSummary.value.pushed > 0) {
-            parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
-          }
-          // 有数据变化时总是显示 toast,即使是 silent 模式
-          if (toastId) {
-            toast.success(`同步完成: ${parts.join('、')}（已解决冲突）`, { id: toastId })
-          }
-          else {
-            toast.success(`同步完成: ${parts.join('、')}（已解决冲突）`)
-          }
-        }
-        else if (toastId) {
-          toast.dismiss(toastId)
-        }
-        return
-      }
-
-      // 推送成功后,使用推送返回的 server_version 作为起点拉取
-      const pullResult = await pullRemoteChanges(pushResult.server_version || currentVersion)
-
-      // 使用服务器返回的最新版本号
-      const finalVersion = pullResult.lastServerVersion || pushResult.server_version
-
-      console.log('[Sync] 计算 finalVersion:', {
+      console.log('[Sync] 同步完成:', {
         pullVersion: pullResult.maxPulledVersion,
-        pushVersion: pushResult.server_version,
-        finalVersion,
-        hadChanges: pullResult.pulled > 0 || pushResult.applied > 0,
+        serverVersion: finalVersion,
+        pulled: pullResult.pulled,
+        pushed: pushResult.applied,
       })
 
       // 总是更新 lastVersion 为服务器版本号
-      lastVersion.value = finalVersion
-      await setSetting('sync_last_version', String(finalVersion), 'sync')
+      if (finalVersion > lastVersion.value) {
+        lastVersion.value = finalVersion
+        await setSetting('sync_last_version', String(finalVersion), 'sync')
+        console.log('[Sync] 更新 lastVersion 到:', finalVersion)
+      }
 
       lastSyncSummary.value = { pulled: pullResult.pulled, pushed: pushResult.applied, at: Date.now() }
       await setSetting('sync_last_summary', JSON.stringify(lastSyncSummary.value), 'sync')
       bumpTotalSyncCounts(lastSyncSummary.value.pulled, lastSyncSummary.value.pushed)
-      syncStatus.value = '已同步'
 
-      console.log('[Sync] ========== 同步完成 ==========')
-      console.log('[Sync] 新的 lastVersion:', lastVersion.value)
-      console.log('[Sync] 结果:', lastSyncSummary.value)
+      syncStatus.value = pushResult.conflict ? '已同步（解决冲突）' : '已同步'
 
-      // 有数据变化时总是显示提示,silent 只控制 loading toast
       if (lastSyncSummary.value.pulled > 0 || lastSyncSummary.value.pushed > 0) {
         const parts: string[] = []
         if (lastSyncSummary.value.pulled > 0) {
@@ -428,17 +379,13 @@ export function useSyncManager() {
         if (lastSyncSummary.value.pushed > 0) {
           parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
         }
-        // 有数据变化时总是显示 toast,即使是 silent 模式
-        if (toastId) {
-          toast.success(`同步完成: ${parts.join('、')}`, { id: toastId })
-        }
-        else {
-          toast.success(`同步完成: ${parts.join('、')}`)
+        if (!silent) {
+          toast.success(`同步完成: ${parts.join(', ')}`, { id: toastId })
         }
       }
-      else if (toastId) {
-        // 没数据变化且是手动同步,关闭 loading
-        toast.dismiss(toastId)
+      else {
+        if (!silent)
+          toast.success('已是最新', { id: toastId })
       }
     }
     catch (e: any) {
