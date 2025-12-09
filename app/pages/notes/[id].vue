@@ -10,6 +10,7 @@ import { useEnvironmentRepository } from '~/composables/repositories/useEnvironm
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import { WORKFLOW_TYPES } from '~/types/workflow'
@@ -59,6 +60,9 @@ const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
+
+// 同步管理
+const { syncOnce } = useSyncManager()
 
 // Workflow state
 const isWorkflowDialogOpen = ref(false)
@@ -246,6 +250,9 @@ const saveNote = async () => {
       if (saveStatus.value === 'saved')
         saveStatus.value = 'idle'
     }, 2000)
+
+    // 保存成功后静默同步(仅在有数据变化时显示 toast)
+    syncOnce(true).catch(e => console.error('同步失败:', e))
   }
   catch (e) {
     console.error('Auto-save failed', e)

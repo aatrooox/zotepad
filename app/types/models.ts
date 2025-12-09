@@ -31,6 +31,7 @@ export interface Note {
   tags?: string // JSON string of string[]
   created_at?: string
   updated_at?: string
+  deleted_at?: string | null
 }
 
 export interface Moment {
@@ -40,4 +41,5 @@ export interface Moment {
   tags?: string // JSON string of string[]
   created_at?: string
   updated_at?: string
+  deleted_at?: string | null
 }

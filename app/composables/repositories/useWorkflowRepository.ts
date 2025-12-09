@@ -68,6 +68,38 @@ export function useWorkflowRepository() {
       })
     }, 'Failed to list workflows')
 
+  // 获取全部工作流（包含系统工作流）
+  const getAllWorkflowsWithSystem = () =>
+    runAsync(async () => {
+      const query = `
+        SELECT w.*, s.name as schema_name, s.fields as schema_fields
+        FROM workflows w
+        LEFT JOIN workflow_schemas s ON w.schema_id = s.id
+        ORDER BY w.updated_at DESC
+      `
+      const results = await select<any[]>(query)
+      return results.map((row) => {
+        const wf: Workflow = {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          steps: row.steps,
+          schema_id: row.schema_id,
+          type: row.type || 'user',
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        }
+        if (row.schema_id) {
+          wf.schema = {
+            id: row.schema_id,
+            name: row.schema_name,
+            fields: row.schema_fields,
+          }
+        }
+        return wf
+      })
+    }, 'Failed to list all workflows')
+
   // 根据类型获取系统工作流
   const getSystemWorkflow = (type: WorkflowType) =>
     runAsync(async () => {
@@ -122,6 +154,7 @@ export function useWorkflowRepository() {
     createWorkflow,
     getWorkflow,
     getAllWorkflows,
+    getAllWorkflowsWithSystem,
     getSystemWorkflow,
     upsertSystemWorkflow,
     updateWorkflow,

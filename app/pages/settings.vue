@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import type { WorkflowEnv } from '~/composables/repositories/useEnvironmentRepository'
+import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
-import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
-import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
-import { WORKFLOW_TYPES } from '~/types/workflow'
+import { useDesktopServer } from '~/composables/settings/useDesktopServer'
+import { useEnvironmentManager } from '~/composables/settings/useEnvironmentManager'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
+import { useSystemWorkflowManager } from '~/composables/settings/useSystemWorkflowManager'
+import { useEnvironment } from '~/composables/useEnvironment'
+import { useTauriStore } from '~/composables/useTauriStore'
 
-const { setSetting, getSetting } = useSettingRepository()
-const { getAllEnvs, createEnv, deleteEnv } = useEnvironmentRepository()
-const { createWorkflow, getAllWorkflows, deleteWorkflow, getSystemWorkflow, upsertSystemWorkflow } = useWorkflowRepository()
 const config = useRuntimeConfig()
 const version = config.public.version
-// 检测是否在 Tauri 桌面端
-const isTauriDesktop = ref(false)
+const store = useTauriStore()
+const { isTauriEnvironment } = useEnvironment()
 
+// COS 和通用设置
 const customCss = ref('')
-// COS State
 const cosSecretId = ref('')
 const cosSecretKey = ref('')
 const cosBucket = ref('')
@@ -24,490 +22,114 @@ const cosRegion = ref('')
 const cosPathPrefix = ref('')
 const cosCustomDomain = ref('')
 
-// HTTP Server State (仅桌面端)
-const serverUrl = ref('')
-const isLoadingServerInfo = ref(false)
-const isTestingConnection = ref(false)
+// 使用 4 个子 composable
+const {
+  SYNC_WORKFLOW_NAME: syncWorkflowName,
+  serverUrl,
+  syncServerAddress,
+  isSavingSyncConfig,
+  syncWorkflowId,
+  syncToken,
+  isSyncing,
+  syncStatus,
+  syncInfo,
+  lastSyncText,
+  lastSyncCountText,
+  totalSyncCountText,
+  saveSyncConfig,
+  deleteSyncConfig,
+  syncOnce,
+  refreshSyncStateCard,
+  loadSyncConfig,
+} = useSyncManager()
 
-// 移动端同步配置
-const syncServerAddress = ref('')
-const isSavingSyncConfig = ref(false)
-const syncWorkflowId = ref<number | null>(null)
-const SYNC_WORKFLOW_NAME = '🔗 局域网同步测试'
+const {
+  envs,
+  newEnvKey,
+  newEnvValue,
+  handleAddEnv,
+  handleDeleteEnv,
+  loadEnvs,
+} = useEnvironmentManager()
 
-// 公众号草稿箱配置
-const isCreatingWxWorkflow = ref(false)
-const wxWorkflowId = ref<number | null>(null)
-const WX_WORKFLOW_NAME = '📤 上传至公众号草稿箱'
-// 用户需要配置的环境变量（CRYPTO_SECRET_KEY 是项目级别，已在构建时注入）
-const WX_REQUIRED_ENVS = ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET']
+const {
+  systemWorkflowStates: getSystemWorkflowStates,
+  extraSystemWorkflows,
+  isCreatingSystemWorkflow,
+  isDeletingWorkflowId,
+  handleCreateSystemWorkflow,
+  handleDeleteSystemWorkflow,
+  loadSystemWorkflows,
+} = useSystemWorkflowManager()
 
-// 获取服务器地址
-async function loadServerInfo() {
-  if (!isTauriDesktop.value) {
-    return
+// computed 计算 systemWorkflowStates
+const systemWorkflowStates = computed(() => getSystemWorkflowStates.value(envs.value))
+
+const {
+  serverUrl: desktopServerUrl,
+  isLoadingServerInfo,
+  isTestingConnection,
+  loadServerInfo,
+  copyServerUrl,
+  testConnection,
+} = useDesktopServer()
+
+// desktopServerUrl 变化时自动更新 syncServerAddress 和 serverUrl
+watch(desktopServerUrl, (newUrl) => {
+  if (isTauriEnvironment.value && newUrl) {
+    syncServerAddress.value = newUrl
+    serverUrl.value = newUrl
   }
-
-  isLoadingServerInfo.value = true
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const ip = await invoke('get_local_ip') as string
-    const port = await invoke('get_http_server_port') as number
-    serverUrl.value = `http://${ip}:${port}`
-  }
-  catch (e) {
-    console.error('Failed to get server info:', e)
-    serverUrl.value = '获取失败'
-  }
-  finally {
-    isLoadingServerInfo.value = false
-  }
-}
-
-// 复制服务器地址
-async function copyServerUrl() {
-  if (!serverUrl.value || serverUrl.value === '获取失败') {
-    toast.error('服务器地址无效')
-    return
-  }
-
-  try {
-    await navigator.clipboard.writeText(serverUrl.value)
-    toast.success('已复制到剪贴板')
-  }
-  catch {
-    toast.error('复制失败')
-  }
-}
-
-// 测试连接
-async function testConnection() {
-  if (!serverUrl.value || serverUrl.value === '获取失败') {
-    toast.error('请先获取服务器地址')
-    return
-  }
-
-  isTestingConnection.value = true
-  try {
-    const response = await fetch(`${serverUrl.value}/health`)
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      const timestamp = new Date(data.data.timestamp).toLocaleString()
-      toast.success(`连接成功！\n服务器: ${data.data.server_ip}\n时间: ${timestamp}`, {
-        duration: 5000,
-      })
-    }
-    else {
-      toast.warning('服务器响应异常')
-    }
-  }
-  catch (e: any) {
-    console.error('Connection test failed:', e)
-    toast.error(`连接失败: ${e.message}`)
-  }
-  finally {
-    isTestingConnection.value = false
-  }
-}
-
-// const apiUrl = ref('')
-// const apiMethod = ref('POST')
-// const apiHeaders = ref('{}')
-// const apiBodyTemplate = ref('{"content": "{{content}}", "html": "{{html}}"}')
-
-// Env Vars State
-const envs = ref<WorkflowEnv[]>([])
-const newEnvKey = ref('')
-const newEnvValue = ref('')
-
-// 加载移动端同步配置
-async function loadSyncConfig() {
-  // 从设置中读取同步地址
-  const savedAddress = await getSetting('sync_server_address')
-  if (savedAddress) {
-    syncServerAddress.value = savedAddress
-  }
-
-  // 检查是否已有同步测试的 workflow
-  const workflows = await getAllWorkflows()
-  const syncWorkflow = workflows?.find(w => w.name === SYNC_WORKFLOW_NAME)
-  if (syncWorkflow) {
-    syncWorkflowId.value = syncWorkflow.id
-  }
-}
-
-// 保存移动端同步配置
-async function saveSyncConfig() {
-  const address = syncServerAddress.value.trim()
-  if (!address) {
-    toast.error('请输入服务器地址')
-    return
-  }
-
-  // 验证地址格式
-  if (!address.startsWith('http://') && !address.startsWith('https://')) {
-    toast.error('请输入完整地址，包含 http:// 或 https://')
-    return
-  }
-
-  isSavingSyncConfig.value = true
-  try {
-    // 保存地址到设置
-    await setSetting('sync_server_address', address, 'sync')
-
-    // 检查是否已有同步 workflow
-    const workflows = await getAllWorkflows()
-    const existingWorkflow = workflows?.find(w => w.name === SYNC_WORKFLOW_NAME)
-
-    if (existingWorkflow) {
-      // 如果已存在，删除旧的再创建新的（更新 URL）
-      await deleteWorkflow(existingWorkflow.id)
-    }
-
-    // 创建新的同步测试 workflow
-    const steps = [
-      {
-        id: 'health-check',
-        name: '健康检查',
-        type: 'api',
-        url: `${address}/health`,
-        method: 'GET',
-        headers: {},
-        body: '',
-        timeout: 5000,
-      },
-    ]
-
-    const newId = await createWorkflow(
-      SYNC_WORKFLOW_NAME,
-      '测试与桌面端的局域网连接',
-      steps,
-    )
-    syncWorkflowId.value = newId ?? null
-
-    toast.success('同步配置已保存，流已创建')
-  }
-  catch (e: any) {
-    console.error('Failed to save sync config:', e)
-    toast.error(`保存失败: ${e.message}`)
-  }
-  finally {
-    isSavingSyncConfig.value = false
-  }
-}
-
-// 测试移动端同步连接
-async function testMobileConnection() {
-  const address = syncServerAddress.value.trim()
-  if (!address) {
-    toast.error('请先配置服务器地址')
-    return
-  }
-
-  isTestingConnection.value = true
-  try {
-    const response = await fetch(`${address}/health`)
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      const timestamp = new Date(data.data.timestamp).toLocaleString()
-      toast.success(`连接成功！\n服务器: ${data.data.server_ip}\n时间: ${timestamp}`, {
-        duration: 5000,
-      })
-    }
-    else {
-      toast.warning('服务器响应异常')
-    }
-  }
-  catch (e: any) {
-    console.error('Mobile connection test failed:', e)
-    toast.error(`连接失败: ${e.message}`)
-  }
-  finally {
-    isTestingConnection.value = false
-  }
-}
-
-// 删除同步配置
-async function deleteSyncConfig() {
-  toast('确定要删除同步配置吗？', {
-    action: {
-      label: '删除',
-      onClick: async () => {
-        try {
-          // 删除设置
-          await setSetting('sync_server_address', '', 'sync')
-          syncServerAddress.value = ''
-
-          // 删除 workflow
-          if (syncWorkflowId.value) {
-            await deleteWorkflow(syncWorkflowId.value)
-            syncWorkflowId.value = null
-          }
-
-          toast.success('同步配置已删除')
-        }
-        catch (e: any) {
-          console.error('Failed to delete sync config:', e)
-          toast.error(`删除失败: ${e.message}`)
-        }
-      },
-    },
-    cancel: {
-      label: '取消',
-    },
-  })
-}
-
-// 检查公众号草稿箱所需环境变量是否已配置
-const wxMissingEnvs = computed(() => {
-  const configuredKeys = envs.value.map(e => e.key)
-  return WX_REQUIRED_ENVS.filter(key => !configuredKeys.includes(key))
 })
 
-// 加载公众号草稿箱配置（检查系统工作流是否存在）
-async function loadWxConfig() {
-  const wxWorkflow = await getSystemWorkflow(WORKFLOW_TYPES.SYSTEM_WX_DRAFT)
-  if (wxWorkflow) {
-    wxWorkflowId.value = wxWorkflow.id
-  }
-}
-
-// 创建公众号草稿箱工作流（系统工作流，用户不可编辑）
-async function createWxWorkflow() {
-  if (wxMissingEnvs.value.length > 0) {
-    toast.error(`请先配置环境变量：${wxMissingEnvs.value.join(', ')}`)
-    return
-  }
-
-  isCreatingWxWorkflow.value = true
+// 保存设置
+async function saveSettings() {
   try {
-    // 创建工作流，第一步获取 Access Token，第二步上传素材并替换 HTML 图片 URL
-    const steps = [
-      {
-        id: 'get-access-token',
-        name: '🔑 获取微信 Access Token',
-        type: 'api',
-        url: 'https://zzao.club/api/v1/wx/cgi-bin/token',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
-        },
-        body: JSON.stringify({
-          appId: '{{env.WX_APPID}}',
-          appSecret: '{{env.WX_APPSECRET}}',
-        }),
-        timeout: 10000,
-      },
-      {
-        id: 'upload-wx-material',
-        name: '🖼️ 上传图片素材',
-        type: 'api',
-        url: 'https://zzao.club/api/v1/wx/cgi-bin/material/add_material',
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer {{env.ZZCLUB_PAT}}',
-        },
-        body: '',
-        timeout: 60000, // 上传可能较慢
-      },
-      {
-        id: 'add-to-wx-draft',
-        name: '📝 上传到草稿箱',
-        type: 'api',
-        url: 'https://zzao.club/api/v1/wx/cgi-bin/draft/add',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
-        },
-        body: JSON.stringify({
-          access_token: '{{step1.data.accessToken}}',
-          articles: [
-            {
-              article_type: 'news',
-              title: '{{title}}',
-              content: '{{step2.data.html}}',
-              thumb_media_id: '{{step2.data.coverMediaId}}',
-            },
-          ],
-        }),
-        timeout: 30000,
-      },
-    ]
-
-    // 使用 upsert 创建或更新系统工作流
-    const newId = await upsertSystemWorkflow(
-      WORKFLOW_TYPES.SYSTEM_WX_DRAFT,
-      WX_WORKFLOW_NAME,
-      '上传文章至微信公众号草稿箱（系统内置，不可编辑）',
-      steps,
-    )
-    wxWorkflowId.value = newId ?? null
-
-    toast.success('工作流已创建！')
-  }
-  catch (e: any) {
-    console.error('Failed to create wx workflow:', e)
-    toast.error(`创建失败: ${e.message}`)
-  }
-  finally {
-    isCreatingWxWorkflow.value = false
-  }
-}
-
-// 删除公众号草稿箱配置
-async function deleteWxWorkflow() {
-  toast('确定要删除公众号草稿箱工作流吗？', {
-    action: {
-      label: '删除',
-      onClick: async () => {
-        try {
-          if (wxWorkflowId.value) {
-            await deleteWorkflow(wxWorkflowId.value)
-            wxWorkflowId.value = null
-          }
-          toast.success('工作流已删除')
-        }
-        catch (e: any) {
-          console.error('Failed to delete wx workflow:', e)
-          toast.error(`删除失败: ${e.message}`)
-        }
-      },
-    },
-    cancel: {
-      label: '取消',
-    },
-  })
-}
-
-const loadEnvs = async () => {
-  try {
-    const result = await getAllEnvs()
-    envs.value = result || []
-  }
-  catch (e) {
-    console.error(e)
-    toast.error('加载环境变量失败')
-  }
-}
-
-const handleAddEnv = async () => {
-  if (!newEnvKey.value || !newEnvValue.value) {
-    toast.error('键和值不能为空')
-    return
-  }
-  try {
-    await createEnv(newEnvKey.value, newEnvValue.value)
-    newEnvKey.value = ''
-    newEnvValue.value = ''
-    await loadEnvs()
-    toast.success('环境变量已添加')
-  }
-  catch (e) {
-    console.error(e)
-    toast.error('添加失败，键名可能重复')
-  }
-}
-
-const handleDeleteEnv = (id: number) => {
-  toast('确定要删除该环境变量吗？', {
-    action: {
-      label: '删除',
-      onClick: async () => {
-        try {
-          await deleteEnv(id)
-          await loadEnvs()
-          toast.success('环境变量已删除')
-        }
-        catch (e) {
-          console.error(e)
-          toast.error('删除失败')
-        }
-      },
-    },
-    cancel: {
-      label: '取消',
-    },
-  })
-}
-
-onMounted(async () => {
-  // 检测 Tauri 桌面端环境
-  console.log('[Settings] Checking Tauri desktop environment...')
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    console.log('[Settings] @tauri-apps/api/core imported successfully')
-
-    // 尝试调用桌面端专属命令
-    const ip = await invoke('get_local_ip') as string
-    console.log('[Settings] get_local_ip returned:', ip)
-
-    isTauriDesktop.value = true
-    console.log('[Settings] isTauriDesktop set to true')
-
-    // 自动加载服务器信息
-    await loadServerInfo()
-  }
-  catch (e) {
-    // 不是桌面端或命令不存在
-    console.log('[Settings] Tauri desktop detection failed:', e)
-    isTauriDesktop.value = false
-  }
-
-  console.log('[Settings] Final isTauriDesktop value:', isTauriDesktop.value)
-
-  customCss.value = await getSetting('custom_css') || ''
-
-  // Load COS Settings
-  cosSecretId.value = await getSetting('secret_id') || ''
-  cosSecretKey.value = await getSetting('secret_key') || ''
-  cosBucket.value = await getSetting('bucket') || ''
-  cosRegion.value = await getSetting('region') || ''
-  cosPathPrefix.value = await getSetting('path_prefix') || ''
-  cosCustomDomain.value = await getSetting('custom_domain') || ''
-
-  await loadEnvs()
-
-  // 非桌面端加载同步配置
-  if (!isTauriDesktop.value) {
-    await loadSyncConfig()
-  }
-
-  // 加载公众号草稿箱配置
-  await loadWxConfig()
-})
-
-const saveSettings = async () => {
-  try {
-    await setSetting('custom_css', customCss.value)
-
-    // Save COS Settings
-    await setSetting('secret_id', cosSecretId.value, 'cos')
-    await setSetting('secret_key', cosSecretKey.value, 'cos')
-    await setSetting('bucket', cosBucket.value, 'cos')
-    await setSetting('region', cosRegion.value, 'cos')
-    await setSetting('path_prefix', cosPathPrefix.value, 'cos')
-    await setSetting('custom_domain', cosCustomDomain.value, 'cos')
-
+    await store.setItem('customCss', customCss.value)
+    await store.setItem('cosSecretId', cosSecretId.value)
+    await store.setItem('cosSecretKey', cosSecretKey.value)
+    await store.setItem('cosBucket', cosBucket.value)
+    await store.setItem('cosRegion', cosRegion.value)
+    await store.setItem('cosPathPrefix', cosPathPrefix.value)
+    await store.setItem('cosCustomDomain', cosCustomDomain.value)
+    await store.saveStore()
     toast.success('设置已保存')
   }
-  catch {
-    toast.error('保存设置失败')
+  catch (error) {
+    toast.error('保存失败')
+    console.error('保存设置失败:', error)
   }
 }
+
+// 初始化
+async function initSettingsPage() {
+  await store.initStore()
+
+  // 加载 COS 设置
+  customCss.value = (await store.getItem<string>('customCss')) || ''
+  cosSecretId.value = (await store.getItem<string>('cosSecretId')) || ''
+  cosSecretKey.value = (await store.getItem<string>('cosSecretKey')) || ''
+  cosBucket.value = (await store.getItem<string>('cosBucket')) || ''
+  cosRegion.value = (await store.getItem<string>('cosRegion')) || ''
+  cosPathPrefix.value = (await store.getItem<string>('cosPathPrefix')) || ''
+  cosCustomDomain.value = (await store.getItem<string>('cosCustomDomain')) || ''
+
+  // 加载各模块数据
+  await loadSyncConfig()
+  await loadEnvs()
+  await loadSystemWorkflows()
+
+  if (isTauriEnvironment.value) {
+    await loadServerInfo()
+  }
+
+  // 静默同步一次(不显示 toast,除非有数据变化)
+  await syncOnce(true)
+}
+
+onMounted(() => {
+  initSettingsPage()
+})
 </script>
 
 <template>
@@ -652,19 +274,19 @@ const saveSettings = async () => {
           <AccordionItem value="sync">
             <AccordionTrigger class="hover:no-underline">
               <div class="text-base font-semibold">
-                同步
+                同步 <sup>beta</sup>
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
                   <CardDescription>
-                    {{ isTauriDesktop ? '通过局域网同步数据。(需在同一个WIFI下)' : '配置桌面端服务器地址，实现局域网同步。(需在同一个WIFI下' }}
+                    {{ isTauriEnvironment ? '通过局域网同步数据。(需在同一个WIFI下)' : '配置桌面端服务器地址，实现局域网同步。(需在同一个WIFI下' }}
                   </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
                   <!-- 桌面端 HTTP 服务器信息 -->
-                  <div v-if="isTauriDesktop" class="p-4 bg-muted/50 rounded-lg space-y-3 border">
+                  <div v-if="isTauriEnvironment" class="p-4 bg-muted/50 rounded-lg space-y-3 border">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
                         <Icon name="lucide:server" class="w-4 h-4 text-primary" />
@@ -694,6 +316,28 @@ const saveSettings = async () => {
                         </Button>
                       </div>
 
+                      <div class="p-3 rounded-lg border" :class="syncInfo.status === 'error' ? 'bg-destructive/5 border-destructive/40' : 'bg-muted/50'">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2 text-sm font-medium">
+                            <Icon :name="syncInfo.status === 'ok' ? 'lucide:check-circle' : 'lucide:alert-circle'" class="w-4 h-4" :class="syncInfo.status === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-destructive'" />
+                            <span>{{ syncInfo.status === 'ok' ? '服务运行中' : (syncInfo.message || '不可同步') }}</span>
+                          </div>
+                          <Button size="sm" variant="ghost" @click="refreshSyncStateCard">
+                            <Icon name="lucide:refresh-ccw" class="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1">
+                          {{ lastSyncText }}
+                          <span v-if="syncInfo.seq !== null"> · 服务器序列 {{ syncInfo.seq }}</span>
+                          <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
+                          <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
+                          <span v-if="syncInfo.paired"> · 已被配对访问</span>
+                        </p>
+                        <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
+                          {{ syncInfo.message }}
+                        </p>
+                      </div>
+
                       <div class="flex items-center gap-2">
                         <Button
                           variant="outline"
@@ -714,6 +358,26 @@ const saveSettings = async () => {
                         </Button>
                       </div>
 
+                      <div class="flex items-center gap-2">
+                        <Button
+                          class="flex-1"
+                          variant="secondary"
+                          :class="{ 'pointer-events-none opacity-60': isSyncing }"
+                          :disabled="isSyncing || !serverUrl"
+                          @click="syncOnce"
+                        >
+                          <Icon
+                            :name="isSyncing ? 'lucide:loader-2' : 'lucide:refresh-ccw'"
+                            class="w-3.5 h-3.5 mr-1"
+                            :class="{ 'animate-spin': isSyncing }"
+                          />
+                          {{ isSyncing ? '同步中…' : '立即同步（桌面端）' }}
+                        </Button>
+                        <p class="text-xs text-muted-foreground flex-1">
+                          {{ syncStatus }}
+                        </p>
+                      </div>
+
                       <p class="text-xs text-muted-foreground">
                         在同一局域网的其他设备上，使用此地址向客户端流数据。
                       </p>
@@ -721,7 +385,7 @@ const saveSettings = async () => {
                   </div>
 
                   <!-- 移动端配置服务器地址 -->
-                  <div v-if="!isTauriDesktop" class="space-y-4">
+                  <div v-if="!isTauriEnvironment" class="space-y-4">
                     <div class="grid gap-2">
                       <Label>桌面端服务器地址</Label>
                       <div class="flex gap-2">
@@ -736,6 +400,34 @@ const saveSettings = async () => {
                       </p>
                     </div>
 
+                    <div class="p-3 rounded-lg border" :class="syncInfo.status === 'error' ? 'bg-destructive/5 border-destructive/40' : 'bg-muted/50'">
+                      <div class="flex items-center gap-2 text-sm font-medium">
+                        <Icon :name="syncInfo.status === 'ok' ? 'lucide:check-circle' : 'lucide:alert-circle'" class="w-4 h-4" :class="syncInfo.status === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-destructive'" />
+                        <span>{{ syncInfo.status === 'ok' ? '可同步' : (syncInfo.message || '不可同步') }}</span>
+                      </div>
+                      <p class="text-xs text-muted-foreground mt-1">
+                        {{ lastSyncText }}
+                        <span v-if="syncInfo.seq !== null"> · 服务器序列 {{ syncInfo.seq }}</span>
+                        <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
+                        <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
+                      </p>
+                      <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
+                        {{ syncInfo.message }}
+                      </p>
+                    </div>
+
+                    <div class="grid gap-2">
+                      <Label>同步 Token</Label>
+                      <Input
+                        v-model="syncToken"
+                        placeholder="默认 zotepad-dev-token"
+                        class="font-mono text-sm"
+                      />
+                      <p class="text-xs text-muted-foreground">
+                        与桌面端 HTTP 服务保持一致，未设置则使用默认。
+                      </p>
+                    </div>
+
                     <!-- 已配置状态 -->
                     <div v-if="syncWorkflowId" class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                       <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
@@ -743,11 +435,11 @@ const saveSettings = async () => {
                         <span class="text-sm font-medium">已配置同步流</span>
                       </div>
                       <p class="text-xs text-muted-foreground mt-1">
-                        可在「流」页面找到「{{ SYNC_WORKFLOW_NAME }}」进行测试。
+                        可在「流」页面找到「{{ syncWorkflowName }}」进行测试。
                       </p>
                     </div>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 flex-wrap">
                       <Button
                         class="flex-1"
                         :disabled="isSavingSyncConfig || !syncServerAddress.trim()"
@@ -762,8 +454,9 @@ const saveSettings = async () => {
                       </Button>
                       <Button
                         variant="outline"
+                        class="flex-1 min-w-[120px]"
                         :disabled="isTestingConnection || !syncServerAddress.trim()"
-                        @click="testMobileConnection"
+                        @click="testConnection"
                       >
                         <Icon
                           :name="isTestingConnection ? 'lucide:loader-2' : 'lucide:wifi'"
@@ -772,7 +465,25 @@ const saveSettings = async () => {
                         />
                         测试
                       </Button>
+                      <Button
+                        variant="secondary"
+                        class="flex-1 min-w-[120px]"
+                        :class="{ 'pointer-events-none opacity-60': isSyncing }"
+                        :disabled="isSyncing || !syncServerAddress.trim()"
+                        @click="syncOnce"
+                      >
+                        <Icon
+                          :name="isSyncing ? 'lucide:loader-2' : 'lucide:refresh-ccw'"
+                          class="w-4 h-4 mr-1"
+                          :class="{ 'animate-spin': isSyncing }"
+                        />
+                        {{ isSyncing ? '同步中…' : '立即同步' }}
+                      </Button>
                     </div>
+
+                    <p class="text-xs text-muted-foreground">
+                      {{ syncStatus }}
+                    </p>
 
                     <div v-if="syncWorkflowId" class="pt-2 border-t">
                       <Button
@@ -791,69 +502,100 @@ const saveSettings = async () => {
             </AccordionContent>
           </AccordionItem>
 
-          <!-- 公众号草稿箱 -->
-          <AccordionItem value="wechat">
+          <!-- 系统流 -->
+          <AccordionItem value="system-workflows">
             <AccordionTrigger class="hover:no-underline">
               <div class="text-base font-semibold">
-                公众号
+                系统流
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <Card class="border-0 shadow-none">
-                <CardHeader class="px-0 pt-0">
-                  <CardDescription>
-                    创建「上传至公众号草稿箱」流。
-                  </CardDescription>
-                </CardHeader>
-                <CardContent class="space-y-4 px-0 pb-2">
-                  <!-- 环境变量状态 -->
-                  <div class="space-y-2">
-                    <!-- 缺失变量时显示快速配置入口 -->
-                    <AppMissingEnvDrawer
-                      v-if="wxMissingEnvs.length > 0"
-                      :missing-variables="wxMissingEnvs.map(k => `env.${k}`)"
-                      variant="inline"
-                      @saved="loadEnvs"
-                    />
-                  </div>
-
-                  <!-- 已创建状态 -->
-                  <div v-if="wxWorkflowId" class="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <Icon name="lucide:check-circle" class="w-4 h-4" />
-                      <span class="text-sm font-medium">已创建流</span>
+                <CardContent class="space-y-2 px-0 pb-2">
+                  <div
+                    v-for="state in systemWorkflowStates"
+                    :key="state.spec.type"
+                    class="flex items-center gap-3 border rounded-lg px-3 py-2 bg-muted/30"
+                  >
+                    <div class="flex-1 flex items-center gap-2 min-w-0">
+                      <span class="font-medium truncate">{{ state.spec.displayName }}</span>
+                      <Badge :variant="state.workflow ? 'secondary' : 'outline'" class="text-[11px] shrink-0">
+                        {{ state.workflow ? '已创建' : '未创建' }}
+                      </Badge>
+                      <Badge
+                        v-if="state.missingEnvs.length"
+                        variant="destructive"
+                        class="text-[11px] shrink-0"
+                      >
+                        缺少环境变量
+                      </Badge>
                     </div>
-                    <p class="text-xs text-muted-foreground mt-1">
-                      可在「流」页面找到「{{ WX_WORKFLOW_NAME }}」进行测试和编辑。
-                    </p>
+
+                    <div class="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-9 w-9"
+                        :disabled="isCreatingSystemWorkflow === state.spec.type || state.missingEnvs.length > 0"
+                        @click="handleCreateSystemWorkflow(state.spec, envs)"
+                      >
+                        <Icon
+                          :name="isCreatingSystemWorkflow === state.spec.type ? 'lucide:loader-2' : (state.workflow ? 'lucide:refresh-ccw' : 'lucide:plus')"
+                          class="w-4 h-4"
+                          :class="{ 'animate-spin': isCreatingSystemWorkflow === state.spec.type }"
+                        />
+                        <span class="sr-only">{{ state.workflow ? '重新创建' : '创建' }}</span>
+                      </Button>
+                      <Button
+                        v-if="state.workflow"
+                        variant="ghost"
+                        size="icon"
+                        class="h-9 w-9 text-destructive"
+                        :disabled="isDeletingWorkflowId === state.workflow.id"
+                        @click="handleDeleteSystemWorkflow(state.workflow.id)"
+                      >
+                        <Icon
+                          :name="isDeletingWorkflowId === state.workflow.id ? 'lucide:loader-2' : 'lucide:trash-2'"
+                          class="w-4 h-4"
+                          :class="{ 'animate-spin': isDeletingWorkflowId === state.workflow.id }"
+                        />
+                        <span class="sr-only">删除</span>
+                      </Button>
+                    </div>
                   </div>
 
-                  <!-- 操作按钮 -->
-                  <div class="flex gap-2">
-                    <Button
-                      class="flex-1"
-                      :disabled="isCreatingWxWorkflow || wxMissingEnvs.length > 0"
-                      @click="createWxWorkflow"
+                  <div v-if="extraSystemWorkflows.length" class="space-y-2">
+                    <div class="text-xs text-muted-foreground">
+                      其他 system:* 流
+                    </div>
+                    <div
+                      v-for="wf in extraSystemWorkflows"
+                      :key="wf.id"
+                      class="flex items-center gap-3 border rounded-lg px-3 py-2 bg-muted/20"
                     >
-                      <Icon
-                        :name="isCreatingWxWorkflow ? 'lucide:loader-2' : 'lucide:plus'"
-                        class="w-4 h-4 mr-1"
-                        :class="{ 'animate-spin': isCreatingWxWorkflow }"
-                      />
-                      {{ wxWorkflowId ? '重新创建工作流' : '创建工作流' }}
-                    </Button>
-                  </div>
-
-                  <div v-if="wxWorkflowId" class="pt-2 border-t">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="text-destructive hover:text-destructive w-full"
-                      @click="deleteWxWorkflow"
-                    >
-                      <Icon name="lucide:trash-2" class="w-3 h-3 mr-1" />
-                      删除工作流
-                    </Button>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium truncate">
+                          {{ wf.name }}
+                        </div>
+                        <p class="text-[11px] text-muted-foreground truncate">
+                          {{ wf.type || 'system' }} · ID {{ wf.id }}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-8 w-8 text-destructive"
+                        :disabled="isDeletingWorkflowId === wf.id"
+                        @click="handleDeleteSystemWorkflow(wf.id)"
+                      >
+                        <Icon
+                          :name="isDeletingWorkflowId === wf.id ? 'lucide:loader-2' : 'lucide:trash-2'"
+                          class="w-4 h-4"
+                          :class="{ 'animate-spin': isDeletingWorkflowId === wf.id }"
+                        />
+                        <span class="sr-only">删除</span>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

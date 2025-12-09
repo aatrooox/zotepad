@@ -17,12 +17,12 @@ export function useNoteRepository() {
 
   const getNote = (id: number) =>
     runAsync(async () => {
-      const result = await select<Note[]>('SELECT * FROM notes WHERE id = ?', [id])
+      const result = await select<Note[]>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL', [id])
       return result[0] || null
     }, '获取笔记失败')
 
   const getAllNotes = () =>
-    runAsync(() => select<Note[]>('SELECT * FROM notes ORDER BY updated_at DESC'), '获取笔记列表失败')
+    runAsync(() => select<Note[]>('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC'), '获取笔记列表失败')
 
   const updateNote = (id: number, title: string, content: string, tags: string[] = []) =>
     runAsync(() => execute(
@@ -31,7 +31,7 @@ export function useNoteRepository() {
     ), '更新笔记失败')
 
   const deleteNote = (id: number) =>
-    runAsync(() => execute('DELETE FROM notes WHERE id = ?', [id]), '删除笔记失败')
+    runAsync(() => execute('UPDATE notes SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]), '删除笔记失败')
 
   // 获取最新的一条笔记，用于自动加载
   const getLatestNote = () =>

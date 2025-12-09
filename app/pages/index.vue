@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
-import type { Moment, Note } from '~/types/models'
+import type { Asset, Moment, Note } from '~/types/models'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useFileDialog } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
+import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useMomentRepository } from '~/composables/repositories/useMomentRepository'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
@@ -32,6 +34,7 @@ const router = useRouter()
 const tabs = [
   { id: 'articles', label: '文章', icon: 'lucide:file-text' },
   { id: 'moments', label: '动态', icon: 'lucide:camera' },
+  { id: 'assets', label: '资源', icon: 'lucide:image' },
 ] as const
 
 type TabId = typeof tabs[number]['id']
@@ -43,6 +46,7 @@ const { getSetting, setSetting } = useSettingRepository()
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
 const notes = ref<Note[]>([])
 const noteCardsRef = ref<HTMLElement[]>([])
+const { uploadFile } = useCOSService()
 
 const animateNoteCards = () => {
   if (noteCardsRef.value.length) {
@@ -65,11 +69,124 @@ const loadNotes = async () => {
   }
 }
 
+// ==================== Assets Logic ====================
+const { getAllAssets, createAsset, deleteAsset } = useAssetRepository()
+const assets = ref<Asset[]>([])
+const assetIsUploading = ref(false)
+const assetFileInput = ref<HTMLInputElement | null>(null)
+const assetViewMode = ref<'grid' | 'list'>('grid')
+
+const loadAssetsViewMode = async () => {
+  const savedViewMode = await getSetting('assets_view_mode')
+  if (savedViewMode === 'grid' || savedViewMode === 'list') {
+    assetViewMode.value = savedViewMode
+  }
+}
+
+const toggleAssetViewMode = async (mode: 'grid' | 'list') => {
+  assetViewMode.value = mode
+  await setSetting('assets_view_mode', mode, 'ui')
+}
+
+const loadAssets = async () => {
+  try {
+    assets.value = await getAllAssets() || []
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('加载资源失败')
+  }
+}
+
+const handleAssetUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (!target.files || target.files.length === 0)
+    return
+
+  const file = target.files[0]
+  if (!file)
+    return
+
+  assetIsUploading.value = true
+
+  try {
+    const { url, path } = await uploadFile(file)
+
+    await createAsset({
+      url,
+      path,
+      filename: file.name,
+      size: file.size,
+      mime_type: file.type,
+      storage_type: 'cos',
+    })
+
+    toast.success('上传成功')
+    await loadAssets()
+  }
+  catch (e: any) {
+    console.error(e)
+    toast.error(`上传失败: ${e.message}`)
+  }
+  finally {
+    assetIsUploading.value = false
+    if (assetFileInput.value)
+      assetFileInput.value.value = ''
+  }
+}
+
+const handleAssetDelete = (id: number) => {
+  toast('确定要删除这张图片吗？', {
+    action: {
+      label: '删除',
+      onClick: async () => {
+        try {
+          await deleteAsset(id)
+          toast.success('删除成功')
+          await loadAssets()
+        }
+        catch (e) {
+          console.error(e)
+          toast.error('删除失败')
+        }
+      },
+    },
+    cancel: { label: '取消' },
+  })
+}
+
+const copyAssetUrl = async (url: string) => {
+  try {
+    await writeText(url)
+    toast.success('链接已复制')
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('复制失败')
+  }
+}
+
+const triggerAssetUpload = () => {
+  assetFileInput.value?.click()
+}
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) {
+    return '未知大小'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 // ==================== Moments Logic ====================
 const { createMoment, getAllMoments, deleteMoment } = useMomentRepository()
 const { getAllWorkflows } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
-const { uploadFile } = useCOSService()
 
 interface MomentDisplay extends Moment {
   imagesList: string[]
@@ -140,8 +257,12 @@ onMounted(async () => {
   if (activeTab.value === 'articles') {
     loadNotes()
   }
-  else {
+  else if (activeTab.value === 'moments') {
     loadMoments()
+  }
+  else {
+    await loadAssetsViewMode()
+    await loadAssets()
   }
 })
 
@@ -156,8 +277,12 @@ watch(activeTab, async (newTab) => {
   if (newTab === 'articles') {
     loadNotes()
   }
-  else {
+  else if (newTab === 'moments') {
     loadMoments()
+  }
+  else {
+    await loadAssetsViewMode()
+    await loadAssets()
   }
 })
 
@@ -242,7 +367,7 @@ onFileChange(async (files) => {
 
   try {
     const results = await Promise.all(uploadPromises)
-    momentImages.value.push(...results.map(r => r.url))
+    momentImages.value.push(...results.map((r: any) => r.url))
     toast.success(`成功上传 ${results.length} 张图片`)
   }
   catch (e: any) {
@@ -501,12 +626,8 @@ async function handleRunWorkflow(workflow: Workflow) {
                     <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
                       {{ note.title || '无标题' }}
                     </h3>
-                    <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
-                      <Icon name="lucide:clock" class="w-3 h-3" />
-                      {{ formatDate(note.updated_at) }}
-                    </span>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-start gap-2 flex-wrap">
                     <div v-if="getTags(note.tags).length > 0" class="flex flex-wrap gap-1.5">
                       <Badge
                         v-for="tag in getTags(note.tags).slice(0, 5)"
@@ -521,6 +642,10 @@ async function handleRunWorkflow(workflow: Workflow) {
                       </span>
                     </div>
                     <span v-else class="text-xs text-muted-foreground italic">无标签</span>
+                    <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1 ml-auto mt-1 md:mt-0">
+                      <Icon name="lucide:clock" class="w-3 h-3" />
+                      {{ formatDate(note.updated_at) }}
+                    </span>
                   </div>
                 </div>
               </NuxtLink>
@@ -531,6 +656,126 @@ async function handleRunWorkflow(workflow: Workflow) {
                 >
                   <Icon name="lucide:trash-2" class="w-4 h-4" />
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assets Tab -->
+      <div v-else-if="activeTab === 'assets'" class="p-4 md:p-8">
+        <div class="hidden md:flex px-4 py-2 items-center justify-between bg-card/40 rounded-xl border border-border/60 mb-6">
+          <div>
+            <h2 class="text-xl font-semibold">
+              资源库
+            </h2>
+            <p class="text-sm text-muted-foreground">
+              {{ assets.length }} 个文件
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center bg-muted/50 rounded-lg p-1">
+              <button
+                class="p-2 rounded-md transition-colors"
+                :class="assetViewMode === 'grid' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                title="网格视图"
+                @click="toggleAssetViewMode('grid')"
+              >
+                <Icon name="lucide:grid-2x2" class="w-4 h-4" />
+              </button>
+              <button
+                class="p-2 rounded-md transition-colors"
+                :class="assetViewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                title="列表视图"
+                @click="toggleAssetViewMode('list')"
+              >
+                <Icon name="lucide:list" class="w-4 h-4" />
+              </button>
+            </div>
+            <Button :disabled="assetIsUploading" @click="triggerAssetUpload">
+              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="lucide:upload" class="w-4 h-4 mr-2" />
+              上传图片
+            </Button>
+          </div>
+        </div>
+
+        <!-- Mobile header -->
+        <div class="flex md:hidden px-2 pb-3 items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">
+              资源库
+            </h2>
+            <p class="text-xs text-muted-foreground">
+              {{ assets.length }} 个文件
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="p-2 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+              :title="assetViewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'"
+              @click="toggleAssetViewMode(assetViewMode === 'grid' ? 'list' : 'grid')"
+            >
+              <Icon :name="assetViewMode === 'grid' ? 'lucide:list' : 'lucide:grid-2x2'" class="w-5 h-5" />
+            </button>
+            <Button size="sm" :disabled="assetIsUploading" @click="triggerAssetUpload">
+              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
+              <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+              上传
+            </Button>
+          </div>
+        </div>
+        <input ref="assetFileInput" type="file" accept="image/*" class="hidden" @change="handleAssetUpload">
+
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="assets.length === 0" class="h-[40vh] flex flex-col items-center justify-center text-muted-foreground">
+            <Icon name="lucide:image" class="w-12 h-12 opacity-20 mb-3" />
+            <p>暂无图片</p>
+          </div>
+
+          <div v-else-if="assetViewMode === 'grid'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div v-for="asset in assets" :key="asset.id" class="group relative aspect-square bg-card rounded-lg overflow-hidden border shadow-sm">
+              <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy">
+
+              <div class="absolute top-1 right-1 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <Button variant="secondary" size="icon" class="h-7 w-7 bg-background/80 backdrop-blur-sm" title="复制链接" @click="copyAssetUrl(asset.url)">
+                  <Icon name="lucide:copy" class="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="destructive" size="icon" class="h-7 w-7 opacity-90" title="删除" @click="handleAssetDelete(asset.id)">
+                  <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+                </Button>
+              </div>
+
+              <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
+                {{ asset.filename }}
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="flex flex-col gap-2 max-w-4xl mx-auto">
+            <div
+              v-for="asset in assets"
+              :key="asset.id"
+              class="group flex items-center gap-4 p-3 bg-card rounded-lg border hover:border-border/60 transition-colors"
+            >
+              <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
+                <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-sm truncate">
+                  {{ asset.filename }}
+                </p>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                  {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
+                </p>
+              </div>
+              <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyAssetUrl(asset.url)">
+                  <Icon name="lucide:copy" class="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleAssetDelete(asset.id)">
+                  <Icon name="lucide:trash-2" class="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </div>

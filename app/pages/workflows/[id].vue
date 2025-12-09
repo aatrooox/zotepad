@@ -30,6 +30,8 @@ const envKeys = ref<string[]>([])
 const steps = ref<EditableWorkflowStep[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
+const isSystemWorkflow = computed(() => workflow.value?.type?.startsWith('system:') ?? false)
+const isReadonly = isSystemWorkflow
 
 const workflowId = computed(() => Number(route.params.id))
 
@@ -166,7 +168,7 @@ onMounted(() => {
 })
 
 const handleSave = async () => {
-  if (!workflow.value)
+  if (!workflow.value || isReadonly.value)
     return
 
   isSaving.value = true
@@ -217,6 +219,8 @@ const handleExport = () => {
 }
 
 const addStep = (type: 'api' | 'javascript') => {
+  if (isReadonly.value)
+    return
   const newStep: EditableWorkflowStep = {
     id: generateId(),
     name: type === 'api' ? '新 API 请求' : '新脚本',
@@ -230,6 +234,8 @@ const addStep = (type: 'api' | 'javascript') => {
 }
 
 const addHeader = (step: EditableWorkflowStep) => {
+  if (isReadonly.value)
+    return
   step.headersList.push({
     id: generateId(),
     key: '',
@@ -238,14 +244,20 @@ const addHeader = (step: EditableWorkflowStep) => {
 }
 
 const removeHeader = (step: EditableWorkflowStep, index: number) => {
+  if (isReadonly.value)
+    return
   step.headersList.splice(index, 1)
 }
 
 const removeStep = (index: number) => {
+  if (isReadonly.value)
+    return
   steps.value.splice(index, 1)
 }
 
 const moveStep = (index: number, direction: 'up' | 'down') => {
+  if (isReadonly.value)
+    return
   if (direction === 'up' && index > 0) {
     const temp = steps.value[index]
     const prev = steps.value[index - 1]
@@ -281,14 +293,17 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
       </div>
       <!-- 桌面端按钮 -->
       <div class="hidden md:flex items-center gap-2">
+        <Badge v-if="isSystemWorkflow" variant="secondary" class="mr-1">
+          系统流 · 只读
+        </Badge>
         <Button variant="outline" :disabled="isSaving" @click="handleExport">
           <Icon name="lucide:share" class="w-4 h-4 mr-2" />
           导出
         </Button>
-        <Button variant="outline" :disabled="isSaving" @click="loadData">
+        <Button variant="outline" :disabled="isSaving || isReadonly" @click="loadData">
           重置
         </Button>
-        <Button :disabled="isSaving" @click="handleSave">
+        <Button :disabled="isSaving || isReadonly" @click="handleSave">
           <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
           <Icon v-else name="lucide:save" class="w-4 h-4 mr-2" />
           保存
@@ -296,13 +311,16 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
       </div>
       <!-- 移动端按钮 -->
       <div class="flex md:hidden items-center gap-1">
+        <Badge v-if="isSystemWorkflow" variant="secondary" class="mr-1">
+          系统流
+        </Badge>
         <Button variant="ghost" size="icon" :disabled="isSaving" @click="handleExport">
           <Icon name="lucide:share" class="w-4 h-4" />
         </Button>
-        <Button variant="ghost" size="icon" :disabled="isSaving" @click="loadData">
+        <Button variant="ghost" size="icon" :disabled="isSaving || isReadonly" @click="loadData">
           <Icon name="lucide:rotate-ccw" class="w-4 h-4" />
         </Button>
-        <Button variant="ghost" size="icon" :disabled="isSaving" @click="handleSave">
+        <Button variant="ghost" size="icon" :disabled="isSaving || isReadonly" @click="handleSave">
           <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
           <Icon v-else name="lucide:save" class="w-4 h-4" />
         </Button>
@@ -333,7 +351,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="space-y-2">
                 <Label>名称</Label>
-                <Input v-model="workflow.name" placeholder="流名称" />
+                <Input v-model="workflow.name" placeholder="流名称" :disabled="isReadonly" />
               </div>
               <!-- <div class="space-y-2">
                 <Label>关联 Schema (可选)</Label>
@@ -357,7 +375,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
             </div>
             <div class="space-y-2">
               <Label>描述</Label>
-              <Textarea v-model="workflow.description" placeholder="描述" rows="3" />
+              <Textarea v-model="workflow.description" placeholder="描述" rows="3" :disabled="isReadonly" />
             </div>
           </CardContent>
         </Card>
@@ -365,11 +383,16 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
         <!-- Steps -->
         <div class="space-y-4">
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold">
-              步骤
-            </h2>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-semibold">
+                步骤
+              </h2>
+              <Badge v-if="isReadonly" variant="secondary">
+                只读
+              </Badge>
+            </div>
             <div class="flex gap-2">
-              <Button size="sm" variant="outline" @click="addStep('api')">
+              <Button size="sm" variant="outline" :disabled="isReadonly" @click="addStep('api')">
                 <Icon name="lucide:globe" class="w-4 h-4 mr-2" />
                 添加 API 请求
               </Button>
@@ -409,13 +432,13 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                   />
                 </div>
                 <div class="flex items-center gap-1 mr-2" @click.stop>
-                  <Button variant="ghost" size="icon" class="h-7 w-7" :disabled="index === 0" @click="moveStep(index, 'up')">
+                  <Button variant="ghost" size="icon" class="h-7 w-7" :disabled="index === 0 || isReadonly" @click="moveStep(index, 'up')">
                     <Icon name="lucide:arrow-up" class="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" class="h-7 w-7" :disabled="index === steps.length - 1" @click="moveStep(index, 'down')">
+                  <Button variant="ghost" size="icon" class="h-7 w-7" :disabled="index === steps.length - 1 || isReadonly" @click="moveStep(index, 'down')">
                     <Icon name="lucide:arrow-down" class="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive hover:text-destructive" @click="removeStep(index)">
+                  <Button variant="ghost" size="icon" class="h-7 w-7 text-destructive hover:text-destructive" :disabled="isReadonly" @click="removeStep(index)">
                     <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -425,7 +448,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                   <!-- 步骤名称编辑 -->
                   <div class="flex gap-2 items-center">
                     <Label class="shrink-0 text-muted-foreground">名称</Label>
-                    <Input v-model="step.name" class="h-8 font-medium" placeholder="步骤名称" />
+                    <Input v-model="step.name" class="h-8 font-medium" placeholder="步骤名称" :disabled="isReadonly" />
                   </div>
 
                   <!-- 步骤缺失变量警告 -->
@@ -439,7 +462,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                   <!-- API Step Fields -->
                   <template v-if="step.type === 'api'">
                     <div class="flex gap-2">
-                      <Select v-model="step.method">
+                      <Select v-model="step.method" :disabled="isReadonly">
                         <SelectTrigger class="w-24">
                           <SelectValue placeholder="Method" />
                         </SelectTrigger>
@@ -458,7 +481,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                      <Input v-model="step.url" placeholder="https://api.example.com/endpoint" class="flex-1 font-mono text-sm" />
+                      <Input v-model="step.url" placeholder="https://api.example.com/endpoint" class="flex-1 font-mono text-sm" :disabled="isReadonly" />
                     </div>
 
                     <Accordion type="single" collapsible>
@@ -469,13 +492,13 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                         <AccordionContent>
                           <div class="space-y-2">
                             <div v-for="(header, hIndex) in step.headersList" :key="header.id" class="flex gap-2">
-                              <Input v-model="header.key" placeholder="键" class="flex-1 h-8" />
-                              <Input v-model="header.value" placeholder="值" class="flex-1 h-8" />
-                              <Button variant="ghost" size="icon" class="h-8 w-8" @click="removeHeader(step, hIndex)">
+                              <Input v-model="header.key" placeholder="键" class="flex-1 h-8" :disabled="isReadonly" />
+                              <Input v-model="header.value" placeholder="值" class="flex-1 h-8" :disabled="isReadonly" />
+                              <Button variant="ghost" size="icon" class="h-8 w-8" :disabled="isReadonly" @click="removeHeader(step, hIndex)">
                                 <Icon name="lucide:x" class="w-4 h-4" />
                               </Button>
                             </div>
-                            <Button variant="outline" size="sm" class="w-full" @click="addHeader(step)">
+                            <Button variant="outline" size="sm" class="w-full" :disabled="isReadonly" @click="addHeader(step)">
                               <Icon name="lucide:plus" class="w-3 h-3 mr-2" />
                               添加请求头
                             </Button>
@@ -487,12 +510,12 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                           请求体
                         </AccordionTrigger>
                         <AccordionContent>
-                          <Textarea v-model="step.body" placeholder="{ 'key': 'value' }" class="font-mono text-sm" rows="5" />
+                          <Textarea v-model="step.body" placeholder="{ 'key': 'value' }" class="font-mono text-sm" rows="5" :disabled="isReadonly" />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
 
-                    <div class="mt-2 pt-2 border-t border-border/50">
+                    <div v-if="!isSystemWorkflow" class="mt-2 pt-2 border-t border-border/50">
                       <p class="text-xs font-medium mb-2 text-muted-foreground flex items-center gap-2">
                         <Icon name="lucide:info" class="w-3 h-3" />
                         可用变量 (点击复制，支持在 URL、Header 和 Body 中使用):

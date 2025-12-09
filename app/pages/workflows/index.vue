@@ -3,7 +3,6 @@ import type { Workflow, WorkflowSchema, WorkflowStep } from '~/types/workflow'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
-import SchemaList from '~/components/workflow/SchemaList.vue'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
@@ -11,7 +10,7 @@ import { extractWorkflowVariables, validateVariables } from '~/composables/useVa
 
 useHead({ title: '流' })
 
-const { getAllWorkflows, createWorkflow, deleteWorkflow } = useWorkflowRepository()
+const { getAllWorkflowsWithSystem, createWorkflow, deleteWorkflow } = useWorkflowRepository()
 const { getAllSchemas } = useWorkflowSchemaRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 
@@ -66,13 +65,13 @@ const animateCards = () => {
 const loadData = async () => {
   try {
     const [wfData, schemaData, envData] = await Promise.all([
-      getAllWorkflows(),
+      getAllWorkflowsWithSystem(),
       getAllSchemas(),
       getAllEnvs(),
     ])
     workflows.value = wfData || []
     schemas.value = schemaData || []
-    envKeys.value = envData?.map(e => e.key) || []
+    envKeys.value = envData?.map((e: any) => e.key) || []
     nextTick(() => {
       animateCards()
     })
@@ -189,6 +188,8 @@ const handleDelete = (id: number, event?: Event) => {
   })
 }
 
+const isSystemWorkflow = (workflow: Workflow) => workflow.type?.startsWith('system:')
+
 const formatDate = (dateStr?: string) => {
   if (!dateStr)
     return ''
@@ -302,6 +303,9 @@ const formatDate = (dateStr?: string) => {
                   <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
                     {{ workflow.name || '无标题流' }}
                   </h3>
+                  <Badge v-if="isSystemWorkflow(workflow)" variant="secondary" class="text-[11px]">
+                    系统流
+                  </Badge>
                   <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
                     <Icon name="lucide:clock" class="w-3 h-3" />
                     {{ formatDate(workflow.updated_at) }}
@@ -319,7 +323,8 @@ const formatDate = (dateStr?: string) => {
             <!-- Actions -->
             <div class="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 relative z-10">
               <button
-                class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer"
+                class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isSystemWorkflow(workflow)"
                 @click.stop.prevent="(e) => handleDelete(workflow.id, e)"
               >
                 <Icon name="lucide:trash-2" class="w-4 h-4" />
