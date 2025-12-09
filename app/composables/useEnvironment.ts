@@ -15,6 +15,8 @@ declare global {
  */
 export function useEnvironment() {
   const isTauriEnvironment = ref(false)
+  const isDesktop = ref(false)
+  const isMobile = ref(false)
   const isLoading = ref(true)
   const error = ref<string | null>(null)
 
@@ -48,8 +50,33 @@ export function useEnvironment() {
   }
 
   /**
-   * 初始化环境检测
+   * 检测平台类型(桌面端 vs 移动端)
    */
+  async function detectPlatform() {
+    if (!isTauriEnvironment.value) {
+      isDesktop.value = false
+      isMobile.value = false
+      return
+    }
+
+    try {
+      // 通过 user agent 判断平台
+      const ua = navigator.userAgent.toLowerCase()
+      const isAndroid = /android/.test(ua)
+      const isIOS = /iphone|ipad|ipod/.test(ua)
+
+      isMobile.value = isAndroid || isIOS
+      isDesktop.value = !isMobile.value
+    }
+    catch (e) {
+      console.error('检测平台类型失败:', e)
+      // 默认为桌面端
+      isDesktop.value = true
+      isMobile.value = false
+    }
+  } /**
+     * 初始化环境检测
+     */
   async function initEnvironmentDetection() {
     isLoading.value = true
     error.value = null
@@ -57,10 +84,17 @@ export function useEnvironment() {
     try {
       const result = await detectTauriEnvironment()
       isTauriEnvironment.value = result
+
+      // 检测平台类型
+      if (result) {
+        await detectPlatform()
+      }
     }
     catch (err) {
       error.value = err instanceof Error ? err.message : '环境检测失败'
       isTauriEnvironment.value = false
+      isDesktop.value = false
+      isMobile.value = false
     }
     finally {
       isLoading.value = false
@@ -81,6 +115,8 @@ export function useEnvironment() {
   function getEnvironmentInfo() {
     return {
       isTauri: isTauriEnvironment.value,
+      isDesktop: isDesktop.value,
+      isMobile: isMobile.value,
       isBrowser: typeof window !== 'undefined' && !isTauriEnvironment.value,
       isSSR: typeof window === 'undefined',
     }
@@ -98,6 +134,8 @@ export function useEnvironment() {
       case 'notifications':
       case 'file-system':
         return env.isTauri
+      case 'desktop-server':
+        return env.isDesktop
       case 'web-apis':
       case 'dom':
         return env.isBrowser || env.isTauri
@@ -113,6 +151,8 @@ export function useEnvironment() {
 
   return {
     isTauriEnvironment: readonly(isTauriEnvironment),
+    isDesktop: readonly(isDesktop),
+    isMobile: readonly(isMobile),
     isLoading: readonly(isLoading),
     error: readonly(error),
     detectTauriEnvironment,

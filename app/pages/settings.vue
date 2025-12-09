@@ -11,7 +11,7 @@ import { useTauriStore } from '~/composables/useTauriStore'
 const config = useRuntimeConfig()
 const version = config.public.version
 const store = useTauriStore()
-const { isTauriEnvironment } = useEnvironment()
+const { isTauriEnvironment, isDesktop } = useEnvironment()
 
 // COS 和通用设置
 const customCss = ref('')
@@ -281,12 +281,12 @@ onMounted(() => {
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
                   <CardDescription>
-                    {{ isTauriEnvironment ? '通过局域网同步数据。(需在同一个WIFI下)' : '配置桌面端服务器地址，实现局域网同步。(需在同一个WIFI下' }}
+                    {{ isDesktop ? '通过局域网同步数据。(需在同一个WIFI下)' : '配置桌面端服务器地址,实现局域网同步。(需在同一个WIFI下)' }}
                   </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
                   <!-- 桌面端 HTTP 服务器信息 -->
-                  <div v-if="isTauriEnvironment" class="p-4 bg-muted/50 rounded-lg space-y-3 border">
+                  <div v-if="isDesktop" class="p-4 bg-muted/50 rounded-lg space-y-3 border">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
                         <Icon name="lucide:server" class="w-4 h-4 text-primary" />
@@ -385,7 +385,7 @@ onMounted(() => {
                   </div>
 
                   <!-- 移动端配置服务器地址 -->
-                  <div v-if="!isTauriEnvironment" class="space-y-4">
+                  <div v-if="!isDesktop" class="space-y-4">
                     <div class="grid gap-2">
                       <Label>桌面端服务器地址</Label>
                       <div class="flex gap-2">
