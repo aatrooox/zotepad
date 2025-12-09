@@ -251,8 +251,8 @@ const saveNote = async () => {
         saveStatus.value = 'idle'
     }, 2000)
 
-    // 保存成功后静默同步(仅在有数据变化时显示 toast)
-    syncOnce(true).catch(e => console.error('同步失败:', e))
+    // 保存成功后立即同步,等待完成以确保数据已推送
+    await syncOnce(true).catch(e => console.error('同步失败:', e))
   }
   catch (e) {
     console.error('Auto-save failed', e)

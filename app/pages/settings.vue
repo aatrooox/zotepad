@@ -455,13 +455,12 @@ onMounted(() => {
                       <Button
                         variant="outline"
                         class="flex-1 min-w-[120px]"
-                        :disabled="isTestingConnection || !syncServerAddress.trim()"
-                        @click="testConnection"
+                        :disabled="!syncServerAddress.trim()"
+                        @click="refreshSyncStateCard"
                       >
                         <Icon
-                          :name="isTestingConnection ? 'lucide:loader-2' : 'lucide:wifi'"
+                          name="lucide:wifi"
                           class="w-4 h-4 mr-1"
-                          :class="{ 'animate-spin': isTestingConnection }"
                         />
                         测试
                       </Button>

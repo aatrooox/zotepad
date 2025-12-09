@@ -11,6 +11,7 @@ import { useMomentRepository } from '~/composables/repositories/useMomentReposit
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
@@ -41,6 +42,7 @@ type TabId = typeof tabs[number]['id']
 
 const activeTab = ref<TabId>('articles')
 const { getSetting, setSetting } = useSettingRepository()
+const { syncOnce } = useSyncManager()
 
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
@@ -253,6 +255,9 @@ onMounted(async () => {
     }
   }
 
+  // 先静默同步,确保数据最新
+  await syncOnce(true).catch(e => console.error('页面初始化同步失败:', e))
+
   // Load data based on active tab
   if (activeTab.value === 'articles') {
     loadNotes()
@@ -272,6 +277,9 @@ watch(activeTab, async (newTab) => {
   router.replace({ query: { tab: newTab } })
   // Save preference
   await setSetting('notes_active_tab', newTab)
+
+  // 先静默同步,确保数据最新
+  await syncOnce(true).catch(e => console.error('切换标签页同步失败:', e))
 
   // Load data
   if (newTab === 'articles') {
