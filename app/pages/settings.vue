@@ -37,6 +37,7 @@ const {
   lastSyncCountText,
   totalSyncCountText,
   saveSyncConfig,
+  resetSyncState,
   deleteSyncConfig,
   syncOnce,
   refreshSyncStateCard,
@@ -68,10 +69,8 @@ const systemWorkflowStates = computed(() => getSystemWorkflowStates.value(envs.v
 const {
   serverUrl: desktopServerUrl,
   isLoadingServerInfo,
-  isTestingConnection,
   loadServerInfo,
   copyServerUrl,
-  testConnection,
 } = useDesktopServer()
 
 // desktopServerUrl 变化时自动更新 syncServerAddress 和 serverUrl
@@ -123,7 +122,7 @@ async function initSettingsPage() {
     await loadServerInfo()
   }
 
-  // 静默同步一次(不显示 toast,除非有数据变化)
+  // 静默同步一次(有数据变化时会显示 toast)
   await syncOnce(true)
 }
 
@@ -328,7 +327,7 @@ onMounted(() => {
                         </div>
                         <p class="text-xs text-muted-foreground mt-1">
                           {{ lastSyncText }}
-                          <span v-if="syncInfo.seq !== null"> · 服务器序列 {{ syncInfo.seq }}</span>
+                          <span v-if="syncInfo.version !== null"> · 服务器版本 {{ syncInfo.version }}</span>
                           <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
                           <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
                           <span v-if="syncInfo.paired"> · 已被配对访问</span>
@@ -338,48 +337,26 @@ onMounted(() => {
                         </p>
                       </div>
 
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          class="flex-1"
-                          :disabled="isTestingConnection"
-                          @click="testConnection"
-                        >
-                          <Icon
-                            :name="isTestingConnection ? 'lucide:loader-2' : 'lucide:wifi'"
-                            class="w-3 h-3 mr-1"
-                            :class="{ 'animate-spin': isTestingConnection }"
-                          />
-                          测试连接
-                        </Button>
+                      <div class="flex items-center gap-2 justify-end">
                         <Button variant="ghost" size="sm" @click="loadServerInfo">
-                          <Icon name="lucide:refresh-cw" class="w-3 h-3" />
+                          <Icon name="lucide:refresh-cw" class="w-3 h-3 mr-1" />
+                          刷新地址
+                        </Button>
+                        <Button variant="outline" size="sm" @click="resetSyncState">
+                          <Icon name="lucide:rotate-ccw" class="w-3 h-3 mr-1" />
+                          重置同步状态
                         </Button>
                       </div>
 
-                      <div class="flex items-center gap-2">
-                        <Button
-                          class="flex-1"
-                          variant="secondary"
-                          :class="{ 'pointer-events-none opacity-60': isSyncing }"
-                          :disabled="isSyncing || !serverUrl"
-                          @click="syncOnce"
-                        >
-                          <Icon
-                            :name="isSyncing ? 'lucide:loader-2' : 'lucide:refresh-ccw'"
-                            class="w-3.5 h-3.5 mr-1"
-                            :class="{ 'animate-spin': isSyncing }"
-                          />
-                          {{ isSyncing ? '同步中…' : '立即同步（桌面端）' }}
-                        </Button>
-                        <p class="text-xs text-muted-foreground flex-1">
-                          {{ syncStatus }}
-                        </p>
+                      <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                        <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm">
+                          <Icon name="lucide:info" class="w-4 h-4 shrink-0" />
+                          <span>桌面端作为服务器,被动接收移动端推送。移动端编辑后会自动同步到桌面端。</span>
+                        </div>
                       </div>
 
                       <p class="text-xs text-muted-foreground">
-                        在同一局域网的其他设备上，使用此地址向客户端流数据。
+                        在同一局域网的移动设备上,配置此地址即可向桌面端推送数据。
                       </p>
                     </div>
                   </div>
@@ -407,7 +384,7 @@ onMounted(() => {
                       </div>
                       <p class="text-xs text-muted-foreground mt-1">
                         {{ lastSyncText }}
-                        <span v-if="syncInfo.seq !== null"> · 服务器序列 {{ syncInfo.seq }}</span>
+                        <span v-if="syncInfo.version !== null"> · 服务器版本 {{ syncInfo.version }}</span>
                         <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
                         <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
                       </p>
@@ -484,7 +461,16 @@ onMounted(() => {
                       {{ syncStatus }}
                     </p>
 
-                    <div v-if="syncWorkflowId" class="pt-2 border-t">
+                    <div v-if="syncWorkflowId" class="pt-2 border-t space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        class="w-full"
+                        @click="resetSyncState"
+                      >
+                        <Icon name="lucide:rotate-ccw" class="w-3 h-3 mr-1" />
+                        重置同步状态
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

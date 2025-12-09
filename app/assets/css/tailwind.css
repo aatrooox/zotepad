@@ -101,7 +101,8 @@
   
   html, body, #__nuxt {
     height: 100%;
-    overflow: hidden; /* Prevent body scroll, handle in app */
+    /* Allow native scrolling to avoid focus/keyboard issues on mobile */
+    overflow: auto;
   }
 }
 

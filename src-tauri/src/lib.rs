@@ -16,7 +16,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 #[cfg(not(mobile))]
-use std::sync::{atomic::{AtomicU64, Ordering}, Arc};
+use std::sync::{atomic::{AtomicI64, Ordering}, Arc};
 #[cfg(not(mobile))]
 use rusqlite::{params, Connection, OptionalExtension};
 #[cfg(not(mobile))]
@@ -32,7 +32,7 @@ use tower_http::cors::CorsLayer;
 #[cfg(not(mobile))]
 struct HttpServerState {
     app_handle: AppHandle,
-    seq: AtomicU64,
+    version_counter: AtomicI64,  // 全局版本号计数器
     token: String,
 }
 
@@ -50,8 +50,8 @@ struct ApiResponse<T> {
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SyncStateData {
-    seq: u64,
-    version: String,
+    version: i64,  // 服务器当前最大版本号
+    server_version: String,  // 服务器软件版本
     paired: bool,
 }
 
@@ -69,8 +69,8 @@ struct SyncChange {
     table: String,
     op: SyncOp,
     data: serde_json::Value,
-    seq: u64,
-    updated_at: String,
+    version: i64,  // 改为 i64 支持负数版本号(客户端本地编辑)
+    updated_at: String,  // 仅用于显示,不用于同步逻辑
     deleted_at: Option<String>,
 }
 
@@ -78,14 +78,14 @@ struct SyncChange {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PullResponse {
     changes: Vec<SyncChange>,
-    next_since: Option<u64>,
-    server_seq: u64,
+    next_version: Option<i64>,  // 分页时的下一个版本号
+    server_version: i64,  // 服务器当前最大版本号
 }
 
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PullQuery {
-    since: Option<u64>,
+    since_version: Option<i64>,  // 客户端上次同步的版本号
     limit: Option<usize>,
 }
 
@@ -93,14 +93,14 @@ struct PullQuery {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PushRequest {
     changes: Vec<SyncChange>,
-    client_last_seq: Option<u64>,
+    client_version: Option<i64>,  // 客户端当前的版本号
 }
 
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PushResponse {
     applied: usize,
-    server_seq: u64,
+    server_version: i64,  // 服务器最新版本号
     conflict: bool,
 }
 
@@ -135,16 +135,16 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
 }
 
 #[cfg(not(mobile))]
-fn max_updated_ms(conn: &Connection) -> u64 {
+fn max_version(conn: &Connection) -> i64 {
     let mut stmt = conn
-        .prepare("SELECT MAX(strftime('%s', updated_at)) * 1000 AS max_ms FROM notes")
+        .prepare("SELECT MAX(version) FROM notes WHERE version > 0")
         .ok();
     if let Some(ref mut s) = stmt {
         if let Ok(mut rows) = s.query([]) {
             if let Ok(Some(row)) = rows.next() {
                 let val: Option<i64> = row.get(0).unwrap_or(None);
-                if let Some(ms) = val {
-                    return ms as u64;
+                if let Some(v) = val {
+                    return v;
                 }
             }
         }
@@ -153,17 +153,16 @@ fn max_updated_ms(conn: &Connection) -> u64 {
 }
 
 #[cfg(not(mobile))]
-fn load_note_changes(conn: &Connection, since_ms: u64, limit: usize) -> rusqlite::Result<Vec<SyncChange>> {
+fn load_note_changes(conn: &Connection, since_version: i64, limit: usize) -> rusqlite::Result<Vec<SyncChange>> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, content, tags, created_at, updated_at, deleted_at
+        "SELECT id, title, content, tags, version, updated_at, deleted_at
          FROM notes
-         WHERE (strftime('%s', updated_at) * 1000) > ?1
-            OR (deleted_at IS NOT NULL AND (strftime('%s', deleted_at) * 1000) > ?1)
-         ORDER BY updated_at ASC
+         WHERE version > ?1
+         ORDER BY version ASC
          LIMIT ?2",
     )?;
 
-    let mut rows = stmt.query(params![since_ms as i64, limit as i64])?;
+    let mut rows = stmt.query(params![since_version as i64, limit as i64])?;
     let mut changes = Vec::new();
 
     while let Some(row) = rows.next()? {
@@ -171,21 +170,18 @@ fn load_note_changes(conn: &Connection, since_ms: u64, limit: usize) -> rusqlite
         let title: Option<String> = row.get(1)?;
         let content: Option<String> = row.get(2)?;
         let tags: Option<String> = row.get(3)?;
-        let _created_at: Option<String> = row.get(4)?;
+        let version: i64 = row.get(4).unwrap_or(0);
         let updated_at: String = row.get(5).unwrap_or_else(|_| now_iso());
         let deleted_at: Option<String> = row.get(6).ok().flatten();
 
         let op = if deleted_at.is_some() { SyncOp::Delete } else { SyncOp::Upsert };
-        let seq = deleted_at
-            .as_ref()
-            .map(|v| parse_ms(v))
-            .unwrap_or_else(|| parse_ms(&updated_at));
 
         let data = serde_json::json!({
             "id": id,
             "title": title.unwrap_or_default(),
             "content": content.unwrap_or_default(),
             "tags": tags.unwrap_or_else(|| "[]".to_string()),
+            "version": version,
             "updated_at": updated_at,
             "deleted_at": deleted_at,
         });
@@ -194,7 +190,7 @@ fn load_note_changes(conn: &Connection, since_ms: u64, limit: usize) -> rusqlite
             table: "notes".to_string(),
             op,
             data,
-            seq,
+            version: version as i64,
             updated_at,
             deleted_at,
         });
@@ -204,37 +200,52 @@ fn load_note_changes(conn: &Connection, since_ms: u64, limit: usize) -> rusqlite
 }
 
 #[cfg(not(mobile))]
-fn apply_note_change(conn: &Connection, change: &SyncChange) -> rusqlite::Result<bool> {
+fn apply_note_change(conn: &Connection, change: &SyncChange, new_version: i64) -> rusqlite::Result<bool> {
     // returns true if applied
     let id = change.data.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-    let incoming_updated_ms = parse_ms(&change.updated_at);
-
-    let mut stmt = conn.prepare("SELECT updated_at FROM notes WHERE id = ?1")?;
-    let existing: Option<String> = stmt.query_row(params![id], |row| row.get(0)).optional()?;
-    if let Some(existing_ts) = existing {
-        if parse_ms(&existing_ts) > incoming_updated_ms {
-            return Ok(false);
+    
+    // 检查本地是否已有更高版本
+    let mut stmt = conn.prepare("SELECT version FROM notes WHERE id = ?1")?;
+    let existing: Option<i64> = stmt.query_row(params![id], |row| row.get(0)).optional()?;
+    if let Some(existing_version) = existing {
+        if existing_version >= new_version {
+            log::debug!("Skip applying change for note {}: existing version {} >= new version {}", 
+                       id, existing_version, new_version);
+            return Ok(false);  // 跳过旧版本
         }
     }
 
+    let updated_at = now_iso();  // 使用服务器当前时间
+
     match change.op {
         SyncOp::Delete => {
-            let deleted_at = change.deleted_at.clone().unwrap_or_else(now_iso);
+            let deleted_at = now_iso();
             conn.execute(
-                "INSERT INTO notes (id, title, content, tags, deleted_at, updated_at) VALUES (?1, '', '', '[]', ?2, ?2)
-                 ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at, updated_at = excluded.updated_at",
-                params![id, deleted_at],
+                "INSERT INTO notes (id, title, content, tags, version, deleted_at, updated_at) 
+                 VALUES (?1, '', '', '[]', ?2, ?3, ?3)
+                 ON CONFLICT(id) DO UPDATE SET 
+                   version = excluded.version,
+                   deleted_at = excluded.deleted_at, 
+                   updated_at = excluded.updated_at",
+                params![id, new_version, deleted_at],
             )?;
         }
         SyncOp::Upsert => {
             let title = change.data.get("title").and_then(|v| v.as_str()).unwrap_or("");
             let content = change.data.get("content").and_then(|v| v.as_str()).unwrap_or("");
             let tags = change.data.get("tags").and_then(|v| v.as_str()).unwrap_or("[]");
-            let updated_at = change.updated_at.clone();
+            
             conn.execute(
-                "INSERT INTO notes (id, title, content, tags, updated_at, deleted_at) VALUES (?1, ?2, ?3, ?4, ?5, NULL)
-                 ON CONFLICT(id) DO UPDATE SET title = excluded.title, content = excluded.content, tags = excluded.tags, updated_at = excluded.updated_at, deleted_at = NULL",
-                params![id, title, content, tags, updated_at],
+                "INSERT INTO notes (id, title, content, tags, version, updated_at, deleted_at) 
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)
+                 ON CONFLICT(id) DO UPDATE SET 
+                   title = excluded.title, 
+                   content = excluded.content, 
+                   tags = excluded.tags, 
+                   version = excluded.version,
+                   updated_at = excluded.updated_at, 
+                   deleted_at = NULL",
+                params![id, title, content, tags, new_version, updated_at],
             )?;
         }
     }
@@ -349,7 +360,7 @@ fn check_auth(headers: &axum::http::HeaderMap, token: &str) -> Result<(), Status
     Err(StatusCode::UNAUTHORIZED)
 }
 
-// /state: 返回当前 seq 与配对状态
+// /state: 返回当前版本号与配对状态
 #[cfg(not(mobile))]
 async fn sync_state(
     State(state): State<Arc<Mutex<HttpServerState>>>,
@@ -360,24 +371,24 @@ async fn sync_state(
     let app_handle = state_guard.app_handle.clone();
     drop(state_guard);
 
-    // 读取 DB 最新时间戳同步到 seq
-    let db_seq = match open_db(&app_handle) {
-        Ok(conn) => max_updated_ms(&conn),
+    // 读取 DB 最新版本号
+    let db_version = match open_db(&app_handle) {
+        Ok(conn) => max_version(&conn),
         Err(e) => return Err(e),
     };
 
-    let seq = {
+    let version = {
         let guard = state.lock().await;
-        // 若数据库时间更大，则更新全局 seq
-        if db_seq > guard.seq.load(Ordering::Relaxed) {
-            guard.seq.store(db_seq, Ordering::Relaxed);
+        // 若数据库版本更大，则更新全局 version_counter
+        if db_version > guard.version_counter.load(Ordering::Relaxed) {
+            guard.version_counter.store(db_version, Ordering::Relaxed);
         }
-        guard.seq.load(Ordering::Relaxed)
+        guard.version_counter.load(Ordering::Relaxed)
     };
 
     let data = SyncStateData {
-        seq,
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version,
+        server_version: env!("CARGO_PKG_VERSION").to_string(),
         paired: true,
     };
 
@@ -388,7 +399,7 @@ async fn sync_state(
     }))
 }
 
-// /pull: 目前返回空增量占位，后续接 DB
+// /pull: 按版本号拉取增量变更
 #[cfg(not(mobile))]
 async fn sync_pull(
     State(state): State<Arc<Mutex<HttpServerState>>>,
@@ -398,32 +409,35 @@ async fn sync_pull(
     let state_guard = state.lock().await;
     check_auth(&headers, &state_guard.token)?;
     let app_handle = state_guard.app_handle.clone();
-    let current_seq = state_guard.seq.load(Ordering::Relaxed);
     drop(state_guard);
 
-    let since = query.since.unwrap_or(0);
+    let since_version = query.since_version.unwrap_or(0);
     let limit = query.limit.unwrap_or(500).min(1000);
 
     let conn = open_db(&app_handle)?;
-    let changes = load_note_changes(&conn, since, limit).map_err(|e| {
+    let changes = load_note_changes(&conn, since_version, limit).map_err(|e| {
         log::error!("sync_pull load_note_changes error: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let server_seq = max_updated_ms(&conn).max(current_seq);
+    // 获取当前数据库最大版本号
+    let server_version = max_version(&conn);
     {
         let guard = state.lock().await;
-        guard.seq.store(server_seq, Ordering::Relaxed);
+        guard.version_counter.store(server_version, Ordering::Relaxed);
     }
 
-    let next_since = changes.last().map(|c| c.seq);
-    // 若变化少于 limit，则不需要 next_since
-    let next_since = if changes.len() >= limit { next_since } else { None };
+    // 若变化达到 limit，则需要分页，next_version 为最后一条的 version + 1
+    let next_version = if changes.len() >= limit {
+        changes.last().map(|c| c.version + 1)
+    } else {
+        None
+    };
 
     let resp = PullResponse {
         changes,
-        next_since,
-        server_seq,
+        next_version,
+        server_version,
     };
 
     Ok(Json(ApiResponse {
@@ -433,7 +447,7 @@ async fn sync_pull(
     }))
 }
 
-// /push: 接受增量，当前仅推进 seq，占位
+// /push: 接受增量，分配新版本号并应用
 #[cfg(not(mobile))]
 async fn sync_push(
     State(state): State<Arc<Mutex<HttpServerState>>>,
@@ -443,32 +457,45 @@ async fn sync_push(
     let state_guard = state.lock().await;
     check_auth(&headers, &state_guard.token)?;
     let app_handle = state_guard.app_handle.clone();
-    let server_seq_before = state_guard.seq.load(Ordering::Relaxed);
     drop(state_guard);
 
-    let client_last_seq = body.client_last_seq.unwrap_or(0);
-    if client_last_seq < server_seq_before {
+    let conn = open_db(&app_handle)?;
+    
+    // 获取当前服务器版本号
+    let server_version_before = max_version(&conn);
+    let client_version = body.client_version.unwrap_or(0);
+    
+    // 冲突检测：客户端版本落后于服务器
+    if client_version < server_version_before {
         let resp = PushResponse {
             applied: 0,
-            server_seq: server_seq_before,
+            server_version: server_version_before,
             conflict: true,
         };
-        return Ok(Json(ApiResponse { success: true, data: Some(resp), message: Some("conflict: please pull first".to_string()) }));
+        return Ok(Json(ApiResponse { 
+            success: true, 
+            data: Some(resp), 
+            message: Some("conflict: please pull first".to_string()) 
+        }));
     }
 
-    let conn = open_db(&app_handle)?;
     let mut applied = 0usize;
-    let mut max_seen_seq = server_seq_before;
 
     for change in body.changes.iter() {
         if change.table != "notes" {
             continue; // 暂仅支持 notes
         }
-        match apply_note_change(&conn, change) {
+        
+        // 为每个变更分配新的版本号（原子递增）
+        let new_version = {
+            let guard = state.lock().await;
+            guard.version_counter.fetch_add(1, Ordering::Relaxed) + 1
+        };
+        
+        match apply_note_change(&conn, change, new_version) {
             Ok(applied_one) => {
                 if applied_one {
                     applied += 1;
-                    max_seen_seq = max_seen_seq.max(change.seq);
                 }
             }
             Err(e) => {
@@ -477,16 +504,16 @@ async fn sync_push(
         }
     }
 
-    // 同步 seq 为 DB 最新或处理到的最大 seq
-    let db_seq = max_updated_ms(&conn).max(max_seen_seq);
+    // 获取应用后的最新版本号
+    let server_version = max_version(&conn);
     {
         let guard = state.lock().await;
-        guard.seq.store(db_seq, Ordering::Relaxed);
+        guard.version_counter.store(server_version, Ordering::Relaxed);
     }
 
     let resp = PushResponse {
         applied,
-        server_seq: db_seq,
+        server_version,
         conflict: false,
     };
 
@@ -505,19 +532,19 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
 
     let state = Arc::new(Mutex::new(HttpServerState {
         app_handle,
-        seq: AtomicU64::new(0),
+        version_counter: AtomicI64::new(0),
         token,
     }));
 
-    // 初始化 seq 为 DB 最新更新时间戳
+    // 初始化 version_counter 为 DB 最新版本号
     {
         let guard = state.lock().await;
         let app_handle = guard.app_handle.clone();
         drop(guard);
         if let Ok(conn) = open_db(&app_handle) {
-            let latest = max_updated_ms(&conn);
+            let latest_version = max_version(&conn);
             let guard = state.lock().await;
-            guard.seq.store(latest, Ordering::Relaxed);
+            guard.version_counter.store(latest_version, Ordering::Relaxed);
         }
     }
 
@@ -772,6 +799,15 @@ pub fn run() {
                 ALTER TABLE workflow_envs ADD COLUMN deleted_at DATETIME;\n\
                 ALTER TABLE moments ADD COLUMN deleted_at DATETIME;\n\
                 ALTER TABLE assets ADD COLUMN deleted_at DATETIME;\n\
+            ",
+                            kind: MigrationKind::Up,
+                        },
+                        Migration {
+                            version: 12,
+                            description: "add_version_columns_for_sync",
+                            sql: "\
+                ALTER TABLE notes ADD COLUMN version INTEGER DEFAULT 0;\n\
+                CREATE INDEX IF NOT EXISTS idx_notes_version ON notes(version);\n\
             ",
                             kind: MigrationKind::Up,
                         },

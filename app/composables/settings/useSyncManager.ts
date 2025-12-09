@@ -1,12 +1,13 @@
 import { toast } from 'vue-sonner'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useEnvironment } from '~/composables/useEnvironment'
 import { useTauriSQL } from '~/composables/useTauriSQL'
 
 interface SyncInfoState {
   status: 'idle' | 'ok' | 'error'
   message: string
-  seq: number | null
+  version: number | null
   paired?: boolean
 }
 
@@ -23,22 +24,37 @@ interface SyncTotalSummary {
 
 const SYNC_WORKFLOW_NAME = '🔗 局域网同步测试'
 
+// 使用 useState 创建全局单例状态,确保所有页面共享同一份数据
+const globalServerUrl = () => useState('sync_server_url', () => '')
+const globalSyncServerAddress = () => useState('sync_server_address', () => '')
+const globalSyncToken = () => useState('sync_token', () => '')
+const globalLastVersion = () => useState('sync_last_version', () => 0) // 改为 lastVersion
+const globalLastSyncSummary = () => useState<SyncSummary | null>('sync_last_summary', () => null)
+const globalTotalSyncSummary = () => useState<SyncTotalSummary>('sync_total_summary', () => ({ pulled: 0, pushed: 0 }))
+const globalIsSyncing = () => useState('sync_is_syncing', () => false)
+const globalSyncStatus = () => useState('sync_status', () => '未同步')
+const globalSyncInfo = () => useState<SyncInfoState>('sync_info', () => ({ status: 'idle', message: '', version: null, paired: false }))
+const globalSyncWorkflowId = () => useState<number | null>('sync_workflow_id', () => null)
+
 export function useSyncManager() {
   const { setSetting, getSetting } = useSettingRepository()
   const { createWorkflow, getAllWorkflows, deleteWorkflow } = useWorkflowRepository()
   const { select: syncSelect, execute: syncExecute } = useTauriSQL()
+  const { isDesktop } = useEnvironment()
 
-  const serverUrl = ref('')
-  const syncServerAddress = ref('')
+  // 使用全局状态
+  const serverUrl = globalServerUrl()
+  const syncServerAddress = globalSyncServerAddress()
+  const syncToken = globalSyncToken()
+  const lastVersion = globalLastVersion() // 改为 lastVersion
+  const lastSyncSummary = globalLastSyncSummary()
+  const totalSyncSummary = globalTotalSyncSummary()
+  const isSyncing = globalIsSyncing()
+  const syncStatus = globalSyncStatus()
+  const syncInfo = globalSyncInfo()
+  const syncWorkflowId = globalSyncWorkflowId()
+
   const isSavingSyncConfig = ref(false)
-  const syncWorkflowId = ref<number | null>(null)
-  const syncToken = ref('')
-  const lastSyncSince = ref(0)
-  const lastSyncSummary = ref<SyncSummary | null>(null)
-  const totalSyncSummary = ref<SyncTotalSummary>({ pulled: 0, pushed: 0 })
-  const isSyncing = ref(false)
-  const syncStatus = ref('未同步')
-  const syncInfo = ref<SyncInfoState>({ status: 'idle', message: '', seq: null, paired: false })
 
   function getSyncBaseUrl() {
     return syncServerAddress.value.trim() || serverUrl.value.trim()
@@ -61,16 +77,44 @@ export function useSyncManager() {
 
   async function fetchSyncState() {
     const base = getSyncBaseUrl()
+    console.log('[Sync] fetchSyncState 开始, base=', base)
     if (!base)
       throw new Error('请先配置服务器地址')
-    const res = await fetch(`${base}/state`, { headers: buildSyncHeaders() })
-    if (!res.ok)
-      throw new Error(`state 请求失败: ${res.status}`)
-    const data = await res.json()
-    return data.data as { seq: number, paired?: boolean, version?: string }
+
+    console.log('[Sync] 发送 state 请求到:', `${base}/state`)
+    try {
+      const res = await fetch(`${base}/state`, {
+        headers: buildSyncHeaders(),
+        mode: 'cors',
+        cache: 'no-cache',
+      })
+      console.log('[Sync] state 响应状态:', res.status, res.statusText)
+
+      if (!res.ok)
+        throw new Error(`state 请求失败: ${res.status}`)
+      const data = await res.json()
+      console.log('[Sync] state 响应数据:', data)
+      return data.data as { version: number, paired?: boolean, server_version?: string }
+    }
+    catch (fetchError: any) {
+      console.error('[Sync] fetch 请求失败:', fetchError)
+      console.error('[Sync] fetch 错误类型:', fetchError.constructor.name)
+      console.error('[Sync] fetch 错误消息:', fetchError.message)
+
+      // 尝试提供更详细的错误信息
+      if (fetchError.message?.includes('Failed to fetch')) {
+        console.error('[Sync] 这是网络连接失败。可能原因:')
+        console.error('[Sync] 1. 设备不在同一 WiFi 网络')
+        console.error('[Sync] 2. 服务器地址错误:', base)
+        console.error('[Sync] 3. 服务器未启动')
+        console.error('[Sync] 4. 防火墙阻止了连接')
+      }
+      throw fetchError
+    }
   }
 
   async function applyRemoteChanges(changes: any[]) {
+    let applied = 0
     for (const change of changes) {
       if (change.table !== 'notes')
         continue
@@ -80,35 +124,49 @@ export function useSyncManager() {
       const tags = change.data?.tags ?? '[]'
       const updatedAt = change.updated_at || new Date().toISOString()
       const deletedAt = change.deleted_at || null
+      const incomingVersion = change.version || 0
+
+      // 检查本地是否已有更新的版本
+      const existing = await syncSelect<any[]>(
+        'SELECT version FROM notes WHERE id = ?',
+        [id],
+      )
+      if (existing.length > 0) {
+        const localVersion = existing[0].version || 0
+        if (localVersion >= incomingVersion) {
+          console.log(`[Sync] 跳过较旧的远程变更: note ${id}, local=${localVersion}, remote=${incomingVersion}`)
+          continue // 本地版本更新,跳过
+        }
+      }
 
       if (change.op === 'delete' || deletedAt) {
         await syncExecute(
-          `INSERT INTO notes (id, title, content, tags, deleted_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at, updated_at = excluded.updated_at`,
-          [id, title, content, tags, deletedAt || updatedAt, updatedAt],
+          `INSERT INTO notes (id, title, content, tags, deleted_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at, updated_at = excluded.updated_at, version = excluded.version`,
+          [id, title, content, tags, deletedAt || updatedAt, updatedAt, incomingVersion],
         )
-        continue
       }
-
-      await syncExecute(
-        `INSERT INTO notes (id, title, content, tags, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, NULL)
-         ON CONFLICT(id) DO UPDATE SET title = excluded.title, content = excluded.content, tags = excluded.tags, updated_at = excluded.updated_at, deleted_at = NULL`,
-        [id, title, content, tags, updatedAt],
-      )
+      else {
+        await syncExecute(
+          `INSERT INTO notes (id, title, content, tags, updated_at, deleted_at, version) VALUES (?, ?, ?, ?, ?, NULL, ?)
+           ON CONFLICT(id) DO UPDATE SET title = excluded.title, content = excluded.content, tags = excluded.tags, updated_at = excluded.updated_at, deleted_at = NULL, version = excluded.version`,
+          [id, title, content, tags, updatedAt, incomingVersion],
+        )
+      }
+      applied++
+      console.log(`[Sync] 应用远程变更: note ${id}, version=${incomingVersion}`)
     }
+    return applied
   }
 
-  function toMs(dateStr?: string | null) {
-    if (!dateStr)
-      return 0
-    const d = new Date(dateStr)
-    return Number.isNaN(d.getTime()) ? 0 : d.getTime()
-  }
-
-  async function collectLocalNoteChanges(since: number) {
+  async function collectLocalNoteChanges(sinceVersion: number) {
+    // 收集所有负数版本号(客户端本地编辑,未被服务器分配正数版本)
+    // 或者版本号大于 lastVersion 的记录(从其他设备同步过来但还没推送的)
+    // 但排除异常大的版本号(时间戳污染,如 1765281618399)
+    const MAX_REASONABLE_VERSION = 1000000 // 服务器版本号应该是递增序列,不会超过百万
     const rows = await syncSelect<any[]>(
-      'SELECT id, title, content, tags, updated_at, deleted_at FROM notes WHERE (strftime(\'%s\', updated_at) * 1000) > ?1 OR (deleted_at IS NOT NULL AND (strftime(\'%s\', deleted_at) * 1000) > ?1)',
-      [since],
+      'SELECT id, title, content, tags, updated_at, deleted_at, version FROM notes WHERE (version < 0) OR (version > ? AND version < ?)',
+      [sinceVersion, MAX_REASONABLE_VERSION],
     )
 
     return rows.map((row) => {
@@ -125,92 +183,209 @@ export function useSyncManager() {
           updated_at: updatedIso,
           deleted_at: deletedIso,
         },
-        seq: toMs(deletedIso ?? updatedIso),
+        version: row.version || 0,
         updated_at: updatedIso,
         deleted_at: deletedIso,
       }
     })
   }
 
-  async function pullRemoteChanges(since: number) {
+  async function pullRemoteChanges(sinceVersion: number) {
     const base = getSyncBaseUrl()
-    let cursor = since
-    let lastServerSeq = since
+    let cursor = sinceVersion
+    let lastServerVersion = 0
     let pulled = 0
+    let maxPulledVersion = 0
+
+    console.log('[Sync] pullRemoteChanges 开始:', JSON.stringify({ sinceVersion, base }, null, 2))
 
     while (true) {
-      const url = `${base}/pull?since=${cursor}&limit=200`
+      const url = `${base}/pull?since_version=${cursor}&limit=200`
+      console.log('[Sync] 请求拉取:', url)
       const res = await fetch(url, { headers: buildSyncHeaders() })
       if (!res.ok)
         throw new Error(`pull 失败: ${res.status}`)
       const body = await res.json()
-      const payload = body.data as { changes: any[], next_since?: number | null, server_seq: number }
-      if (payload.server_seq)
-        lastServerSeq = payload.server_seq
+      const payload = body.data as { changes: any[], next_version?: number | null, server_version: number }
+      console.log('[Sync] 拉取响应:', JSON.stringify({ changes: payload.changes?.length, next_version: payload.next_version, server_version: payload.server_version }, null, 2))
+
+      if (payload.server_version)
+        lastServerVersion = payload.server_version
 
       if (payload.changes?.length) {
-        pulled += payload.changes.length
-        await applyRemoteChanges(payload.changes)
-        const last = payload.next_since ?? payload.server_seq
-        if (last)
-          cursor = last
+        console.log('[Sync] 应用远程变更:', JSON.stringify(payload.changes, null, 2))
+        const applied = await applyRemoteChanges(payload.changes)
+        pulled += applied
+        // 追踪实际应用的变更的最大 version
+        for (const change of payload.changes) {
+          if (change.version) {
+            maxPulledVersion = Math.max(maxPulledVersion, change.version)
+          }
+        }
       }
 
-      if (!payload.next_since)
+      if (!payload.next_version)
         break
+      cursor = payload.next_version
     }
 
-    return { lastServerSeq, pulled }
+    console.log('[Sync] pullRemoteChanges 完成:', JSON.stringify({ lastServerVersion, pulled, maxPulledVersion }, null, 2))
+    return { lastServerVersion, pulled, maxPulledVersion }
   }
 
-  async function pushLocalChanges(since: number) {
+  async function pushLocalChanges(sinceVersion: number) {
     const base = getSyncBaseUrl()
-    const changes = await collectLocalNoteChanges(since)
-    if (!changes.length)
-      return { server_seq: since, applied: 0, conflict: false }
+    const changes = await collectLocalNoteChanges(sinceVersion)
+    console.log('[Sync] pushLocalChanges:', JSON.stringify({ sinceVersion, changes: changes.length }, null, 2))
 
+    if (!changes.length)
+      return { server_version: sinceVersion, applied: 0, conflict: false }
+
+    console.log(`[Sync] 推送变更[${changes.length}]:`, JSON.stringify(changes))
     const res = await fetch(`${base}/push`, {
       method: 'POST',
       headers: { ...buildSyncHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes, client_last_seq: since }),
+      body: JSON.stringify({ changes, client_version: sinceVersion }),
     })
     if (!res.ok)
       throw new Error(`push 失败: ${res.status}`)
     const body = await res.json()
-    return body.data as { server_seq: number, applied: number, conflict: boolean }
+    console.log('[Sync] 推送响应:', JSON.stringify(body.data, null, 2))
+    return body.data as { server_version: number, applied: number, conflict: boolean }
   }
 
   async function syncOnce(silent = false) {
     const base = getSyncBaseUrl()
+    console.log('[Sync] syncOnce 被调用, silent=', silent, ', base=', base)
+
     if (!base) {
+      console.warn('[Sync] 同步终止: 未配置服务器地址')
       if (!silent) {
         toast.error('请先配置服务器地址')
       }
       return
     }
 
+    console.log('[Sync] ========== 开始同步 ==========')
+    console.log('[Sync] 当前 lastVersion:', lastVersion.value)
+
     isSyncing.value = true
     syncStatus.value = '同步中…'
     const toastId = silent ? undefined : toast.loading('开始同步...', { duration: 4000 })
     try {
+      console.log('[Sync] 准备调用 fetchSyncState, base=', base)
       const state = await fetchSyncState()
-      syncInfo.value = { status: 'ok', message: '服务器可用', seq: state.seq ?? null, paired: state.paired }
-      const since = lastSyncSince.value || 0
+      console.log('[Sync] fetchSyncState 成功,服务器状态:', JSON.stringify(state, null, 2))
+      syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
+      const currentVersion = lastVersion.value || 0
 
-      const pullResult = await pullRemoteChanges(since)
-      const pushResult = await pushLocalChanges(pullResult.lastServerSeq)
+      // 检测服务器版本号异常(时间戳污染)
+      const MAX_REASONABLE_VERSION = 1000000
+      if (state.version && state.version > MAX_REASONABLE_VERSION) {
+        const errorMsg = '服务器版本号异常,请在桌面端执行"重置同步状态"'
+        console.error('[Sync]', errorMsg, '服务器版本:', state.version)
+        syncStatus.value = errorMsg
+        syncInfo.value = { status: 'error', message: errorMsg, version: state.version, paired: state.paired }
+        if (!silent) {
+          toast.error(errorMsg, { id: toastId, duration: 6000 })
+        }
+        isSyncing.value = false
+        return
+      }
 
+      // 桌面端是服务器,需要升级本地负数版本号为正数
+      if (isDesktop.value) {
+        console.log('[Sync] 桌面端模式: 升级本地编辑的版本号')
+
+        // 获取服务器当前最大版本号
+        let serverVersion = state.version || 0
+
+        // 查询本地所有负数版本号的记录
+        const localChanges = await syncSelect<any[]>(
+          'SELECT id, version FROM notes WHERE version < 0',
+          [],
+        )
+
+        if (localChanges.length > 0) {
+          console.log(`[Sync] 桌面端发现 ${localChanges.length} 条本地编辑,分配服务器版本号`)
+
+          for (const change of localChanges) {
+            serverVersion += 1
+            await syncExecute(
+              'UPDATE notes SET version = ? WHERE id = ?',
+              [serverVersion, change.id],
+            )
+            console.log(`[Sync] 桌面端: note ${change.id} 版本号 ${change.version} → ${serverVersion}`)
+          }
+
+          // 更新 lastVersion
+          lastVersion.value = serverVersion
+          await setSetting('sync_last_version', String(serverVersion), 'sync')
+
+          syncStatus.value = `已升级 ${localChanges.length} 条记录`
+          if (!silent) {
+            toast.success(`桌面端已升级 ${localChanges.length} 条编辑`, { id: toastId })
+          }
+        }
+        else {
+          syncStatus.value = '桌面端无待同步数据'
+          if (toastId) {
+            toast.dismiss(toastId)
+          }
+        }
+
+        isSyncing.value = false
+        return
+      }
+
+      console.log('[Sync] 移动端模式: 推送本地变更, currentVersion=', currentVersion)
+      // 移动端: 先推送本地变更,再拉取远程变更
+      const pushResult = await pushLocalChanges(currentVersion)
+      console.log('[Sync] 推送完成, pushResult=', pushResult)
+
+      // 推送后可能产生冲突,需要先拉取解决
       if (pushResult.conflict) {
-        const latest = await pullRemoteChanges(pullResult.lastServerSeq)
-        const resolvedSeq = Number(latest.lastServerSeq || pullResult.lastServerSeq || Date.now())
-        lastSyncSince.value = resolvedSeq
-        await setSetting('sync_last_since', String(resolvedSeq), 'sync')
-        lastSyncSummary.value = { pulled: pullResult.pulled + latest.pulled, pushed: 0, at: Date.now() }
+        console.log('[Sync] 推送冲突,先拉取远程变更')
+        const pullResult = await pullRemoteChanges(currentVersion)
+        // 再次尝试推送
+        const retryPushResult = await pushLocalChanges(pullResult.maxPulledVersion || pullResult.lastServerVersion)
+
+        // 冲突解决后,使用服务器返回的版本号
+        const finalVersion = retryPushResult.server_version || pullResult.lastServerVersion
+
+        console.log('[Sync] 冲突解决:', {
+          pullVersion: pullResult.maxPulledVersion,
+          serverVersion: retryPushResult.server_version,
+          finalVersion,
+          pulled: pullResult.pulled,
+          pushed: retryPushResult.applied,
+        })
+
+        // 总是更新 lastVersion 为服务器版本号
+        lastVersion.value = finalVersion
+        await setSetting('sync_last_version', String(finalVersion), 'sync')
+        console.log('[Sync] 更新 lastVersion 到:', finalVersion)
+
+        lastSyncSummary.value = { pulled: pullResult.pulled, pushed: retryPushResult.applied, at: Date.now() }
         await setSetting('sync_last_summary', JSON.stringify(lastSyncSummary.value), 'sync')
         bumpTotalSyncCounts(lastSyncSummary.value.pulled, lastSyncSummary.value.pushed)
         syncStatus.value = '已同步（解决冲突）'
-        if (!silent && lastSyncSummary.value.pulled > 0) {
-          toast.success(`同步完成（已拉取 ${lastSyncSummary.value.pulled} 条，解决冲突）`, { id: toastId })
+
+        if (lastSyncSummary.value.pulled > 0 || lastSyncSummary.value.pushed > 0) {
+          const parts: string[] = []
+          if (lastSyncSummary.value.pulled > 0) {
+            parts.push(`拉取 ${lastSyncSummary.value.pulled} 条`)
+          }
+          if (lastSyncSummary.value.pushed > 0) {
+            parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
+          }
+          // 有数据变化时总是显示 toast,即使是 silent 模式
+          if (toastId) {
+            toast.success(`同步完成: ${parts.join('、')}（已解决冲突）`, { id: toastId })
+          }
+          else {
+            toast.success(`同步完成: ${parts.join('、')}（已解决冲突）`)
+          }
         }
         else if (toastId) {
           toast.dismiss(toastId)
@@ -218,20 +393,34 @@ export function useSyncManager() {
         return
       }
 
-      const pullSeq = Number.isFinite(pullResult.lastServerSeq) ? Number(pullResult.lastServerSeq) : 0
-      const pushSeq = Number.isFinite(pushResult.server_seq) ? Number(pushResult.server_seq) : 0
-      const stateSeq = Number.isFinite(state.seq) ? Number(state.seq) : 0
-      const finalSeqRaw = Math.max(pullSeq, pushSeq, stateSeq)
-      const finalSeq = finalSeqRaw > 0 ? finalSeqRaw : Date.now()
-      lastSyncSince.value = finalSeq
-      await setSetting('sync_last_since', String(finalSeq), 'sync')
+      // 推送成功后,使用推送返回的 server_version 作为起点拉取
+      const pullResult = await pullRemoteChanges(pushResult.server_version || currentVersion)
+
+      // 使用服务器返回的最新版本号
+      const finalVersion = pullResult.lastServerVersion || pushResult.server_version
+
+      console.log('[Sync] 计算 finalVersion:', {
+        pullVersion: pullResult.maxPulledVersion,
+        pushVersion: pushResult.server_version,
+        finalVersion,
+        hadChanges: pullResult.pulled > 0 || pushResult.applied > 0,
+      })
+
+      // 总是更新 lastVersion 为服务器版本号
+      lastVersion.value = finalVersion
+      await setSetting('sync_last_version', String(finalVersion), 'sync')
+
       lastSyncSummary.value = { pulled: pullResult.pulled, pushed: pushResult.applied, at: Date.now() }
       await setSetting('sync_last_summary', JSON.stringify(lastSyncSummary.value), 'sync')
       bumpTotalSyncCounts(lastSyncSummary.value.pulled, lastSyncSummary.value.pushed)
       syncStatus.value = '已同步'
 
-      // 仅在有数据变动时显示 toast
-      if (!silent && (lastSyncSummary.value.pulled > 0 || lastSyncSummary.value.pushed > 0)) {
+      console.log('[Sync] ========== 同步完成 ==========')
+      console.log('[Sync] 新的 lastVersion:', lastVersion.value)
+      console.log('[Sync] 结果:', lastSyncSummary.value)
+
+      // 有数据变化时总是显示提示,silent 只控制 loading toast
+      if (lastSyncSummary.value.pulled > 0 || lastSyncSummary.value.pushed > 0) {
         const parts: string[] = []
         if (lastSyncSummary.value.pulled > 0) {
           parts.push(`拉取 ${lastSyncSummary.value.pulled} 条`)
@@ -239,14 +428,23 @@ export function useSyncManager() {
         if (lastSyncSummary.value.pushed > 0) {
           parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
         }
-        toast.success(`同步完成: ${parts.join('、')}`, { id: toastId })
+        // 有数据变化时总是显示 toast,即使是 silent 模式
+        if (toastId) {
+          toast.success(`同步完成: ${parts.join('、')}`, { id: toastId })
+        }
+        else {
+          toast.success(`同步完成: ${parts.join('、')}`)
+        }
       }
       else if (toastId) {
+        // 没数据变化且是手动同步,关闭 loading
         toast.dismiss(toastId)
       }
     }
     catch (e: any) {
-      console.error('同步失败', e)
+      console.error('[Sync] 同步失败,错误对象:', e)
+      console.error('[Sync] 错误消息:', e.message)
+      console.error('[Sync] 错误堆栈:', e.stack)
 
       // 用户友好的错误提示
       let userMessage = '同步失败'
@@ -259,13 +457,21 @@ export function useSyncManager() {
       else if (e.message?.includes('404')) {
         userMessage = '服务器接口不存在，请检查服务器地址'
       }
+      else if (e.message?.includes('422')) {
+        userMessage = '数据冲突，请在桌面端和移动端都执行"重置同步状态"'
+      }
       else if (e.message?.includes('timeout')) {
         userMessage = '请求超时，请稍后重试'
       }
 
       syncStatus.value = userMessage
+
+      // silent 模式下不显示 toast,避免干扰用户
       if (!silent) {
         toast.error(userMessage, { id: toastId })
+      }
+      else if (toastId) {
+        toast.dismiss(toastId)
       }
     }
     finally {
@@ -279,12 +485,12 @@ export function useSyncManager() {
   async function refreshSyncStateCard() {
     const base = getSyncBaseUrl()
     if (!base) {
-      syncInfo.value = { status: 'error', message: '未配置服务器地址', seq: null, paired: false }
+      syncInfo.value = { status: 'error', message: '未配置服务器地址', version: null, paired: false }
       return
     }
     try {
       const state = await fetchSyncState()
-      syncInfo.value = { status: 'ok', message: '服务器可用', seq: state.seq ?? null, paired: state.paired }
+      syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
     }
     catch (e: any) {
       console.error('获取同步状态失败:', e)
@@ -295,22 +501,42 @@ export function useSyncManager() {
       else if (e.message?.includes('401') || e.message?.includes('403')) {
         userMessage = '认证失败'
       }
-      syncInfo.value = { status: 'error', message: userMessage, seq: null, paired: false }
+      syncInfo.value = { status: 'error', message: userMessage, version: null, paired: false }
     }
   }
 
   async function loadSyncConfig() {
     const savedAddress = await getSetting('sync_server_address')
-    if (savedAddress)
+    if (savedAddress) {
       syncServerAddress.value = savedAddress
+    }
+    else if (import.meta.client) {
+      // 桌面端没有配置同步地址时,自动使用本地HTTP服务器地址
+      try {
+        const { isTauri } = await import('@tauri-apps/api/core')
+        if (await isTauri()) {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const ip = await invoke('get_local_ip') as string
+          const port = await invoke('get_http_server_port') as number
+          const localServerUrl = `http://${ip}:${port}`
+          syncServerAddress.value = localServerUrl
+          // 保存到数据库,下次直接加载
+          await setSetting('sync_server_address', localServerUrl, 'sync')
+          console.log('[Sync] 桌面端自动配置同步地址:', localServerUrl)
+        }
+      }
+      catch (e) {
+        console.warn('[Sync] 无法自动获取本地服务器地址:', e)
+      }
+    }
 
     const savedToken = await getSetting('sync_token')
     if (savedToken)
       syncToken.value = savedToken
 
-    const savedSince = await getSetting('sync_last_since')
-    if (savedSince)
-      lastSyncSince.value = Number(savedSince) || 0
+    const savedVersion = await getSetting('sync_last_version')
+    if (savedVersion)
+      lastVersion.value = Number(savedVersion) || 0
 
     const savedSummary = await getSetting('sync_last_summary')
     if (savedSummary) {
@@ -400,6 +626,43 @@ export function useSyncManager() {
     }
   }
 
+  async function resetSyncState() {
+    toast('确定要重置同步状态吗？这将清除版本号和统计,但保留服务器地址配置。', {
+      action: {
+        label: '重置',
+        onClick: async () => {
+          try {
+            await setSetting('sync_last_version', '0', 'sync')
+            await setSetting('sync_last_summary', '', 'sync')
+            await setSetting('sync_total_counts', JSON.stringify({ pulled: 0, pushed: 0 }), 'sync')
+            lastVersion.value = 0
+            lastSyncSummary.value = null
+            totalSyncSummary.value = { pulled: 0, pushed: 0 }
+
+            // 清理数据库中被污染的大版本号
+            try {
+              await syncExecute(
+                'UPDATE notes SET version = 0 WHERE version > 1000000',
+                [],
+              )
+              console.log('[Sync] 已清理数据库中的异常版本号')
+            }
+            catch (e) {
+              console.error('[Sync] 清理数据库版本号失败:', e)
+            }
+
+            toast.success('同步状态已重置,请重新同步')
+          }
+          catch (e: any) {
+            console.error('Failed to reset sync state:', e)
+            toast.error(`重置失败: ${e.message}`)
+          }
+        },
+      },
+      cancel: { label: '取消' },
+    })
+  }
+
   async function deleteSyncConfig() {
     toast('确定要删除同步配置吗？', {
       action: {
@@ -408,11 +671,11 @@ export function useSyncManager() {
           try {
             await setSetting('sync_server_address', '', 'sync')
             await setSetting('sync_token', '', 'sync')
-            await setSetting('sync_last_since', '0', 'sync')
+            await setSetting('sync_last_version', '0', 'sync')
             await setSetting('sync_total_counts', '0', 'sync')
             syncServerAddress.value = ''
             syncToken.value = ''
-            lastSyncSince.value = 0
+            lastVersion.value = 0
             totalSyncSummary.value = { pulled: 0, pushed: 0 }
 
             if (syncWorkflowId.value) {
@@ -433,10 +696,9 @@ export function useSyncManager() {
   }
 
   const lastSyncText = computed(() => {
-    if (!lastSyncSince.value)
+    if (!lastVersion.value)
       return '从未同步'
-    const d = new Date(lastSyncSince.value)
-    return Number.isNaN(d.getTime()) ? `最近序列 ${lastSyncSince.value}` : `最近同步 ${d.toLocaleString()}`
+    return `最近版本 ${lastVersion.value}`
   })
 
   const lastSyncCountText = computed(() => {
@@ -462,7 +724,7 @@ export function useSyncManager() {
     isSavingSyncConfig,
     syncWorkflowId,
     syncToken,
-    lastSyncSince,
+    lastVersion,
     lastSyncSummary,
     totalSyncSummary,
     isSyncing,
@@ -473,6 +735,7 @@ export function useSyncManager() {
     totalSyncCountText,
     loadSyncConfig,
     saveSyncConfig,
+    resetSyncState,
     deleteSyncConfig,
     syncOnce,
     refreshSyncStateCard,

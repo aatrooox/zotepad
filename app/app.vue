@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import Toaster from '@/components/ui/sonner.vue'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
 import 'vue-sonner/style.css'
 
 useHead({
   meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content' },
+    // Simplify viewport to avoid IME/resize quirks on some Android WebViews
+    { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
   ],
+})
+
+// 全局初始化:加载同步配置等
+const { loadSyncConfig } = useSyncManager()
+
+onMounted(async () => {
+  try {
+    await loadSyncConfig()
+    console.log('[App] 全局配置加载完成')
+  }
+  catch (e) {
+    console.error('[App] 全局配置加载失败:', e)
+  }
 })
 </script>
 

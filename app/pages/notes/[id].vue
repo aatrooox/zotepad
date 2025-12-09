@@ -41,14 +41,14 @@ const keyboardSafeStyle = computed(() => ({
   paddingBottom: `calc(${keyboardPadding.value}px + env(safe-area-inset-bottom, 0px))`,
 }))
 
-const updateKeyboardInset = () => {
-  if (typeof window === 'undefined' || !window.visualViewport)
-    return
+// const updateKeyboardInset = () => {
+//   if (typeof window === 'undefined' || !window.visualViewport)
+//     return
 
-  const vv = window.visualViewport
-  const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
-  keyboardPadding.value = inset
-}
+//   const vv = window.visualViewport
+//   const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
+//   keyboardPadding.value = inset
+// }
 
 // WeChat preview drawer state
 const isWeChatPreviewOpen = ref(false)
@@ -63,6 +63,9 @@ const { uploadFile } = useCOSService()
 
 // 同步管理
 const { syncOnce } = useSyncManager()
+
+// 添加调试日志
+// console.log('[Notes] syncOnce 函数:', syncOnce)
 
 // Workflow state
 const isWorkflowDialogOpen = ref(false)
@@ -251,8 +254,8 @@ const saveNote = async () => {
         saveStatus.value = 'idle'
     }, 2000)
 
-    // 保存成功后立即同步,等待完成以确保数据已推送
-    await syncOnce(true).catch(e => console.error('同步失败:', e))
+    // 保存成功后触发同步(不等待完成,避免阻塞)
+    syncOnce(true).catch(e => console.error('[Notes] 同步失败:', e))
   }
   catch (e) {
     console.error('Auto-save failed', e)
@@ -297,11 +300,11 @@ onMounted(async () => {
   }
 
   // Keyboard inset listener for Android 15+ / mobile
-  if (typeof window !== 'undefined' && window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateKeyboardInset)
-    window.visualViewport.addEventListener('scroll', updateKeyboardInset)
-    updateKeyboardInset()
-  }
+  // if (typeof window !== 'undefined' && window.visualViewport) {
+  //   window.visualViewport.addEventListener('resize', updateKeyboardInset)
+  //   window.visualViewport.addEventListener('scroll', updateKeyboardInset)
+  //   updateKeyboardInset()
+  // }
 
   try {
     // 检查微信草稿箱工作流
@@ -349,8 +352,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined' && window.visualViewport) {
-    window.visualViewport.removeEventListener('resize', updateKeyboardInset)
-    window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
+    // window.visualViewport.removeEventListener('resize', updateKeyboardInset)
+    // window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
   }
 })
 
@@ -630,6 +633,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
+          :editable="true"
           preview-theme="github"
           :code-foldable="false"
           :show-code-row="true"

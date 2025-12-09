@@ -13,6 +13,7 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
+import { useEnvironment } from '~/composables/useEnvironment'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -43,6 +44,7 @@ type TabId = typeof tabs[number]['id']
 const activeTab = ref<TabId>('articles')
 const { getSetting, setSetting } = useSettingRepository()
 const { syncOnce } = useSyncManager()
+const { isDesktop } = useEnvironment()
 
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
@@ -62,6 +64,10 @@ const animateNoteCards = () => {
 
 const loadNotes = async () => {
   try {
+    // 桌面端先同步一次,拉取移动端的更新
+    if (isDesktop.value) {
+      await syncOnce(true).catch(e => console.error('加载笔记前同步失败:', e))
+    }
     notes.value = await getAllNotes() || []
     nextTick(() => animateNoteCards())
   }
@@ -255,7 +261,7 @@ onMounted(async () => {
     }
   }
 
-  // 先静默同步,确保数据最新
+  // 先静默同步,确保数据最新(有数据变化时会显示)
   await syncOnce(true).catch(e => console.error('页面初始化同步失败:', e))
 
   // Load data based on active tab
@@ -278,7 +284,7 @@ watch(activeTab, async (newTab) => {
   // Save preference
   await setSetting('notes_active_tab', newTab)
 
-  // 先静默同步,确保数据最新
+  // 先静默同步,确保数据最新(有数据变化时会显示)
   await syncOnce(true).catch(e => console.error('切换标签页同步失败:', e))
 
   // Load data
