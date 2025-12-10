@@ -61,10 +61,10 @@ const handleUpload = async (event: Event) => {
     })
 
     toast.success('上传成功')
-    
+
     // 静默重新加载
     await loadAssets(true)
-    
+
     // 触发 assets 单表同步
     syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
   }
@@ -86,15 +86,15 @@ const handleDelete = (id: number) => {
       onClick: async () => {
         try {
           await deleteAsset(id)
-          
+
           // 直接从列表中移除，避免重新加载
           const index = assets.value.findIndex(a => a.id === id)
           if (index !== -1) {
             assets.value.splice(index, 1)
           }
-          
+
           toast.success('删除成功')
-          
+
           // 触发 assets 单表同步
           syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
         }

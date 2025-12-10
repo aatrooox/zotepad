@@ -23,6 +23,7 @@ const cosBucket = ref('')
 const cosRegion = ref('')
 const cosPathPrefix = ref('')
 const cosCustomDomain = ref('')
+const isInitializing = ref(false)
 
 // 使用 4 个子 composable
 const {
@@ -35,9 +36,6 @@ const {
   isSyncing,
   syncStatus,
   syncInfo,
-  lastSyncText,
-  lastSyncCountText,
-  totalSyncCountText,
   syncSummaryText,
   saveSyncConfig,
   resetSyncState,
@@ -108,30 +106,41 @@ async function saveSettings() {
 
 // 初始化
 async function initSettingsPage() {
-  await store.initStore()
+  isInitializing.value = true
 
-  // 加载 COS 设置
-  customCss.value = (await store.getItem<string>('customCss')) || ''
+  try {
+    // 并行初始化 Store
+    await store.initStore()
 
-  const cosSettings = await getSettingsByCategory('cos')
-  cosSecretId.value = cosSettings.secret_id || ''
-  cosSecretKey.value = cosSettings.secret_key || ''
-  cosBucket.value = cosSettings.bucket || ''
-  cosRegion.value = cosSettings.region || ''
-  cosPathPrefix.value = cosSettings.path_prefix || ''
-  cosCustomDomain.value = cosSettings.custom_domain || ''
+    // 并行加载所有数据(不阻塞 UI)
+    const [cosSettings] = await Promise.all([
+      getSettingsByCategory('cos'),
+      // 其他加载操作不需要 await,直接触发即可
+      loadSyncConfig().catch(e => console.error('加载同步配置失败:', e)),
+      loadEnvs().catch(e => console.error('加载环境变量失败:', e)),
+      loadSystemWorkflows().catch(e => console.error('加载系统流失败:', e)),
+      isDesktop.value ? loadServerInfo().catch(e => console.error('加载服务器信息失败:', e)) : Promise.resolve(),
+    ])
 
-  // 加载各模块数据
-  await loadSyncConfig()
-  await loadEnvs()
-  await loadSystemWorkflows()
+    // 加载 COS 设置
+    customCss.value = (await store.getItem<string>('customCss')) || ''
+    cosSecretId.value = cosSettings.secret_id || ''
+    cosSecretKey.value = cosSettings.secret_key || ''
+    cosBucket.value = cosSettings.bucket || ''
+    cosRegion.value = cosSettings.region || ''
+    cosPathPrefix.value = cosSettings.path_prefix || ''
+    cosCustomDomain.value = cosSettings.custom_domain || ''
 
-  if (isDesktop.value) {
-    await loadServerInfo()
+    // 静默同步一次(不阻塞,不等待结果)
+    syncOnce(true).catch(e => console.error('初始同步失败:', e))
   }
-
-  // 静默同步一次(有数据变化时会显示 toast)
-  await syncOnce(true)
+  catch (error) {
+    console.error('初始化设置页面失败:', error)
+    toast.error('加载设置失败')
+  }
+  finally {
+    isInitializing.value = false
+  }
 }
 
 onMounted(() => {
@@ -609,14 +618,16 @@ onMounted(() => {
           </AccordionItem>
         </Accordion>
 
-        <Button class="w-full hidden md:flex" @click="saveSettings">
-          保存设置
+        <Button class="w-full hidden md:flex" :disabled="isInitializing" @click="saveSettings">
+          <Icon v-if="isInitializing" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          {{ isInitializing ? '加载中…' : '保存设置' }}
         </Button>
       </div>
 
       <div class="fixed bottom-20 left-4 right-4 z-40 md:hidden">
-        <Button class="w-full shadow-lg" @click="saveSettings">
-          保存设置
+        <Button class="w-full shadow-lg" :disabled="isInitializing" @click="saveSettings">
+          <Icon v-if="isInitializing" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          {{ isInitializing ? '加载中…' : '保存设置' }}
         </Button>
       </div>
     </div>

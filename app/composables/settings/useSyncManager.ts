@@ -646,25 +646,25 @@ export function useSyncManager() {
 
   const syncSummaryText = computed(() => {
     const parts: string[] = []
-    
+
     if (lastVersion.value) {
       parts.push(`版本 ${lastVersion.value}`)
     }
-    
+
     if (lastSyncSummary.value) {
       const { pulled, pushed } = lastSyncSummary.value
       if (pulled > 0 || pushed > 0) {
         parts.push(`上次 ↓${pulled} ↑${pushed}`)
       }
     }
-    
+
     if (totalSyncSummary.value) {
       const { pulled, pushed } = totalSyncSummary.value
       if (pulled > 0 || pushed > 0) {
         parts.push(`累计 ↓${pulled} ↑${pushed}`)
       }
     }
-    
+
     return parts.length > 0 ? parts.join(' · ') : '暂无同步记录'
   })
 

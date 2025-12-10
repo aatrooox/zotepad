@@ -49,6 +49,10 @@ const tabToTableMap: Record<TabId, string> = {
   assets: 'assets',
 }
 
+const { getSetting, setSetting } = useSettingRepository()
+const { syncTable, syncOnce } = useSyncManager()
+const isLoading = ref(false)
+
 // 监听 tab 切换,触发对应表的单表同步
 watch(activeTab, async (newTab) => {
   const tableName = tabToTableMap[newTab]
@@ -57,9 +61,6 @@ watch(activeTab, async (newTab) => {
     syncTable(tableName, true).catch((e: any) => console.error(`${tableName} 同步失败:`, e))
   }
 })
-const { getSetting, setSetting } = useSettingRepository()
-const { syncTable, syncOnce } = useSyncManager()
-const isLoading = ref(false)
 
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()

@@ -15,7 +15,7 @@ interface SystemWorkflowSpec {
 const WX_WORKFLOW_NAME = '📤 上传至公众号草稿箱'
 
 export function useSystemWorkflowManager() {
-  const { getAllWorkflowsWithSystem, deleteWorkflow, deleteWorkflowsByType, upsertSystemWorkflow } = useWorkflowRepository()
+  const { getAllWorkflowsWithSystem, deleteWorkflowsByType, upsertSystemWorkflow } = useWorkflowRepository()
 
   const systemWorkflows = ref<Workflow[]>([])
   const isCreatingSystemWorkflow = ref<string | null>(null)

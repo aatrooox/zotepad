@@ -170,10 +170,10 @@ async function handlePublish() {
     content.value = ''
     tags.value = []
     images.value = []
-    
+
     // 静默重新加载（不显示 loading，不重新动画）
     await loadMoments(true)
-    
+
     // 触发 moments 单表同步
     syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
   }
@@ -193,15 +193,15 @@ function handleDelete(id: number) {
       onClick: async () => {
         try {
           await deleteMoment(id)
-          
+
           // 直接从列表中移除，避免重新加载
           const index = moments.value.findIndex(m => m.id === id)
           if (index !== -1) {
             moments.value.splice(index, 1)
           }
-          
+
           toast.success('删除成功')
-          
+
           // 触发 moments 单表同步
           syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
         }
