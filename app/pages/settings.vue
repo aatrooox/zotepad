@@ -32,7 +32,6 @@ const {
   syncServerAddress,
   isSavingSyncConfig,
   syncWorkflowId,
-  syncToken,
   isSyncing,
   syncStatus,
   syncInfo,
@@ -347,7 +346,7 @@ onMounted(() => {
                         </div>
                         <p class="text-xs text-muted-foreground mt-1.5">
                           {{ syncSummaryText }}
-                          <span v-if="syncInfo.paired" class="text-orange-600 dark:text-orange-400"> · 已被访问</span>
+                          <span v-if="syncInfo.status === 'ok' && syncInfo.version !== null" class="text-green-600 dark:text-green-400"> · 桌面端 v{{ syncInfo.version || 0 }}</span>
                         </p>
                         <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
                           {{ syncInfo.message }}
@@ -404,18 +403,6 @@ onMounted(() => {
                       </p>
                       <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
                         {{ syncInfo.message }}
-                      </p>
-                    </div>
-
-                    <div class="grid gap-2">
-                      <Label>同步 Token</Label>
-                      <Input
-                        v-model="syncToken"
-                        placeholder="默认 zotepad-dev-token"
-                        class="font-mono text-sm"
-                      />
-                      <p class="text-xs text-muted-foreground">
-                        与桌面端 HTTP 服务保持一致，未设置则使用默认。
                       </p>
                     </div>
 

@@ -29,7 +29,6 @@ const SYNC_WORKFLOW_NAME = '🔗 局域网同步测试'
 // 使用 useState 创建全局单例状态,确保所有页面共享同一份数据
 const globalServerUrl = () => useState('sync_server_url', () => '')
 const globalSyncServerAddress = () => useState('sync_server_address', () => '')
-const globalSyncToken = () => useState('sync_token', () => '')
 const globalLastVersion = () => useState('sync_last_version', () => 0) // 改为 lastVersion
 const globalLastSyncSummary = () => useState<SyncSummary | null>('sync_last_summary', () => null)
 const globalTotalSyncSummary = () => useState<SyncTotalSummary>('sync_total_summary', () => ({ pulled: 0, pushed: 0 }))
@@ -47,7 +46,6 @@ export function useSyncManager() {
   // 使用全局状态
   const serverUrl = globalServerUrl()
   const syncServerAddress = globalSyncServerAddress()
-  const syncToken = globalSyncToken()
   const lastVersion = globalLastVersion()
   const lastSyncSummary = globalLastSyncSummary()
   const totalSyncSummary = globalTotalSyncSummary()
@@ -64,8 +62,8 @@ export function useSyncManager() {
   }
 
   function buildSyncHeaders() {
-    const token = syncToken.value.trim() || 'zotepad-dev-token'
-    return { Authorization: `Bearer ${token}` }
+    // 局域网环境使用固定 token,安全性由网络隔离保证
+    return { Authorization: 'Bearer zotepad-dev-token' }
   }
 
   function bumpTotalSyncCounts(deltaPulled: number, deltaPushed: number) {
@@ -389,7 +387,13 @@ export function useSyncManager() {
     }
     try {
       const state = await fetchSyncState()
+      const wasDisconnected = syncInfo.value.status !== 'ok'
       syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
+
+      // 如果之前是断开状态,现在连接成功了,显示提示
+      if (wasDisconnected && state.server_version) {
+        console.log('[Sync] 重新连接到桌面端:', state.server_version)
+      }
     }
     catch (e: any) {
       console.error('获取同步状态失败:', e)
@@ -428,10 +432,6 @@ export function useSyncManager() {
         console.warn('[Sync] 无法自动获取本地服务器地址:', e)
       }
     }
-
-    const savedToken = await getSetting('sync_token')
-    if (savedToken)
-      syncToken.value = savedToken
 
     const savedVersion = await getSetting('sync_last_version')
     if (savedVersion)
@@ -492,8 +492,6 @@ export function useSyncManager() {
     isSavingSyncConfig.value = true
     try {
       await setSetting('sync_server_address', address, 'sync')
-      if (syncToken.value.trim())
-        await setSetting('sync_token', syncToken.value.trim(), 'sync')
 
       const workflows = await getAllWorkflows()
       const existingWorkflow = workflows?.find(w => w.name === SYNC_WORKFLOW_NAME)
@@ -515,8 +513,15 @@ export function useSyncManager() {
 
       const newId = await createWorkflow(SYNC_WORKFLOW_NAME, '测试与桌面端的局域网连接', steps)
       syncWorkflowId.value = newId ?? null
-      toast.success('同步配置已保存,流已创建')
-      await refreshSyncStateCard()
+
+      // 测试连接并获取桌面端信息
+      const state = await fetchSyncState()
+      syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
+
+      // 显示连接成功提示
+      const serverVersion = state.server_version || '未知版本'
+      toast.success(`已连接到桌面端 ${serverVersion}`, { duration: 3000 })
+      console.log('[Sync] 配对成功:', { serverVersion, dbVersion: state.version })
     }
     catch (e: any) {
       console.error('Failed to save sync config:', e)
@@ -575,11 +580,9 @@ export function useSyncManager() {
         onClick: async () => {
           try {
             await setSetting('sync_server_address', '', 'sync')
-            await setSetting('sync_token', '', 'sync')
             await setSetting('sync_last_version', '0', 'sync')
             await setSetting('sync_total_counts', '0', 'sync')
             syncServerAddress.value = ''
-            syncToken.value = ''
             lastVersion.value = 0
             totalSyncSummary.value = { pulled: 0, pushed: 0 }
 
@@ -652,7 +655,6 @@ export function useSyncManager() {
     syncServerAddress,
     isSavingSyncConfig,
     syncWorkflowId,
-    syncToken,
     lastVersion,
     lastSyncSummary,
     totalSyncSummary,
