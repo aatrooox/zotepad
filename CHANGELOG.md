@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.14.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.14.0...v0.14.1)
+
+### 🚀 Enhancements
+
+- 优化推拉/工作流的人性化通知 ([37e1a89](https://github.com/aatrooox/zotepad/commit/37e1a89))
+
+### 🩹 Fixes
+
+- 优化拉取策略 ([a683aec](https://github.com/aatrooox/zotepad/commit/a683aec))
+- 优化排序、通知逻辑 ([efc9480](https://github.com/aatrooox/zotepad/commit/efc9480))
+
+### 🏡 Chore
+
+- **release:** V0.14.0 ([6bd40a1](https://github.com/aatrooox/zotepad/commit/6bd40a1))
+- **build:** Release v0.14.0 ([89e7fbb](https://github.com/aatrooox/zotepad/commit/89e7fbb))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.14.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.13.3...v0.14.0)
