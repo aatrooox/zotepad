@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
+import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useDesktopServer } from '~/composables/settings/useDesktopServer'
 import { useEnvironmentManager } from '~/composables/settings/useEnvironmentManager'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
@@ -11,6 +12,7 @@ import { useTauriStore } from '~/composables/useTauriStore'
 const config = useRuntimeConfig()
 const version = config.public.version
 const store = useTauriStore()
+const { setSetting, getSettingsByCategory } = useSettingRepository()
 const { isDesktop } = useEnvironment()
 
 // COS 和通用设置
@@ -85,13 +87,16 @@ watch(desktopServerUrl, (newUrl) => {
 async function saveSettings() {
   try {
     await store.setItem('customCss', customCss.value)
-    await store.setItem('cosSecretId', cosSecretId.value)
-    await store.setItem('cosSecretKey', cosSecretKey.value)
-    await store.setItem('cosBucket', cosBucket.value)
-    await store.setItem('cosRegion', cosRegion.value)
-    await store.setItem('cosPathPrefix', cosPathPrefix.value)
-    await store.setItem('cosCustomDomain', cosCustomDomain.value)
     await store.saveStore()
+
+    // Save COS settings to SQL database
+    await setSetting('secret_id', cosSecretId.value, 'cos')
+    await setSetting('secret_key', cosSecretKey.value, 'cos')
+    await setSetting('bucket', cosBucket.value, 'cos')
+    await setSetting('region', cosRegion.value, 'cos')
+    await setSetting('path_prefix', cosPathPrefix.value, 'cos')
+    await setSetting('custom_domain', cosCustomDomain.value, 'cos')
+
     toast.success('设置已保存')
   }
   catch (error) {
@@ -106,12 +111,14 @@ async function initSettingsPage() {
 
   // 加载 COS 设置
   customCss.value = (await store.getItem<string>('customCss')) || ''
-  cosSecretId.value = (await store.getItem<string>('cosSecretId')) || ''
-  cosSecretKey.value = (await store.getItem<string>('cosSecretKey')) || ''
-  cosBucket.value = (await store.getItem<string>('cosBucket')) || ''
-  cosRegion.value = (await store.getItem<string>('cosRegion')) || ''
-  cosPathPrefix.value = (await store.getItem<string>('cosPathPrefix')) || ''
-  cosCustomDomain.value = (await store.getItem<string>('cosCustomDomain')) || ''
+
+  const cosSettings = await getSettingsByCategory('cos')
+  cosSecretId.value = cosSettings.secret_id || ''
+  cosSecretKey.value = cosSettings.secret_key || ''
+  cosBucket.value = cosSettings.bucket || ''
+  cosRegion.value = cosSettings.region || ''
+  cosPathPrefix.value = cosSettings.path_prefix || ''
+  cosCustomDomain.value = cosSettings.custom_domain || ''
 
   // 加载各模块数据
   await loadSyncConfig()
