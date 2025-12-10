@@ -8,9 +8,10 @@ export function useNoteRepository() {
 
   const createNote = (title: string, content: string, tags: string[] = []) =>
     runAsync(async () => {
+      const now = new Date().toISOString()
       const result = await execute(
-        'INSERT INTO notes (title, content, tags, version) VALUES (?, ?, ?, ?)',
-        [title, content, JSON.stringify(tags), -Date.now()],
+        'INSERT INTO notes (title, content, tags, version, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [title, content, JSON.stringify(tags), -Date.now(), now],
       )
       return result.lastInsertId as number
     }, '创建笔记失败')
@@ -22,7 +23,7 @@ export function useNoteRepository() {
     }, '获取笔记失败')
 
   const getAllNotes = () =>
-    runAsync(() => select<Note[]>('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC'), '获取笔记列表失败')
+    runAsync(() => select<Note[]>('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY CASE WHEN updated_at IS NULL THEN 0 ELSE 1 END DESC, datetime(updated_at) DESC, id DESC'), '获取笔记列表失败')
 
   const updateNote = (id: number, title: string, content: string, tags: string[] = []) =>
     runAsync(async () => {
@@ -32,6 +33,17 @@ export function useNoteRepository() {
         [id],
       )
 
+      // 如果内容没有变化，直接返回，不更新 updated_at
+      if (before[0]) {
+        const oldTags = before[0].tags || '[]'
+        const newTags = JSON.stringify(tags)
+        if (before[0].title === title && before[0].content === content && oldTags === newTags) {
+          console.log(`[NoteRepo] 内容未变化,跳过更新: ${id}`)
+          return { versionChanged: false, newVersion: before[0].version }
+        }
+      }
+
+      const now = new Date().toISOString()
       await execute(
         // 只有当 title/content/tags 真的改变时才更新 version
         // 使用 CASE WHEN 检查是否有实际变化
@@ -39,14 +51,14 @@ export function useNoteRepository() {
          SET title = ?,
              content = ?,
              tags = ?,
-             updated_at = CURRENT_TIMESTAMP,
+             updated_at = ?,
          version = CASE
                WHEN title != ? OR content != ? OR tags != ?
                THEN ?
                ELSE version
              END
          WHERE id = ?`,
-        [title, content, JSON.stringify(tags), title, content, JSON.stringify(tags), -Date.now(), id],
+        [title, content, JSON.stringify(tags), now, title, content, JSON.stringify(tags), -Date.now(), id],
       )
 
       // 查询更新后的版本号
@@ -65,7 +77,7 @@ export function useNoteRepository() {
     }, '更新笔记失败')
 
   const deleteNote = (id: number) =>
-    runAsync(() => execute('UPDATE notes SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, version = ? WHERE id = ?', [-Date.now(), id]), '删除笔记失败')
+    runAsync(() => execute('UPDATE notes SET deleted_at = ?, updated_at = ?, version = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), -Date.now(), id]), '删除笔记失败')
 
   // 获取最新的一条笔记，用于自动加载
   const getLatestNote = () =>

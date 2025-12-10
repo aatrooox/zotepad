@@ -323,9 +323,8 @@ export function useSyncManager() {
           await setSetting('sync_last_version', String(serverVersion), 'sync')
 
           syncStatus.value = `已升级 ${localChanges.length} 条记录`
-          if (!silent) {
-            toast.success(`桌面端已升级 ${localChanges.length} 条编辑`, { id: toastId })
-          }
+          // 有变更时总是提示，忽略 silent
+          toast.success(`桌面端已更新 ${localChanges.length} 条编辑`, { id: toastId })
         }
         else {
           syncStatus.value = '桌面端无待同步数据'
@@ -379,9 +378,8 @@ export function useSyncManager() {
         if (lastSyncSummary.value.pushed > 0) {
           parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
         }
-        if (!silent) {
-          toast.success(`同步完成: ${parts.join(', ')}`, { id: toastId })
-        }
+        // 有变更时总是提示，忽略 silent
+        toast.success(`同步完成: ${parts.join(', ')}`, { id: toastId })
       }
       else {
         if (!silent)

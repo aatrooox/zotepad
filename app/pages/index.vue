@@ -44,7 +44,7 @@ type TabId = typeof tabs[number]['id']
 const activeTab = ref<TabId>('articles')
 const { getSetting, setSetting } = useSettingRepository()
 const { syncOnce } = useSyncManager()
-const { isDesktop } = useEnvironment()
+const isLoading = ref(false)
 
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
@@ -64,10 +64,6 @@ const animateNoteCards = () => {
 
 const loadNotes = async () => {
   try {
-    // 桌面端先同步一次,拉取移动端的更新
-    if (isDesktop.value) {
-      await syncOnce(true).catch(e => console.error('加载笔记前同步失败:', e))
-    }
     notes.value = await getAllNotes() || []
     nextTick(() => animateNoteCards())
   }
@@ -203,7 +199,7 @@ interface MomentDisplay extends Moment {
 
 const momentContent = ref('')
 const moments = ref<MomentDisplay[]>([])
-const isLoading = ref(false)
+// isLoading moved to top scope
 const isPublishing = ref(false)
 const momentTags = ref<string[]>([])
 const newMomentTag = ref('')
@@ -220,7 +216,6 @@ const currentMoment = ref<MomentDisplay | null>(null)
 const momentToolbars: ToolbarNames[] = ['bold', 'italic', 'underline', '-', 'link', 'code', '-', 'preview']
 
 async function loadMoments() {
-  isLoading.value = true
   try {
     const rawMoments = await getAllMoments() || []
     moments.value = rawMoments.map(m => ({
@@ -234,9 +229,6 @@ async function loadMoments() {
     console.error(e)
     toast.error('加载动态失败')
   }
-  finally {
-    isLoading.value = false
-  }
 }
 
 function animateMomentCards() {
@@ -245,6 +237,27 @@ function animateMomentCards() {
     { opacity: 0, y: 20 },
     { opacity: 1, y: 0, duration: 0.4, stagger: 0.05, ease: 'back.out(1.2)', clearProps: 'all' },
   )
+}
+
+const loadCurrentTabData = async (showLoading = true) => {
+  if (showLoading)
+    isLoading.value = true
+  try {
+    if (activeTab.value === 'articles') {
+      await loadNotes()
+    }
+    else if (activeTab.value === 'moments') {
+      await loadMoments()
+    }
+    else {
+      await loadAssetsViewMode()
+      await loadAssets()
+    }
+  }
+  finally {
+    if (showLoading)
+      isLoading.value = false
+  }
 }
 
 // Initialize tab from URL query
@@ -261,20 +274,14 @@ onMounted(async () => {
     }
   }
 
-  // 先静默同步,确保数据最新(有数据变化时会显示)
-  await syncOnce(true).catch(e => console.error('页面初始化同步失败:', e))
+  // 1. Load local data immediately
+  await loadCurrentTabData(true)
 
-  // Load data based on active tab
-  if (activeTab.value === 'articles') {
-    loadNotes()
-  }
-  else if (activeTab.value === 'moments') {
-    loadMoments()
-  }
-  else {
-    await loadAssetsViewMode()
-    await loadAssets()
-  }
+  // 2. Sync in background (non-blocking)
+  syncOnce(true).then(() => {
+    // Reload silently to update with any synced changes
+    loadCurrentTabData(false)
+  }).catch(e => console.error('页面初始化同步失败:', e))
 })
 
 // Watch tab changes
@@ -284,20 +291,13 @@ watch(activeTab, async (newTab) => {
   // Save preference
   await setSetting('notes_active_tab', newTab)
 
-  // 先静默同步,确保数据最新(有数据变化时会显示)
-  await syncOnce(true).catch(e => console.error('切换标签页同步失败:', e))
+  // 1. Load local data immediately
+  await loadCurrentTabData(true)
 
-  // Load data
-  if (newTab === 'articles') {
-    loadNotes()
-  }
-  else if (newTab === 'moments') {
-    loadMoments()
-  }
-  else {
-    await loadAssetsViewMode()
-    await loadAssets()
-  }
+  // 2. Sync in background
+  syncOnce(true).then(() => {
+    loadCurrentTabData(false)
+  }).catch(e => console.error('切换标签页同步失败:', e))
 })
 
 const handleCreateNote = async () => {
@@ -328,6 +328,8 @@ const handleDeleteNote = (id: number, event?: Event) => {
           await deleteNote(id)
           toast.success('笔记已删除')
           await loadNotes()
+          // 删除后触发静默同步
+          syncOnce(true).catch(e => console.error('删除后同步失败:', e))
         }
         catch {
           toast.error('删除笔记失败')
@@ -600,8 +602,13 @@ async function handleRunWorkflow(workflow: Workflow) {
 
     <!-- Content Area -->
     <div class="flex-1 overflow-y-auto">
+      <!-- Loading State -->
+      <div v-if="isLoading && notes.length === 0 && moments.length === 0 && assets.length === 0" class="flex items-center justify-center h-64">
+        <Icon name="lucide:loader-2" class="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+
       <!-- Articles Tab -->
-      <div v-if="activeTab === 'articles'" class="p-4 md:p-8">
+      <div v-else-if="activeTab === 'articles'" class="p-4 md:p-8">
         <!-- Stats Header -->
         <div class="mb-4 md:mb-6">
           <p class="text-sm text-muted-foreground">
