@@ -11,7 +11,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev -p 4577",
     "android:dev": "pnpm tauri android dev --open",
-    "android:build": "pnpm tauri android build --apk --target aarch64-linux-android",
+    "android:build": "pnpm tauri android build --apk --target aarch64",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
