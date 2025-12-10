@@ -475,29 +475,7 @@ export function useSyncManager() {
     if (syncWorkflow)
       syncWorkflowId.value = syncWorkflow.id
 
-    // 桌面端监听远程推送事件
-    if (import.meta.client && isDesktop.value) {
-      try {
-        const { listen } = await import('@tauri-apps/api/event')
-        await listen<number>('sync:incoming', (event) => {
-          console.log('[Sync] 收到远程推送通知:', event.payload)
-          // 显示"拉取"状态
-          activity.setSyncCounts(0, event.payload)
-          // 3.5秒后清除状态
-          setTimeout(() => {
-            activity.setSyncCounts(0, 0)
-          }, 3500)
-
-          // 触发列表刷新(如果需要)
-          // 这里可以考虑触发一个全局事件或者重新获取数据
-          // 目前 index.vue 会在 onActivated 时刷新，或者我们可以手动触发
-        })
-        console.log('[Sync] 已注册 sync:incoming 监听器')
-      }
-      catch (e) {
-        console.warn('[Sync] 注册监听器失败:', e)
-      }
-    }
+    // sync:incoming 监听器已迁移到 app.vue 全局注册,避免重复监听
   }
 
   async function saveSyncConfig() {

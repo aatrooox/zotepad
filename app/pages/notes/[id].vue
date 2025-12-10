@@ -62,7 +62,8 @@ const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
 
 // 同步管理
-const { syncOnce } = useSyncManager()
+const { syncTable } = useSyncManager()
+const { isDesktop } = useEnvironment()
 
 // 添加调试日志
 // console.log('[Notes] syncOnce 函数:', syncOnce)
@@ -254,8 +255,10 @@ const saveNote = async () => {
         saveStatus.value = 'idle'
     }, 2000)
 
-    // 保存成功后触发同步(不等待完成,避免阻塞)
-    syncOnce(true).catch(e => console.error('[Notes] 同步失败:', e))
+    // 保存成功后触发同步(不等待完成,避免阻塞) - 仅移动端
+    if (!isDesktop.value) {
+      syncTable('notes', true).catch((e: any) => console.error('[Notes] 同步失败:', e))
+    }
   }
   catch (e) {
     console.error('Auto-save failed', e)

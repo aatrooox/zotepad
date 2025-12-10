@@ -13,6 +13,7 @@ const { getAllAssets, createAsset, deleteAsset } = useAssetRepository()
 const { uploadFile } = useCOSService()
 const { getSetting, setSetting } = useSettingRepository()
 const { syncTable } = useSyncManager()
+const { isDesktop } = useEnvironment()
 
 const assets = ref<Asset[]>([])
 const isUploading = ref(false)
@@ -65,8 +66,10 @@ const handleUpload = async (event: Event) => {
     // 静默重新加载
     await loadAssets(true)
 
-    // 触发 assets 单表同步
-    syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
+    // 触发 assets 单表同步 - 仅移动端
+    if (!isDesktop.value) {
+      syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
+    }
   }
   catch (e: any) {
     console.error(e)
@@ -95,8 +98,10 @@ const handleDelete = (id: number) => {
 
           toast.success('删除成功')
 
-          // 触发 assets 单表同步
-          syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
+          // 触发 assets 单表同步 - 仅移动端
+          if (!isDesktop.value) {
+            syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
+          }
         }
         catch (e) {
           console.error(e)

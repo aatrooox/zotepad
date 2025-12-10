@@ -50,15 +50,19 @@ const tabToTableMap: Record<TabId, string> = {
 }
 
 const { getSetting, setSetting } = useSettingRepository()
-const { syncTable, syncOnce } = useSyncManager()
+const { syncTable } = useSyncManager()
+const { isDesktop } = useEnvironment()
 const isLoading = ref(false)
 
-// 监听 tab 切换,触发对应表的单表同步
+// 监听 tab 切换,移动端触发对应表的单表同步
+// 桌面端不需要,因为移动端推送后后端已经写入数据库,只需重新加载即可
 watch(activeTab, async (newTab) => {
-  const tableName = tabToTableMap[newTab]
-  if (tableName) {
-    console.log(`[Tab切换] 触发 ${tableName} 表同步`)
-    syncTable(tableName, true).catch((e: any) => console.error(`${tableName} 同步失败:`, e))
+  if (!isDesktop.value) {
+    const tableName = tabToTableMap[newTab]
+    if (tableName) {
+      console.log(`[Tab切换] 移动端触发 ${tableName} 表同步`)
+      syncTable(tableName, true).catch((e: any) => console.error(`${tableName} 同步失败:`, e))
+    }
   }
 })
 
@@ -297,11 +301,15 @@ onMounted(async () => {
   // 1. Load local data immediately
   await loadCurrentTabData(true)
 
-  // 2. Sync in background (non-blocking)
-  syncOnce(true).then(() => {
-    // Reload silently to update with any synced changes
-    loadCurrentTabData(false)
-  }).catch(e => console.error('页面初始化同步失败:', e))
+  // 2. Sync in background (non-blocking) - 仅移动端
+  if (!isDesktop.value) {
+    const tableName = tabToTableMap[activeTab.value]
+    if (tableName) {
+      syncTable(tableName, true).then(() => {
+        loadCurrentTabData(false)
+      }).catch((e: any) => console.error('页面初始化同步失败:', e))
+    }
+  }
 })
 
 // Watch tab changes
@@ -314,10 +322,15 @@ watch(activeTab, async (newTab) => {
   // 1. Load local data immediately
   await loadCurrentTabData(true)
 
-  // 2. Sync in background
-  syncOnce(true).then(() => {
-    loadCurrentTabData(false)
-  }).catch(e => console.error('切换标签页同步失败:', e))
+  // 2. Sync in background - 仅移动端
+  if (!isDesktop.value) {
+    const tableName = tabToTableMap[newTab]
+    if (tableName) {
+      syncTable(tableName, true).then(() => {
+        loadCurrentTabData(false)
+      }).catch((e: any) => console.error('切换标签页同步失败:', e))
+    }
+  }
 })
 
 const handleCreateNote = async () => {
@@ -348,8 +361,10 @@ const handleDeleteNote = (id: number, event?: Event) => {
           await deleteNote(id)
           toast.success('笔记已删除')
           await loadNotes()
-          // 删除后触发静默同步
-          syncOnce(true).catch(e => console.error('删除后同步失败:', e))
+          // 删除后触发静默同步 - 仅移动端
+          if (!isDesktop.value) {
+            syncTable('notes', true).catch((e: any) => console.error('删除后同步失败:', e))
+          }
         }
         catch {
           toast.error('删除笔记失败')

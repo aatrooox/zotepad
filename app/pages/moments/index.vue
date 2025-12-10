@@ -33,6 +33,7 @@ const { getAllWorkflows } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
 const { syncTable } = useSyncManager()
+const { isDesktop } = useEnvironment()
 
 // State
 const content = ref('')
@@ -174,8 +175,10 @@ async function handlePublish() {
     // 静默重新加载（不显示 loading，不重新动画）
     await loadMoments(true)
 
-    // 触发 moments 单表同步
-    syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
+    // 触发 moments 单表同步 - 仅移动端
+    if (!isDesktop.value) {
+      syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
+    }
   }
   catch (e) {
     console.error(e)
@@ -202,8 +205,10 @@ function handleDelete(id: number) {
 
           toast.success('删除成功')
 
-          // 触发 moments 单表同步
-          syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
+          // 触发 moments 单表同步 - 仅移动端
+          if (!isDesktop.value) {
+            syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
+          }
         }
         catch (e) {
           console.error(e)

@@ -131,8 +131,11 @@ async function initSettingsPage() {
     cosPathPrefix.value = cosSettings.path_prefix || ''
     cosCustomDomain.value = cosSettings.custom_domain || ''
 
-    // 静默同步一次(不阻塞,不等待结果)
-    syncOnce(true).catch(e => console.error('初始同步失败:', e))
+    // 移动端：静默同步一次(不阻塞,不等待结果)
+    // 桌面端：不需要 syncOnce,只需要重新加载数据即可(移动端推送后后端已经写入数据库)
+    if (!isDesktop.value) {
+      syncOnce(true).catch(e => console.error('初始同步失败:', e))
+    }
   }
   catch (error) {
     console.error('初始化设置页面失败:', error)
