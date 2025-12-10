@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.15.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.14.2...v0.15.0)
+
+### 🚀 Enhancements
+
+- 重构同步引擎;支持文章、动态、资源、非系统流的同步 ([654dd54](https://github.com/aatrooox/zotepad/commit/654dd54))
+
+### 🩹 Fixes
+
+- 修复对象存储键值前端不显示问题 ([0ec5408](https://github.com/aatrooox/zotepad/commit/0ec5408))
+- 优化静默通知的动画效果 ([36162d2](https://github.com/aatrooox/zotepad/commit/36162d2))
+
+### 🏡 Chore
+
+- **release:** V0.14.2 ([ecff792](https://github.com/aatrooox/zotepad/commit/ecff792))
+- **build:** Release v0.14.2 ([da75737](https://github.com/aatrooox/zotepad/commit/da75737))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.14.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.14.1...v0.14.2)
