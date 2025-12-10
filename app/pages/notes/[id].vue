@@ -467,7 +467,7 @@ const sendToWxDraft = async () => {
       noteId: noteId.value,
     }
 
-    toast.info('正在上传到草稿箱...')
+    // toast.info('正在上传到草稿箱...')
     const result = await runWorkflow(steps, ctx)
 
     // 检查执行结果
@@ -476,7 +476,7 @@ const sendToWxDraft = async () => {
       toast.error(`上传失败: ${errors[0].error}`)
     }
     else {
-      toast.success('已成功上传到草稿箱！')
+      // toast.success('已成功上传到草稿箱！')
       isWeChatPreviewOpen.value = false
     }
   }

@@ -28,6 +28,7 @@ export interface WorkflowContext {
 export function useWorkflowRunner() {
   const { request, error: httpError } = useTauriHTTP()
   const { getEnvObject } = useEnvironmentRepository()
+  const activity = useActivityStatus()
 
   // function validateContext(schema: WorkflowSchemaField[], ctx: WorkflowContext) {
   //   const missingFields: string[] = []
@@ -434,6 +435,10 @@ export function useWorkflowRunner() {
   const runWorkflow = async (steps: WorkflowStep[], initialCtx: WorkflowContext, _schema?: WorkflowSchemaField[]) => {
     await info(`[Workflow] Starting workflow with ${steps.length} step(s)`)
 
+    const runId = Date.now().toString()
+    const workflowTitle = initialCtx.title || 'Workflow'
+    activity.startWorkflow(runId, workflowTitle, steps.length)
+
     // Use full context by default, ignoring schema filtering for flexibility
     let currentCtx = { ...initialCtx }
 
@@ -469,6 +474,9 @@ export function useWorkflowRunner() {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i]!
       const stepIndex = i + 1 // 索引从 1 开始
+
+      activity.updateWorkflowStep(runId, i, step.name)
+
       const startTime = Date.now()
       const log: ExecutionLog = {
         stepId: step.id,
@@ -502,6 +510,7 @@ export function useWorkflowRunner() {
         logs.push(log)
 
         await logError(`[Workflow] Step "${step.name}" failed: ${e.message}`)
+        activity.finishWorkflow(runId, 'error')
         throw e // Stop execution on error
       }
 
@@ -511,6 +520,7 @@ export function useWorkflowRunner() {
     }
 
     await info(`[Workflow] Workflow completed successfully`)
+    activity.finishWorkflow(runId, 'success')
     return { logs, finalCtx: currentCtx }
   }
 

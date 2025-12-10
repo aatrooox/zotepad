@@ -517,6 +517,12 @@ async fn sync_push(
         conflict: false,
     };
 
+    // 如果有变更应用成功，通知前端显示"接收"状态
+    if applied > 0 {
+        let guard = state.lock().await;
+        let _ = guard.app_handle.emit("sync:incoming", applied);
+    }
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(resp),

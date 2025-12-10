@@ -53,6 +53,7 @@ export function useSyncManager() {
   const syncStatus = globalSyncStatus()
   const syncInfo = globalSyncInfo()
   const syncWorkflowId = globalSyncWorkflowId()
+  const activity = useActivityStatus()
 
   const isSavingSyncConfig = ref(false)
 
@@ -128,14 +129,27 @@ export function useSyncManager() {
 
       // 检查本地是否已有更新的版本
       const existing = await syncSelect<any[]>(
-        'SELECT version FROM notes WHERE id = ?',
+        'SELECT version, title, content, tags, deleted_at FROM notes WHERE id = ?',
         [id],
       )
+
+      let isContentSame = false
       if (existing.length > 0) {
-        const localVersion = existing[0].version || 0
+        const local = existing[0]
+        const localVersion = local.version || 0
         if (localVersion >= incomingVersion) {
           console.log(`[Sync] 跳过较旧的远程变更: note ${id}, local=${localVersion}, remote=${incomingVersion}`)
           continue // 本地版本更新,跳过
+        }
+
+        // 检查内容是否一致（忽略 updated_at 和 version）
+        // 如果内容一致，说明只是版本号确认（例如刚推送上去的数据被拉下来），不计入"拉取"数量
+        const localDeletedAt = local.deleted_at || null
+        if (local.title === title
+          && local.content === content
+          && local.tags === tags
+          && localDeletedAt === deletedAt) {
+          isContentSame = true
         }
       }
 
@@ -153,8 +167,14 @@ export function useSyncManager() {
           [id, title, content, tags, updatedAt, incomingVersion],
         )
       }
-      applied++
-      console.log(`[Sync] 应用远程变更: note ${id}, version=${incomingVersion}`)
+
+      if (!isContentSame) {
+        applied++
+        console.log(`[Sync] 应用远程变更: note ${id}, version=${incomingVersion}`)
+      }
+      else {
+        console.log(`[Sync] 确认远程版本(内容无变化): note ${id}, version=${incomingVersion}`)
+      }
     }
     return applied
   }
@@ -230,6 +250,10 @@ export function useSyncManager() {
     }
 
     console.log('[Sync] pullRemoteChanges 完成:', JSON.stringify({ lastServerVersion, pulled, maxPulledVersion }, null, 2))
+
+    // Update activity counts one last time to ensure accuracy
+    activity.setSyncCounts(activity.syncState.value.pushing, pulled)
+
     return { lastServerVersion, pulled, maxPulledVersion }
   }
 
@@ -237,6 +261,9 @@ export function useSyncManager() {
     const base = getSyncBaseUrl()
     const changes = await collectLocalNoteChanges(sinceVersion)
     console.log('[Sync] pushLocalChanges:', JSON.stringify({ sinceVersion, changes: changes.length }, null, 2))
+
+    // Update activity counts
+    activity.setSyncCounts(changes.length, activity.syncState.value.pulling)
 
     if (!changes.length)
       return { server_version: sinceVersion, applied: 0, conflict: false }
@@ -271,7 +298,9 @@ export function useSyncManager() {
 
     isSyncing.value = true
     syncStatus.value = '同步中…'
-    const toastId = silent ? undefined : toast.loading('开始同步...', { duration: 4000 })
+    activity.setSyncState(true)
+
+    const toastId = silent ? undefined : undefined // Disable loading toast
     try {
       console.log('[Sync] 准备调用 fetchSyncState, base=', base)
       const state = await fetchSyncState()
@@ -323,8 +352,8 @@ export function useSyncManager() {
           await setSetting('sync_last_version', String(serverVersion), 'sync')
 
           syncStatus.value = `已升级 ${localChanges.length} 条记录`
-          // 有变更时总是提示，忽略 silent
-          toast.success(`桌面端已更新 ${localChanges.length} 条编辑`, { id: toastId })
+          // 视为本地推送/提交，使用 Activity Indicator 通知
+          activity.setSyncCounts(localChanges.length, 0)
         }
         else {
           syncStatus.value = '桌面端无待同步数据'
@@ -379,11 +408,12 @@ export function useSyncManager() {
           parts.push(`推送 ${lastSyncSummary.value.pushed} 条`)
         }
         // 有变更时总是提示，忽略 silent
-        toast.success(`同步完成: ${parts.join(', ')}`, { id: toastId })
+        // toast.success(`同步完成: ${parts.join(', ')}`, { id: toastId })
       }
       else {
-        if (!silent)
-          toast.success('已是最新', { id: toastId })
+        if (!silent) {
+          // toast.success('已是最新', { id: toastId })
+        }
       }
     }
     catch (e: any) {
@@ -424,6 +454,11 @@ export function useSyncManager() {
         toast.dismiss(toastId)
       }
       isSyncing.value = false
+      activity.setSyncState(false)
+      // Reset counts after a short delay to allow the user to see the final state
+      setTimeout(() => {
+        activity.setSyncCounts(0, 0)
+      }, 3500)
     }
   }
 
@@ -520,6 +555,30 @@ export function useSyncManager() {
     const syncWorkflow = workflows?.find(w => w.name === SYNC_WORKFLOW_NAME)
     if (syncWorkflow)
       syncWorkflowId.value = syncWorkflow.id
+
+    // 桌面端监听远程推送事件
+    if (import.meta.client && isDesktop.value) {
+      try {
+        const { listen } = await import('@tauri-apps/api/event')
+        await listen<number>('sync:incoming', (event) => {
+          console.log('[Sync] 收到远程推送通知:', event.payload)
+          // 显示"拉取"状态
+          activity.setSyncCounts(0, event.payload)
+          // 3.5秒后清除状态
+          setTimeout(() => {
+            activity.setSyncCounts(0, 0)
+          }, 3500)
+
+          // 触发列表刷新(如果需要)
+          // 这里可以考虑触发一个全局事件或者重新获取数据
+          // 目前 index.vue 会在 onActivated 时刷新，或者我们可以手动触发
+        })
+        console.log('[Sync] 已注册 sync:incoming 监听器')
+      }
+      catch (e) {
+        console.warn('[Sync] 注册监听器失败:', e)
+      }
+    }
   }
 
   async function saveSyncConfig() {

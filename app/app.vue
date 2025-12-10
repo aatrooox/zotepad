@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GlobalActivityIndicator from '@/components/app/GlobalActivityIndicator.vue'
 import Toaster from '@/components/ui/sonner.vue'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import 'vue-sonner/style.css'
@@ -27,6 +28,7 @@ onMounted(async () => {
 <template>
   <div class="h-full">
     <NuxtRouteAnnouncer />
+    <GlobalActivityIndicator />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
