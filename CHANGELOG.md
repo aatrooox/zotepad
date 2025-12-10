@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.14.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.14.1...v0.14.2)
+
+### 🩹 Fixes
+
+- 修复对象存储键值前端不显示问题 ([0ec5408](https://github.com/aatrooox/zotepad/commit/0ec5408))
+
+### 🏡 Chore
+
+- **build:** Release v0.14.1 ([606d6c6](https://github.com/aatrooox/zotepad/commit/606d6c6))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.14.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.14.0...v0.14.1)
