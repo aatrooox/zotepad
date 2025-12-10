@@ -15,7 +15,7 @@ interface SystemWorkflowSpec {
 const WX_WORKFLOW_NAME = '📤 上传至公众号草稿箱'
 
 export function useSystemWorkflowManager() {
-  const { getAllWorkflowsWithSystem, deleteWorkflow, upsertSystemWorkflow } = useWorkflowRepository()
+  const { getAllWorkflowsWithSystem, deleteWorkflow, deleteWorkflowsByType, upsertSystemWorkflow } = useWorkflowRepository()
 
   const systemWorkflows = ref<Workflow[]>([])
   const isCreatingSystemWorkflow = ref<string | null>(null)
@@ -131,14 +131,27 @@ export function useSystemWorkflowManager() {
   }
 
   function handleDeleteSystemWorkflow(workflowId: number) {
-    toast('确定要删除该系统流吗？', {
+    // 找到要删除的工作流的 type
+    const workflow = systemWorkflows.value.find(w => w.id === workflowId)
+    if (!workflow || !workflow.type) {
+      toast.error('无法找到该系统流')
+      return
+    }
+
+    toast('确定要删除该系统流吗？（将删除所有相同类型的重复流）', {
       action: {
         label: '删除',
         onClick: async () => {
           isDeletingWorkflowId.value = workflowId
           try {
-            await deleteWorkflow(workflowId)
-            toast.success('工作流已删除')
+            // 按 type 删除所有相同的系统流(解决多端同步导致的重复问题)
+            const deletedCount = await deleteWorkflowsByType(workflow.type!)
+            if (deletedCount > 1) {
+              toast.success(`已删除 ${deletedCount} 个重复的系统流`)
+            }
+            else {
+              toast.success('系统流已删除')
+            }
             await loadSystemWorkflows()
           }
           catch (e: any) {

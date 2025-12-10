@@ -38,6 +38,7 @@ const {
   lastSyncText,
   lastSyncCountText,
   totalSyncCountText,
+  syncSummaryText,
   saveSyncConfig,
   resetSyncState,
   deleteSyncConfig,
@@ -332,12 +333,9 @@ onMounted(() => {
                             <Icon name="lucide:refresh-ccw" class="w-3.5 h-3.5" />
                           </Button>
                         </div>
-                        <p class="text-xs text-muted-foreground mt-1">
-                          {{ lastSyncText }}
-                          <span v-if="syncInfo.version !== null"> · 服务器版本 {{ syncInfo.version }}</span>
-                          <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
-                          <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
-                          <span v-if="syncInfo.paired"> · 已被配对访问</span>
+                        <p class="text-xs text-muted-foreground mt-1.5">
+                          {{ syncSummaryText }}
+                          <span v-if="syncInfo.paired" class="text-orange-600 dark:text-orange-400"> · 已被访问</span>
                         </p>
                         <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
                           {{ syncInfo.message }}
@@ -389,11 +387,8 @@ onMounted(() => {
                         <Icon :name="syncInfo.status === 'ok' ? 'lucide:check-circle' : 'lucide:alert-circle'" class="w-4 h-4" :class="syncInfo.status === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-destructive'" />
                         <span>{{ syncInfo.status === 'ok' ? '可同步' : (syncInfo.message || '不可同步') }}</span>
                       </div>
-                      <p class="text-xs text-muted-foreground mt-1">
-                        {{ lastSyncText }}
-                        <span v-if="syncInfo.version !== null"> · 服务器版本 {{ syncInfo.version }}</span>
-                        <span v-if="lastSyncCountText"> · {{ lastSyncCountText }}</span>
-                        <span v-if="totalSyncCountText"> · {{ totalSyncCountText }}</span>
+                      <p class="text-xs text-muted-foreground mt-1.5">
+                        {{ syncSummaryText }}
                       </p>
                       <p v-if="syncInfo.status === 'error'" class="text-xs text-destructive mt-1">
                         {{ syncInfo.message }}

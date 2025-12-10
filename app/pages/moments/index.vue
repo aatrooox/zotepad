@@ -7,6 +7,7 @@ import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
 import { useMomentRepository } from '~/composables/repositories/useMomentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
@@ -31,6 +32,7 @@ const { createMoment, getAllMoments, deleteMoment } = useMomentRepository()
 const { getAllWorkflows } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
+const { syncTable } = useSyncManager()
 
 // State
 const content = ref('')
@@ -92,8 +94,10 @@ const toolbars: ToolbarNames[] = [
 ]
 
 // Load Data
-async function loadMoments() {
-  isLoading.value = true
+async function loadMoments(silent = false) {
+  if (!silent) {
+    isLoading.value = true
+  }
   try {
     const rawMoments = await getAllMoments() || []
     moments.value = rawMoments.map(m => ({
@@ -101,11 +105,15 @@ async function loadMoments() {
       imagesList: m.images ? JSON.parse(m.images) : [],
       tagsList: m.tags ? JSON.parse(m.tags) : [],
     }))
-    nextTick(() => animateCards())
+    if (!silent) {
+      nextTick(() => animateCards())
+    }
   }
   catch (e) {
     console.error(e)
-    toast.error('加载动态失败')
+    if (!silent) {
+      toast.error('加载动态失败')
+    }
   }
   finally {
     isLoading.value = false
@@ -162,7 +170,12 @@ async function handlePublish() {
     content.value = ''
     tags.value = []
     images.value = []
-    await loadMoments()
+    
+    // 静默重新加载（不显示 loading，不重新动画）
+    await loadMoments(true)
+    
+    // 触发 moments 单表同步
+    syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
   }
   catch (e) {
     console.error(e)
@@ -180,8 +193,17 @@ function handleDelete(id: number) {
       onClick: async () => {
         try {
           await deleteMoment(id)
+          
+          // 直接从列表中移除，避免重新加载
+          const index = moments.value.findIndex(m => m.id === id)
+          if (index !== -1) {
+            moments.value.splice(index, 1)
+          }
+          
           toast.success('删除成功')
-          await loadMoments()
+          
+          // 触发 moments 单表同步
+          syncTable('moments', true).catch((e: any) => console.error('[Moments] 同步失败:', e))
         }
         catch (e) {
           console.error(e)

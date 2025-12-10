@@ -4,6 +4,7 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { toast } from 'vue-sonner'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
+import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
 
 useHead({ title: '资源库 - ZotePad' })
@@ -11,6 +12,7 @@ useHead({ title: '资源库 - ZotePad' })
 const { getAllAssets, createAsset, deleteAsset } = useAssetRepository()
 const { uploadFile } = useCOSService()
 const { getSetting, setSetting } = useSettingRepository()
+const { syncTable } = useSyncManager()
 
 const assets = ref<Asset[]>([])
 const isUploading = ref(false)
@@ -23,13 +25,15 @@ const toggleViewMode = async (mode: 'grid' | 'list') => {
   await setSetting('assets_view_mode', mode, 'ui')
 }
 
-const loadAssets = async () => {
+const loadAssets = async (silent = false) => {
   try {
     assets.value = await getAllAssets() || []
   }
   catch (e) {
     console.error(e)
-    toast.error('加载资源失败')
+    if (!silent) {
+      toast.error('加载资源失败')
+    }
   }
 }
 
@@ -57,7 +61,12 @@ const handleUpload = async (event: Event) => {
     })
 
     toast.success('上传成功')
-    await loadAssets()
+    
+    // 静默重新加载
+    await loadAssets(true)
+    
+    // 触发 assets 单表同步
+    syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
   }
   catch (e: any) {
     console.error(e)
@@ -77,8 +86,17 @@ const handleDelete = (id: number) => {
       onClick: async () => {
         try {
           await deleteAsset(id)
+          
+          // 直接从列表中移除，避免重新加载
+          const index = assets.value.findIndex(a => a.id === id)
+          if (index !== -1) {
+            assets.value.splice(index, 1)
+          }
+          
           toast.success('删除成功')
-          await loadAssets()
+          
+          // 触发 assets 单表同步
+          syncTable('assets', true).catch((e: any) => console.error('[Assets] 同步失败:', e))
         }
         catch (e) {
           console.error(e)

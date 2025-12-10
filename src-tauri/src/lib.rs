@@ -5,6 +5,10 @@ use tauri_plugin_notification;
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_store;
 
+// 同步引擎模块
+#[cfg(not(mobile))]
+mod sync_engine;
+
 // HTTP Server 只在桌面端编译
 #[cfg(not(mobile))]
 use axum::{
@@ -18,15 +22,15 @@ use serde::{Deserialize, Serialize};
 #[cfg(not(mobile))]
 use std::sync::{atomic::{AtomicI64, Ordering}, Arc};
 #[cfg(not(mobile))]
-use rusqlite::{params, Connection, OptionalExtension};
-#[cfg(not(mobile))]
-use chrono::{DateTime, Utc};
+use rusqlite::Connection;
 #[cfg(not(mobile))]
 use tauri::{AppHandle, Emitter, Manager};
 #[cfg(not(mobile))]
 use tokio::sync::Mutex;
 #[cfg(not(mobile))]
 use tower_http::cors::CorsLayer;
+#[cfg(not(mobile))]
+use crate::sync_engine::SyncChange;
 
 // HTTP Server 状态，持有 Tauri AppHandle
 #[cfg(not(mobile))]
@@ -57,25 +61,6 @@ struct SyncStateData {
 
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
-enum SyncOp {
-    Upsert,
-    Delete,
-}
-
-#[cfg(not(mobile))]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct SyncChange {
-    table: String,
-    op: SyncOp,
-    data: serde_json::Value,
-    version: i64,  // 改为 i64 支持负数版本号(客户端本地编辑)
-    updated_at: String,  // 仅用于显示,不用于同步逻辑
-    deleted_at: Option<String>,
-}
-
-#[cfg(not(mobile))]
-#[derive(Serialize, Deserialize, Debug, Clone)]
 struct PullResponse {
     changes: Vec<SyncChange>,
     next_version: Option<i64>,  // 分页时的下一个版本号
@@ -85,6 +70,7 @@ struct PullResponse {
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PullQuery {
+    table: Option<String>,  // 新增：指定要拉取的表
     since_version: Option<i64>,  // 客户端上次同步的版本号
     limit: Option<usize>,
 }
@@ -92,6 +78,7 @@ struct PullQuery {
 #[cfg(not(mobile))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PushRequest {
+    table: Option<String>,  // 新增：指定要推送的表
     changes: Vec<SyncChange>,
     client_version: Option<i64>,  // 客户端当前的版本号
 }
@@ -107,18 +94,6 @@ struct PushResponse {
 // ============ Sync Helpers ============
 
 #[cfg(not(mobile))]
-fn parse_ms(ts: &str) -> u64 {
-    DateTime::parse_from_rfc3339(ts)
-        .map(|dt| dt.timestamp_millis() as u64)
-        .unwrap_or(0)
-}
-
-#[cfg(not(mobile))]
-fn now_iso() -> String {
-    Utc::now().to_rfc3339()
-}
-
-#[cfg(not(mobile))]
 fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
     let mut path = app_handle
         .path()
@@ -128,129 +103,68 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
     path.push("app_v2.db");
-    Connection::open(path).map_err(|e| {
+    let conn = Connection::open(&path).map_err(|e| {
         log::error!("open_db failed: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
-    })
+    })?;
+
+    // 确保同步字段存在（兼容性修复）
+    ensure_sync_columns(&conn).map_err(|e| {
+        log::error!("ensure_sync_columns failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(conn)
 }
 
+// 确保所有同步表都有必需的列
 #[cfg(not(mobile))]
-fn max_version(conn: &Connection) -> i64 {
-    let mut stmt = conn
-        .prepare("SELECT MAX(version) FROM notes WHERE version > 0")
-        .ok();
-    if let Some(ref mut s) = stmt {
-        if let Ok(mut rows) = s.query([]) {
-            if let Ok(Some(row)) = rows.next() {
-                let val: Option<i64> = row.get(0).unwrap_or(None);
-                if let Some(v) = val {
-                    return v;
-                }
+fn ensure_sync_columns(conn: &Connection) -> rusqlite::Result<()> {
+    let tables = vec!["moments", "assets", "workflows"];
+    
+    for table in tables {
+        // 检查 version 列是否存在
+        let has_version: bool = conn
+            .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'version'", table))?
+            .query_row([], |row| row.get::<_, i64>(0))
+            .map(|count| count > 0)?;
+        
+        if !has_version {
+            log::info!("Adding version column to {} table", table);
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN version INTEGER DEFAULT 0", table), [])?;
+            conn.execute(&format!("CREATE INDEX IF NOT EXISTS idx_{}_version ON {}(version)", table, table), [])?;
+        }
+
+        // 检查 deleted_at 列是否存在
+        let has_deleted_at: bool = conn
+            .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'deleted_at'", table))?
+            .query_row([], |row| row.get::<_, i64>(0))
+            .map(|count| count > 0)?;
+        
+        if !has_deleted_at {
+            log::info!("Adding deleted_at column to {} table", table);
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN deleted_at DATETIME", table), [])?;
+        }
+
+        // assets 表还需要 updated_at（使用 NULL 作为默认值，避免 CURRENT_TIMESTAMP 问题）
+        if table == "assets" {
+            let has_updated_at: bool = conn
+                .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'updated_at'", table))?
+                .query_row([], |row| row.get::<_, i64>(0))
+                .map(|count| count > 0)?;
+            
+            if !has_updated_at {
+                log::info!("Adding updated_at column to {} table", table);
+                // 使用 NULL 作为默认值
+                conn.execute(&format!("ALTER TABLE {} ADD COLUMN updated_at DATETIME", table), [])?;
+                // 为现有记录填充当前时间（使用 datetime('now') SQLite 函数）
+                conn.execute(&format!("UPDATE {} SET updated_at = datetime('now') WHERE updated_at IS NULL", table), [])?;
             }
         }
     }
-    0
-}
 
-#[cfg(not(mobile))]
-fn load_note_changes(conn: &Connection, since_version: i64, limit: usize) -> rusqlite::Result<Vec<SyncChange>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, title, content, tags, version, updated_at, deleted_at
-         FROM notes
-         WHERE version > ?1
-         ORDER BY version ASC
-         LIMIT ?2",
-    )?;
-
-    let mut rows = stmt.query(params![since_version as i64, limit as i64])?;
-    let mut changes = Vec::new();
-
-    while let Some(row) = rows.next()? {
-        let id: i64 = row.get(0)?;
-        let title: Option<String> = row.get(1)?;
-        let content: Option<String> = row.get(2)?;
-        let tags: Option<String> = row.get(3)?;
-        let version: i64 = row.get(4).unwrap_or(0);
-        let updated_at: String = row.get(5).unwrap_or_else(|_| now_iso());
-        let deleted_at: Option<String> = row.get(6).ok().flatten();
-
-        let op = if deleted_at.is_some() { SyncOp::Delete } else { SyncOp::Upsert };
-
-        let data = serde_json::json!({
-            "id": id,
-            "title": title.unwrap_or_default(),
-            "content": content.unwrap_or_default(),
-            "tags": tags.unwrap_or_else(|| "[]".to_string()),
-            "version": version,
-            "updated_at": updated_at,
-            "deleted_at": deleted_at,
-        });
-
-        changes.push(SyncChange {
-            table: "notes".to_string(),
-            op,
-            data,
-            version: version as i64,
-            updated_at,
-            deleted_at,
-        });
-    }
-
-    Ok(changes)
-}
-
-#[cfg(not(mobile))]
-fn apply_note_change(conn: &Connection, change: &SyncChange, new_version: i64) -> rusqlite::Result<bool> {
-    // returns true if applied
-    let id = change.data.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-    
-    // 检查本地是否已有更高版本
-    let mut stmt = conn.prepare("SELECT version FROM notes WHERE id = ?1")?;
-    let existing: Option<i64> = stmt.query_row(params![id], |row| row.get(0)).optional()?;
-    if let Some(existing_version) = existing {
-        if existing_version >= new_version {
-            log::debug!("Skip applying change for note {}: existing version {} >= new version {}", 
-                       id, existing_version, new_version);
-            return Ok(false);  // 跳过旧版本
-        }
-    }
-
-    let updated_at = now_iso();  // 使用服务器当前时间
-
-    match change.op {
-        SyncOp::Delete => {
-            let deleted_at = now_iso();
-            conn.execute(
-                "INSERT INTO notes (id, title, content, tags, version, deleted_at, updated_at) 
-                 VALUES (?1, '', '', '[]', ?2, ?3, ?3)
-                 ON CONFLICT(id) DO UPDATE SET 
-                   version = excluded.version,
-                   deleted_at = excluded.deleted_at, 
-                   updated_at = excluded.updated_at",
-                params![id, new_version, deleted_at],
-            )?;
-        }
-        SyncOp::Upsert => {
-            let title = change.data.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let content = change.data.get("content").and_then(|v| v.as_str()).unwrap_or("");
-            let tags = change.data.get("tags").and_then(|v| v.as_str()).unwrap_or("[]");
-            
-            conn.execute(
-                "INSERT INTO notes (id, title, content, tags, version, updated_at, deleted_at) 
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)
-                 ON CONFLICT(id) DO UPDATE SET 
-                   title = excluded.title, 
-                   content = excluded.content, 
-                   tags = excluded.tags, 
-                   version = excluded.version,
-                   updated_at = excluded.updated_at, 
-                   deleted_at = NULL",
-                params![id, title, content, tags, new_version, updated_at],
-            )?;
-        }
-    }
-
-    Ok(true)
+    log::info!("Database sync columns verified");
+    Ok(())
 }
 
 // 示例：接收的请求体
@@ -371,9 +285,9 @@ async fn sync_state(
     let app_handle = state_guard.app_handle.clone();
     drop(state_guard);
 
-    // 读取 DB 最新版本号
+    // 读取所有表的最大版本号
     let db_version = match open_db(&app_handle) {
-        Ok(conn) => max_version(&conn),
+        Ok(conn) => sync_engine::max_version_all_tables(&conn),
         Err(e) => return Err(e),
     };
 
@@ -413,15 +327,19 @@ async fn sync_pull(
 
     let since_version = query.since_version.unwrap_or(0);
     let limit = query.limit.unwrap_or(500).min(1000);
+    let table_name = query.table.as_deref().unwrap_or("notes"); // 默认 notes
 
     let conn = open_db(&app_handle)?;
-    let changes = load_note_changes(&conn, since_version, limit).map_err(|e| {
-        log::error!("sync_pull load_note_changes error: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    
+    // 使用泛型引擎加载表变更
+    let changes = sync_engine::load_table_changes(&conn, table_name, since_version, limit)
+        .map_err(|e| {
+            log::error!("sync_pull load_table_changes error for {}: {}", table_name, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    // 获取当前数据库最大版本号
-    let server_version = max_version(&conn);
+    // 获取当前数据库最大版本号（所有表）
+    let server_version = sync_engine::max_version_all_tables(&conn);
     {
         let guard = state.lock().await;
         guard.version_counter.store(server_version, Ordering::Relaxed);
@@ -461,8 +379,8 @@ async fn sync_push(
 
     let conn = open_db(&app_handle)?;
     
-    // 获取当前服务器版本号
-    let server_version_before = max_version(&conn);
+    // 获取当前服务器版本号（所有表）
+    let server_version_before = sync_engine::max_version_all_tables(&conn);
     let client_version = body.client_version.unwrap_or(0);
     
     // 冲突检测：客户端版本落后于服务器
@@ -480,10 +398,23 @@ async fn sync_push(
     }
 
     let mut applied = 0usize;
+    let table_name = body.table.as_deref(); // 可选的表名过滤
 
     for change in body.changes.iter() {
-        if change.table != "notes" {
-            continue; // 暂仅支持 notes
+        // 如果请求中指定了表名，只处理该表；否则根据 change.table 判断
+        let target_table = if let Some(t) = table_name {
+            if change.table != t {
+                continue; // 跳过非目标表
+            }
+            t
+        } else {
+            &change.table
+        };
+
+        // 检查表是否支持
+        if sync_engine::get_table_config(target_table).is_none() {
+            log::warn!("Unsupported table: {}", target_table);
+            continue;
         }
         
         // 为每个变更分配新的版本号（原子递增）
@@ -492,20 +423,21 @@ async fn sync_push(
             guard.version_counter.fetch_add(1, Ordering::Relaxed) + 1
         };
         
-        match apply_note_change(&conn, change, new_version) {
+        // 使用泛型引擎应用变更
+        match sync_engine::apply_table_change(&conn, target_table, change, new_version) {
             Ok(applied_one) => {
                 if applied_one {
                     applied += 1;
                 }
             }
             Err(e) => {
-                log::error!("apply_note_change error: {}", e);
+                log::error!("apply_table_change error for {}: {}", target_table, e);
             }
         }
     }
 
     // 获取应用后的最新版本号
-    let server_version = max_version(&conn);
+    let server_version = sync_engine::max_version_all_tables(&conn);
     {
         let guard = state.lock().await;
         guard.version_counter.store(server_version, Ordering::Relaxed);
@@ -548,7 +480,7 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
         let app_handle = guard.app_handle.clone();
         drop(guard);
         if let Ok(conn) = open_db(&app_handle) {
-            let latest_version = max_version(&conn);
+            let latest_version = sync_engine::max_version_all_tables(&conn);
             let guard = state.lock().await;
             guard.version_counter.store(latest_version, Ordering::Relaxed);
         }
@@ -817,6 +749,24 @@ pub fn run() {
             ",
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 13,
+                            description: "add_sync_fields_to_moments_assets_workflows",
+                            sql: "\
+                ALTER TABLE moments ADD COLUMN version INTEGER DEFAULT 0;\n\
+                ALTER TABLE moments ADD COLUMN deleted_at DATETIME;\n\
+                ALTER TABLE assets ADD COLUMN version INTEGER DEFAULT 0;\n\
+                ALTER TABLE assets ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;\n\
+                ALTER TABLE assets ADD COLUMN deleted_at DATETIME;\n\
+                ALTER TABLE workflows ADD COLUMN version INTEGER DEFAULT 0;\n\
+                ALTER TABLE workflows ADD COLUMN deleted_at DATETIME;\n\
+                CREATE INDEX IF NOT EXISTS idx_moments_version ON moments(version);\n\
+                CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);\n\
+                CREATE INDEX IF NOT EXISTS idx_workflows_version ON workflows(version);\n\
+            ",
+                            kind: MigrationKind::Up,
+                        },
+
                     ],
                 )
                 .build(),

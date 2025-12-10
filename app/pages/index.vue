@@ -13,7 +13,6 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
-import { useEnvironment } from '~/composables/useEnvironment'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -42,8 +41,24 @@ const tabs = [
 type TabId = typeof tabs[number]['id']
 
 const activeTab = ref<TabId>('articles')
+
+// Tab 与表名映射
+const tabToTableMap: Record<TabId, string> = {
+  articles: 'notes',
+  moments: 'moments',
+  assets: 'assets',
+}
+
+// 监听 tab 切换,触发对应表的单表同步
+watch(activeTab, async (newTab) => {
+  const tableName = tabToTableMap[newTab]
+  if (tableName) {
+    console.log(`[Tab切换] 触发 ${tableName} 表同步`)
+    syncTable(tableName, true).catch((e: any) => console.error(`${tableName} 同步失败:`, e))
+  }
+})
 const { getSetting, setSetting } = useSettingRepository()
-const { syncOnce } = useSyncManager()
+const { syncTable, syncOnce } = useSyncManager()
 const isLoading = ref(false)
 
 // ==================== Articles (Notes) Logic ====================
@@ -62,14 +77,18 @@ const animateNoteCards = () => {
   }
 }
 
-const loadNotes = async () => {
+const loadNotes = async (silent = false) => {
   try {
     notes.value = await getAllNotes() || []
-    nextTick(() => animateNoteCards())
+    if (!silent) {
+      nextTick(() => animateNoteCards())
+    }
   }
   catch (e) {
     console.error(e)
-    toast.error('加载笔记失败')
+    if (!silent) {
+      toast.error('加载笔记失败')
+    }
   }
 }
 
