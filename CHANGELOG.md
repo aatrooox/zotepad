@@ -1,6 +1,30 @@
 # Changelog
 
 
+## v0.16.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.15.0...v0.16.1)
+
+### 🚀 Enhancements
+
+- 重构同步引擎;支持文章、动态、资源、非系统流的同步 ([654dd54](https://github.com/aatrooox/zotepad/commit/654dd54))
+
+### 🩹 Fixes
+
+- 修复设置页面阻塞问题 ([8aed09e](https://github.com/aatrooox/zotepad/commit/8aed09e))
+- 修复桌面端重复同步操作的问题; 优化监听逻辑 ([315798c](https://github.com/aatrooox/zotepad/commit/315798c))
+- 移除配对token ([cbc8799](https://github.com/aatrooox/zotepad/commit/cbc8799))
+
+### 🏡 Chore
+
+- **release:** V0.15.0 ([2064e49](https://github.com/aatrooox/zotepad/commit/2064e49))
+- **release:** V0.16.0 ([69ff27f](https://github.com/aatrooox/zotepad/commit/69ff27f))
+- **build:** Release v0.16.0 ([6ba4d1e](https://github.com/aatrooox/zotepad/commit/6ba4d1e))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.16.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.15.0...v0.16.0)
