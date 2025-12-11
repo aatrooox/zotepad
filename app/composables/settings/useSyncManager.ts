@@ -151,17 +151,15 @@ export function useSyncManager() {
     activity.setSyncState(true)
 
     try {
-      // 桌面端：升级本地负数版本号
-      if (isDesktop.value) {
-        const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
-        if (upgraded > 0) {
-          console.log(`[Sync] 桌面端: ${tableName} 升级 ${upgraded} 条记录，版本号 -> ${finalVersion}`)
-          maxVersion = finalVersion
-          totalPushed += upgraded
-        }
+      // 移动端和桌面端都需要：先升级本地负数版本号（避免版本冲突）
+      const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
+      if (upgraded > 0) {
+        console.log(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
+        maxVersion = finalVersion
       }
-      else {
-        // 移动端：推送本地变更
+
+      // 移动端：推送本地变更到服务器
+      if (!isDesktop.value) {
         const pushResult = await syncEngine.pushTableChanges(table, base, headers, currentVersion)
         totalPushed += pushResult.applied
         maxVersion = Math.max(maxVersion, pushResult.server_version)
@@ -230,17 +228,15 @@ export function useSyncManager() {
       try {
         console.log(`[Sync] 同步表: ${tableName}`)
 
-        // 桌面端：升级本地负数版本号
-        if (isDesktop.value) {
-          const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
-          if (upgraded > 0) {
-            console.log(`[Sync] 桌面端: ${tableName} 升级 ${upgraded} 条记录，版本号 -> ${finalVersion}`)
-            maxVersion = finalVersion
-            totalPushed += upgraded
-          }
+        // 移动端和桌面端都需要：先升级本地负数版本号（避免版本冲突）
+        const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
+        if (upgraded > 0) {
+          console.log(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
+          maxVersion = finalVersion
         }
-        else {
-          // 移动端：推送本地变更
+
+        // 移动端：推送本地变更到服务器
+        if (!isDesktop.value) {
           const pushResult = await syncEngine.pushTableChanges(table, base, headers, currentVersion)
           totalPushed += pushResult.applied
           maxVersion = Math.max(maxVersion, pushResult.server_version)
