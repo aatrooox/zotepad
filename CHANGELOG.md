@@ -1,6 +1,24 @@
 # Changelog
 
 
+## v0.17.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.16.1...v0.17.0)
+
+### 🚀 Enhancements
+
+- 加入左上角的吉祥物动画; 重构侧边栏增强其实用性 ([27d73a5](https://github.com/aatrooox/zotepad/commit/27d73a5))
+
+### 🏡 Chore
+
+- **release:** V0.16.1 ([8d3ece8](https://github.com/aatrooox/zotepad/commit/8d3ece8))
+- **build:** Release v0.16.1 ([10c5e7f](https://github.com/aatrooox/zotepad/commit/10c5e7f))
+- 打包命令修改 ([083987e](https://github.com/aatrooox/zotepad/commit/083987e))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.16.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.15.0...v0.16.1)
