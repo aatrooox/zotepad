@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.18.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.17.0...v0.18.0)
+
+### 🏡 Chore
+
+- **build:** Release v0.17.0 ([6b59fa3](https://github.com/aatrooox/zotepad/commit/6b59fa3))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.17.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.16.1...v0.17.0)
