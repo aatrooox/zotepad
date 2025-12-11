@@ -7,6 +7,7 @@ import { useEnvironmentManager } from '~/composables/settings/useEnvironmentMana
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useSystemWorkflowManager } from '~/composables/settings/useSystemWorkflowManager'
 import { useEnvironment } from '~/composables/useEnvironment'
+import { useSidebar } from '~/composables/useSidebar'
 import { useTauriStore } from '~/composables/useTauriStore'
 
 const config = useRuntimeConfig()
@@ -14,6 +15,7 @@ const version = config.public.version
 const store = useTauriStore()
 const { setSetting, getSettingsByCategory } = useSettingRepository()
 const { isDesktop } = useEnvironment()
+const { setNavigation } = useSidebar()
 
 // COS 和通用设置
 const customCss = ref('')
@@ -145,7 +147,10 @@ async function initSettingsPage() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  setNavigation()
+  // 让页面先渲染，避免初始化阻塞 UI
+  await nextTick()
   initSettingsPage()
 })
 </script>

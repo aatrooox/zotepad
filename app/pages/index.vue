@@ -12,7 +12,9 @@ import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
+import { useNoteStore } from '~/composables/stores/useNoteStore'
 import { useCOSService } from '~/composables/useCOSService'
+import { useSidebar } from '~/composables/useSidebar'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -30,7 +32,8 @@ useHead({ title: '笔记 - ZotePad' })
 
 const route = useRoute()
 const router = useRouter()
-
+const { setNavigation } = useSidebar()
+const { fetchNotes } = useNoteStore()
 // Tab state
 const tabs = [
   { id: 'articles', label: '文章', icon: 'lucide:file-text' },
@@ -169,13 +172,19 @@ const handleAssetDelete = (id: number) => {
       label: '删除',
       onClick: async () => {
         try {
+          // Optimistic UI
+          const index = assets.value.findIndex(a => a.id === id)
+          if (index !== -1) {
+            assets.value.splice(index, 1)
+          }
+
           await deleteAsset(id)
           toast.success('删除成功')
-          await loadAssets()
         }
         catch (e) {
           console.error(e)
           toast.error('删除失败')
+          await loadAssets()
         }
       },
     },
@@ -286,6 +295,7 @@ const loadCurrentTabData = async (showLoading = true) => {
 
 // Initialize tab from URL query
 onMounted(async () => {
+  setNavigation()
   const tabParam = route.query.tab as string
   if (tabParam && tabs.some(t => t.id === tabParam)) {
     activeTab.value = tabParam as TabId
@@ -336,6 +346,8 @@ watch(activeTab, async (newTab) => {
 const handleCreateNote = async () => {
   try {
     const id = await createNote('无标题笔记', '')
+    await fetchNotes(true) // 刷新笔记列表
+
     if (id) {
       router.push(`/notes/${id}`)
     }
@@ -345,29 +357,31 @@ const handleCreateNote = async () => {
   }
 }
 
-const handleDeleteNote = (id: number, event?: Event) => {
+const handleDeleteNote = (id: number, _event?: Event) => {
   toast('确定要删除这条笔记吗？', {
     action: {
       label: '删除',
       onClick: async () => {
         try {
-          if (event && event.target) {
-            const target = event.target as HTMLElement
-            const card = target.closest('.note-card')
-            if (card) {
-              await gsap.to(card, { opacity: 0, scale: 0.8, duration: 0.2, ease: 'power2.in' })
-            }
+          // 1. Optimistic UI update: Remove from list immediately
+          const index = notes.value.findIndex(n => n.id === id)
+          if (index !== -1) {
+            notes.value.splice(index, 1)
           }
+
+          // 2. Perform actual deletion
           await deleteNote(id)
           toast.success('笔记已删除')
-          await loadNotes()
-          // 删除后触发静默同步 - 仅移动端
+
+          // 3. Sync in background (mobile only)
           if (!isDesktop.value) {
             syncTable('notes', true).catch((e: any) => console.error('删除后同步失败:', e))
           }
         }
         catch {
+          // Revert if failed (optional, but good practice)
           toast.error('删除笔记失败')
+          await loadNotes(true) // Silent reload to restore state
         }
       },
     },
@@ -484,13 +498,19 @@ function handleDeleteMoment(id: number) {
       label: '删除',
       onClick: async () => {
         try {
+          // Optimistic UI
+          const index = moments.value.findIndex(m => m.id === id)
+          if (index !== -1) {
+            moments.value.splice(index, 1)
+          }
+
           await deleteMoment(id)
           toast.success('删除成功')
-          await loadMoments()
         }
         catch (e) {
           console.error(e)
           toast.error('删除失败')
+          await loadMoments()
         }
       },
     },
@@ -573,47 +593,45 @@ async function handleRunWorkflow(workflow: Workflow) {
 <template>
   <div class="h-full flex flex-col bg-background/50 overflow-hidden">
     <!-- Desktop Header -->
-    <div class="hidden md:flex px-8 py-4 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/60">
       <!-- Tab Navigation -->
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-1 bg-muted/50 p-1 rounded-full border border-border/20">
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          class="relative py-2 text-base font-medium transition-colors"
+          class="relative px-4 py-1.5 text-sm font-medium transition-all rounded-full"
           :class="activeTab === tab.id
-            ? 'text-foreground'
-            : 'text-muted-foreground hover:text-foreground'"
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'"
           @click="activeTab = tab.id"
         >
-          {{ tab.label }}
-          <!-- Active indicator -->
-          <span
-            v-if="activeTab === tab.id"
-            class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
-          />
+          <div class="flex items-center gap-2">
+            <Icon :name="tab.icon" class="w-4 h-4" />
+            {{ tab.label }}
+          </div>
         </button>
       </div>
       <!-- Create Button -->
       <Button
         v-if="activeTab === 'articles'"
         size="sm"
-        class="rounded-full"
+        class="rounded-full shadow-sm hover:shadow-md transition-all"
         @click="handleCreateNote"
       >
         <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
-        新建
+        新建笔记
       </Button>
     </div>
 
     <!-- Mobile Header with Sticky Tabs -->
-    <div class="md:hidden sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border/40">
+    <div class="md:hidden sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/80">
       <div class="flex items-center justify-between px-4 pt-safe-offset-4 pb-3 mt-1">
         <!-- Tab Navigation -->
         <div class="flex items-center gap-6">
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="relative py-1 text-base font-medium transition-colors"
+            class="relative py-2 text-base font-medium transition-colors"
             :class="activeTab === tab.id
               ? 'text-foreground'
               : 'text-muted-foreground'"
@@ -623,12 +641,12 @@ async function handleRunWorkflow(workflow: Workflow) {
             <!-- Active indicator -->
             <span
               v-if="activeTab === tab.id"
-              class="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full"
+              class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-primary rounded-full transition-all"
             />
           </button>
         </div>
         <!-- Create Button -->
-        <Button v-if="activeTab === 'articles'" size="sm" class="rounded-full" @click="handleCreateNote">
+        <Button v-if="activeTab === 'articles'" size="sm" class="rounded-full h-8 px-3" @click="handleCreateNote">
           <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
           新建
         </Button>
@@ -643,140 +661,144 @@ async function handleRunWorkflow(workflow: Workflow) {
       </div>
 
       <!-- Articles Tab -->
-      <div v-else-if="activeTab === 'articles'" class="p-4 md:p-8">
-        <!-- Stats Header -->
-        <div class="mb-4 md:mb-6">
-          <p class="text-sm text-muted-foreground">
-            共 {{ notes.length }} 篇文章
+      <div v-else-if="activeTab === 'articles'" class="p-4 md:p-4 lg:px-8 min-h-full">
+        <!-- Header -->
+        <header class="flex flex-col gap-1 animate-in fade-in slide-in-from-top-4 duration-500">
+          <p class="text-muted-foreground pb-1 text-xs md:text-sm max-w-2xl">
+            记录和思考同样重要
           </p>
-        </div>
+        </header>
 
         <div v-if="notes.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6 animate-in fade-in zoom-in duration-500">
-          <div class="w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center mb-4">
-            <Icon name="lucide:file-plus" class="w-10 h-10 opacity-40" />
+          <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <Icon name="lucide:file-plus" class="w-8 h-8 opacity-40" />
           </div>
-          <div class="text-center space-y-2">
-            <h3 class="text-xl font-semibold text-foreground">
+          <div class="text-center space-y-1">
+            <h3 class="text-lg font-semibold text-foreground">
               暂无笔记
             </h3>
-            <p class="max-w-xs mx-auto">
+            <p class="max-w-xs mx-auto text-sm text-balance">
               创建您的第一篇笔记以开始记录想法。
             </p>
           </div>
-          <Button variant="outline" size="lg" class="mt-4 rounded-full" @click="handleCreateNote">
+          <Button variant="outline" size="default" class="mt-4 rounded-full shadow-sm hover:shadow-md transition-all" @click="handleCreateNote">
             创建笔记
           </Button>
         </div>
 
-        <div v-else class="flex flex-col pb-20 max-w-4xl mx-auto">
-          <div
-            v-for="note in notes"
-            :key="note.id"
-            :ref="setNoteCardRef"
-            class="group note-card list-item-hover rounded-lg mb-2 border border-transparent hover:border-border/60 bg-card/30"
-          >
-            <div class="flex items-center p-4 gap-4">
-              <NuxtLink :to="`/notes/${note.id}`" class="flex-1 flex items-center gap-4 min-w-0">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-3 mb-1">
-                    <h3 class="font-semibold text-base truncate group-hover:text-primary transition-colors">
+        <!-- iOS Style List -->
+        <div v-else class="flex flex-col pb-20 max-w-5xl mx-auto">
+          <div class="bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 shadow-sm overflow-hidden">
+            <TransitionGroup
+              name="list"
+              tag="div"
+              class="divide-y divide-border/30"
+            >
+              <div
+                v-for="note in notes"
+                :key="note.id"
+                :ref="setNoteCardRef"
+                class="group relative flex items-center gap-4 p-4 transition-all duration-200 hover:bg-muted/40 active:bg-muted/60 cursor-pointer"
+                @click="router.push(`/notes/${note.id}`)"
+              >
+                <!-- Main Content -->
+                <div class="flex-1 min-w-0 py-0.5">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <h3 class="font-semibold text-base text-foreground truncate pr-4">
                       {{ note.title || '无标题' }}
                     </h3>
-                  </div>
-                  <div class="flex items-start gap-2 flex-wrap">
-                    <div v-if="getTags(note.tags).length > 0" class="flex flex-wrap gap-1.5">
-                      <Badge
-                        v-for="tag in getTags(note.tags).slice(0, 5)"
-                        :key="tag"
-                        variant="secondary"
-                        class="text-[10px] px-2 py-0 h-5 bg-secondary/50 hover:bg-secondary transition-colors font-normal"
-                      >
-                        {{ tag }}
-                      </Badge>
-                      <span v-if="getTags(note.tags).length > 5" class="text-[10px] text-muted-foreground">
-                        +{{ getTags(note.tags).length - 5 }}
-                      </span>
-                    </div>
-                    <span v-else class="text-xs text-muted-foreground italic">无标签</span>
-                    <span class="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1 ml-auto mt-1 md:mt-0">
-                      <Icon name="lucide:clock" class="w-3 h-3" />
+                    <!-- Date (Desktop: visible) -->
+                    <span class="hidden sm:flex text-xs text-muted-foreground font-medium tabular-nums shrink-0">
                       {{ formatDate(note.updated_at) }}
                     </span>
                   </div>
+
+                  <!-- Subtitle / Tags Row -->
+                  <div class="flex items-center gap-3">
+                    <!-- Date (Mobile only) -->
+                    <span class="sm:hidden text-xs text-muted-foreground tabular-nums shrink-0">
+                      {{ formatDate(note.updated_at) }}
+                    </span>
+
+                    <!-- Tags -->
+                    <div v-if="getTags(note.tags).length > 0" class="flex flex-wrap gap-1.5 items-center">
+                      <span
+                        v-for="tag in getTags(note.tags).slice(0, 3)"
+                        :key="tag"
+                        class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-secondary/50 text-secondary-foreground"
+                      >
+                        #{{ tag }}
+                      </span>
+                      <span v-if="getTags(note.tags).length > 3" class="text-[10px] text-muted-foreground">
+                        +{{ getTags(note.tags).length - 3 }}
+                      </span>
+                    </div>
+                    <span v-else class="text-xs text-muted-foreground/50 italic">无标签</span>
+                  </div>
                 </div>
-              </NuxtLink>
-              <div class="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 relative z-10">
-                <button
-                  class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer"
-                  @click.stop.prevent="(e) => handleDeleteNote(note.id, e)"
-                >
-                  <Icon name="lucide:trash-2" class="w-4 h-4" />
-                </button>
+
+                <!-- Actions -->
+                <div class="flex items-center pl-2 gap-2">
+                  <!-- Delete Button: Always visible on mobile (opacity 100), hover on desktop -->
+                  <button
+                    class="p-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-full transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 active:scale-90"
+                    @click.stop.prevent="(e) => handleDeleteNote(note.id, e)"
+                  >
+                    <Icon name="lucide:trash-2" class="w-4 h-4" />
+                  </button>
+
+                  <!-- Chevron for iOS feel -->
+                  <Icon name="lucide:chevron-right" class="w-4 h-4 text-muted-foreground/30" />
+                </div>
               </div>
-            </div>
+            </TransitionGroup>
           </div>
         </div>
       </div>
 
       <!-- Assets Tab -->
       <div v-else-if="activeTab === 'assets'" class="p-4 md:p-8">
-        <div class="hidden md:flex px-4 py-2 items-center justify-between bg-card/40 rounded-xl border border-border/60 mb-6">
-          <div>
-            <h2 class="text-xl font-semibold">
-              资源库
-            </h2>
-            <p class="text-sm text-muted-foreground">
-              {{ assets.length }} 个文件
-            </p>
-          </div>
+        <div class="hidden md:flex px-0 py-2 items-center justify-start mb-4">
           <div class="flex items-center gap-2">
-            <div class="flex items-center bg-muted/50 rounded-lg p-1">
+            <div class="flex items-center bg-muted/50 rounded-lg p-0.5">
               <button
-                class="p-2 rounded-md transition-colors"
+                class="p-1.5 rounded-md transition-colors"
                 :class="assetViewMode === 'grid' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                 title="网格视图"
                 @click="toggleAssetViewMode('grid')"
               >
-                <Icon name="lucide:grid-2x2" class="w-4 h-4" />
+                <Icon name="lucide:grid-2x2" class="w-3.5 h-3.5" />
               </button>
               <button
-                class="p-2 rounded-md transition-colors"
+                class="p-1.5 rounded-md transition-colors"
                 :class="assetViewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                 title="列表视图"
                 @click="toggleAssetViewMode('list')"
               >
-                <Icon name="lucide:list" class="w-4 h-4" />
+                <Icon name="lucide:list" class="w-3.5 h-3.5" />
               </button>
             </div>
-            <Button :disabled="assetIsUploading" @click="triggerAssetUpload">
-              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon v-else name="lucide:upload" class="w-4 h-4 mr-2" />
+            <Button size="sm" class="h-8 px-3 text-xs" :disabled="assetIsUploading" @click="triggerAssetUpload">
+              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              <Icon v-else name="lucide:upload" class="w-3.5 h-3.5 mr-1.5" />
               上传图片
             </Button>
           </div>
         </div>
 
         <!-- Mobile header -->
-        <div class="flex md:hidden px-2 pb-3 items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold">
-              资源库
-            </h2>
-            <p class="text-xs text-muted-foreground">
-              {{ assets.length }} 个文件
-            </p>
-          </div>
+        <div class="flex md:hidden px-2 pb-3 items-center justify-start">
           <div class="flex items-center gap-2">
             <button
-              class="p-2 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+              class="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors bg-muted/50"
               :title="assetViewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'"
               @click="toggleAssetViewMode(assetViewMode === 'grid' ? 'list' : 'grid')"
             >
-              <Icon :name="assetViewMode === 'grid' ? 'lucide:list' : 'lucide:grid-2x2'" class="w-5 h-5" />
+              <Icon :name="assetViewMode === 'grid' ? 'lucide:list' : 'lucide:grid-2x2'" class="w-4 h-4" />
             </button>
-            <Button size="sm" :disabled="assetIsUploading" @click="triggerAssetUpload">
-              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
-              <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+            <Button size="sm" class="h-8 px-3 text-xs" :disabled="assetIsUploading" @click="triggerAssetUpload">
+              <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-3.5 h-3.5 mr-1 animate-spin" />
+              <Icon v-else name="lucide:upload" class="w-3.5 h-3.5 mr-1" />
               上传
             </Button>
           </div>
@@ -808,48 +830,49 @@ async function handleRunWorkflow(workflow: Workflow) {
             </div>
           </div>
 
-          <div v-else class="flex flex-col gap-2 max-w-4xl mx-auto">
-            <div
-              v-for="asset in assets"
-              :key="asset.id"
-              class="group flex items-center gap-4 p-3 bg-card rounded-lg border hover:border-border/60 transition-colors"
-            >
-              <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
-                <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-sm truncate">
-                  {{ asset.filename }}
-                </p>
-                <p class="text-xs text-muted-foreground mt-0.5">
-                  {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
-                </p>
-              </div>
-              <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyAssetUrl(asset.url)">
-                  <Icon name="lucide:copy" class="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleAssetDelete(asset.id)">
-                  <Icon name="lucide:trash-2" class="w-4 h-4" />
-                </Button>
-              </div>
+          <div v-else class="flex flex-col pb-20 max-w-5xl mx-auto">
+            <div class="bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 shadow-sm overflow-hidden">
+              <TransitionGroup
+                name="list"
+                tag="div"
+                class="divide-y divide-border/30"
+              >
+                <div
+                  v-for="asset in assets"
+                  :key="asset.id"
+                  class="group flex items-center gap-4 p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
+                    <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm truncate">
+                      {{ asset.filename }}
+                    </p>
+                    <p class="text-xs text-muted-foreground mt-0.5">
+                      {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyAssetUrl(asset.url)">
+                      <Icon name="lucide:copy" class="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleAssetDelete(asset.id)">
+                      <Icon name="lucide:trash-2" class="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </TransitionGroup>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Moments Tab -->
-      <div v-else-if="activeTab === 'moments'" class="p-4 md:p-6 space-y-6 md:space-y-8 pb-safe">
-        <!-- Stats Header -->
-        <div class="max-w-4xl mx-auto">
-          <p class="text-sm text-muted-foreground">
-            共 {{ moments.length }} 条动态
-          </p>
-        </div>
-
+      <div v-else-if="activeTab === 'moments'" class="p-4 md:p-6 space-y-6 pb-safe">
         <!-- Editor Section -->
-        <div class="bg-card border rounded-xl shadow-sm overflow-hidden max-w-4xl mx-auto">
-          <div class="h-[200px]">
+        <div class="bg-card/50 backdrop-blur-sm border rounded-xl shadow-sm overflow-hidden max-w-4xl mx-auto">
+          <div class="h-[150px] md:h-[200px]">
             <ClientOnly>
               <MdEditor
                 v-model="momentContent"
@@ -914,66 +937,72 @@ async function handleRunWorkflow(workflow: Workflow) {
         </div>
 
         <!-- Moments List -->
-        <div class="space-y-4 pb-10 max-w-4xl mx-auto">
+        <div class="pb-20 max-w-4xl mx-auto space-y-6">
           <div v-if="moments.length === 0 && !isLoading" class="text-center text-muted-foreground py-10">
             暂无动态，发一条试试？
           </div>
 
-          <div
-            v-for="moment in moments"
-            :key="moment.id"
-            class="moment-card bg-card border rounded-xl p-5 shadow-sm hover:shadow-md transition-all group"
+          <TransitionGroup
+            name="list"
+            tag="div"
+            class="space-y-6"
           >
-            <div class="flex justify-between items-start mb-3">
-              <div class="text-sm text-muted-foreground">
-                {{ new Date(moment.created_at!).toLocaleString() }}
-              </div>
-              <div class="flex gap-2 transition-opacity">
-                <Button variant="ghost" size="icon" class="h-8 w-8" @click="openWorkflowDialog(moment)">
-                  <Icon name="lucide:workflow" class="w-4 h-4 text-primary" />
-                </Button>
-                <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" @click="handleDeleteMoment(moment.id)">
-                  <Icon name="lucide:trash-2" class="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div class="prose prose-sm dark:prose-invert max-w-none mb-3">
-              <MdPreview :model-value="moment.content" preview-theme="github" :code-foldable="false" />
-            </div>
-
-            <!-- Moment Images -->
-            <div v-if="moment.imagesList && moment.imagesList.length > 0" class="mb-3">
-              <div v-if="moment.imagesList.length === 1">
-                <img
-                  :src="moment.imagesList[0]"
-                  class="max-h-[300px] max-w-[70%] rounded-lg border bg-muted/20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  alt="Moment image"
-                  loading="lazy"
-                >
-              </div>
-              <div v-else class="grid gap-1.5" :class="getGridClass(moment.imagesList.length)">
-                <div
-                  v-for="(img, idx) in moment.imagesList"
-                  :key="idx"
-                  class="aspect-square rounded-md overflow-hidden border bg-muted/20 cursor-pointer"
-                >
-                  <img :src="img" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" alt="Moment image">
+            <div
+              v-for="moment in moments"
+              :key="moment.id"
+              class="moment-card bg-card border rounded-xl p-5 shadow-sm hover:shadow-md transition-all group"
+            >
+              <div class="flex justify-between items-start mb-3">
+                <div class="text-sm text-muted-foreground">
+                  {{ new Date(moment.created_at!).toLocaleString() }}
+                </div>
+                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" class="h-8 w-8" @click="openWorkflowDialog(moment)">
+                    <Icon name="lucide:workflow" class="w-4 h-4 text-primary" />
+                  </Button>
+                  <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" @click="handleDeleteMoment(moment.id)">
+                    <Icon name="lucide:trash-2" class="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
-            </div>
 
-            <!-- Moment Tags -->
-            <div v-if="moment.tagsList && moment.tagsList.length > 0" class="flex flex-wrap gap-2">
-              <span
-                v-for="(tag, idx) in moment.tagsList"
-                :key="idx"
-                class="px-2 py-0.5 bg-secondary text-secondary-foreground text-xs rounded-full"
-              >
-                #{{ tag }}
-              </span>
+              <div class="prose prose-sm dark:prose-invert max-w-none mb-3">
+                <MdPreview :model-value="moment.content" preview-theme="github" :code-foldable="false" />
+              </div>
+
+              <!-- Moment Images -->
+              <div v-if="moment.imagesList && moment.imagesList.length > 0" class="mb-3">
+                <div v-if="moment.imagesList.length === 1">
+                  <img
+                    :src="moment.imagesList[0]"
+                    class="max-h-[300px] max-w-[70%] rounded-lg border bg-muted/20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                    alt="Moment image"
+                    loading="lazy"
+                  >
+                </div>
+                <div v-else class="grid gap-1.5" :class="getGridClass(moment.imagesList.length)">
+                  <div
+                    v-for="(img, idx) in moment.imagesList"
+                    :key="idx"
+                    class="aspect-square rounded-md overflow-hidden border bg-muted/20 cursor-pointer"
+                  >
+                    <img :src="img" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" alt="Moment image">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Moment Tags -->
+              <div v-if="moment.tagsList && moment.tagsList.length > 0" class="flex flex-wrap gap-2">
+                <span
+                  v-for="(tag, idx) in moment.tagsList"
+                  :key="idx"
+                  class="px-2 py-0.5 bg-secondary text-secondary-foreground text-xs rounded-full"
+                >
+                  #{{ tag }}
+                </span>
+              </div>
             </div>
-          </div>
+          </TransitionGroup>
         </div>
       </div>
     </div>
@@ -1014,5 +1043,28 @@ async function handleRunWorkflow(workflow: Workflow) {
   --md-bk-color: hsl(var(--background));
   --md-color: hsl(var(--foreground));
   --md-border-color: transparent;
+}
+
+/* List Transitions */
+.list-move,
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  transform: translateX(-20px);
+}
+
+/* Ensure leaving items are taken out of layout flow so others can move up */
+.list-leave-active {
+  position: absolute;
+  width: 100%;
+  z-index: 0;
 }
 </style>

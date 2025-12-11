@@ -54,6 +54,7 @@ export function useSyncManager() {
   const syncInfo = globalSyncInfo()
   const syncWorkflowId = globalSyncWorkflowId()
   const activity = useActivityStatus()
+  const { setWorking } = useMascotController()
 
   const isSavingSyncConfig = ref(false)
 
@@ -272,6 +273,7 @@ export function useSyncManager() {
     isSyncing.value = true
     syncStatus.value = '同步中…'
     activity.setSyncState(true)
+    setWorking(true)
 
     const toastId = silent ? undefined : undefined // Disable loading toast
     try {
@@ -291,6 +293,7 @@ export function useSyncManager() {
           toast.error(errorMsg, { id: toastId, duration: 6000 })
         }
         isSyncing.value = false
+        setWorking(false)
         return
       }
 
@@ -371,6 +374,7 @@ export function useSyncManager() {
         toast.dismiss(toastId)
       }
       isSyncing.value = false
+      setWorking(false)
       activity.setSyncState(false)
       // Reset counts after a short delay to allow the user to see the final state
       setTimeout(() => {

@@ -12,6 +12,7 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useCOSService } from '~/composables/useCOSService'
+import { useSidebar } from '~/composables/useSidebar'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import { WORKFLOW_TYPES } from '~/types/workflow'
 import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
@@ -60,6 +61,8 @@ const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFile } = useCOSService()
+const { setContext } = useSidebar()
+// const { celebrateAchievement } = useMascotController()
 
 // 同步管理
 const { syncTable } = useSyncManager()
@@ -285,6 +288,29 @@ const removeTag = (tag: string) => {
   debouncedSave()
 }
 
+// 字数统计与成就系统
+// const wordCount = computed(() => {
+//   return content.value.replace(/\s+/g, '').length
+// })
+
+// const lastAchievementWordCount = ref(0)
+
+// watch(wordCount, (newCount) => {
+//   const threshold = 100
+//   const newMilestone = Math.floor(newCount / threshold)
+//   const lastMilestone = Math.floor(lastAchievementWordCount.value / threshold)
+
+//   if (newMilestone > lastMilestone) {
+//     const pointsEarned = (newMilestone - lastMilestone)
+//     celebrateAchievement(pointsEarned)
+//     toast.success(`写作成就 +${pointsEarned} 分！已写 ${newCount} 字`, {
+//       duration: 2000,
+//     })
+//   }
+
+//   lastAchievementWordCount.value = newCount
+// })
+
 watch([content, title], () => {
   debouncedSave()
 })
@@ -333,6 +359,7 @@ onMounted(async () => {
           noteId.value = note.id
           content.value = note.content
           title.value = note.title
+          setContext('notes', { id: note.id })
           try {
             tags.value = note.tags ? JSON.parse(note.tags) : []
           }

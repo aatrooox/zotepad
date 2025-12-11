@@ -6,6 +6,7 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, Dr
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useWorkflowSchemaRepository } from '~/composables/repositories/useWorkflowSchemaRepository'
+import { useSidebar } from '~/composables/useSidebar'
 import { extractWorkflowVariables, validateVariables } from '~/composables/useVariableValidator'
 
 useHead({ title: '流' })
@@ -18,6 +19,7 @@ const workflows = ref<Workflow[]>([])
 const schemas = ref<WorkflowSchema[]>([])
 const envKeys = ref<string[]>([])
 const router = useRouter()
+const { setNavigation } = useSidebar()
 const isImportDialogOpen = ref(false)
 const isCreateDialogOpen = ref(false)
 const importJson = ref('')
@@ -83,6 +85,7 @@ const loadData = async () => {
 }
 
 onMounted(() => {
+  setNavigation()
   loadData()
 })
 
