@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.18.3
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.18.2...v0.18.3)
+
+### 🩹 Fixes
+
+- 修复移动端首次同步时版本号问题 ([f83fd26](https://github.com/aatrooox/zotepad/commit/f83fd26))
+
+### 🏡 Chore
+
+- **build:** Release v0.18.2 ([da6a0ba](https://github.com/aatrooox/zotepad/commit/da6a0ba))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.18.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.18.1...v0.18.2)
