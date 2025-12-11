@@ -46,7 +46,8 @@ export function useSyncEngine() {
    * @returns 变更列表
    */
   async function collectLocalChanges(table: SyncableTable, sinceVersion: number): Promise<SyncChange[]> {
-    const MAX_REASONABLE_VERSION = 1000000
+    // 使用 2100000000 作为上限，可以兼容时间戳版本号（当前约1733900000），同时防止真正的异常值
+    const MAX_REASONABLE_VERSION = 2100000000
 
     // 构建字段列表
     const fieldList = table.fields.join(', ')
@@ -56,7 +57,7 @@ export function useSyncEngine() {
       const schema = await syncSelect<any[]>(`PRAGMA table_info(${table.name})`, [])
       const columnNames = schema.map((col: any) => col.name)
       console.log(`[Sync] 表 ${table.name} 的实际列:`, columnNames)
-      
+
       const missingColumns = table.fields.filter(f => !columnNames.includes(f))
       if (missingColumns.length > 0) {
         console.error(`[Sync] 表 ${table.name} 缺少列:`, missingColumns)
@@ -73,7 +74,7 @@ export function useSyncEngine() {
     const whereConditions = [
       `(version <= 0 AND deleted_at IS NULL) OR (version > ? AND version < ?)`,
     ]
-    
+
     if (table.name === 'workflows') {
       whereConditions.push(`(type IS NULL OR type = 'user' OR NOT type LIKE 'system:%')`)
     }
@@ -306,7 +307,7 @@ export function useSyncEngine() {
       const schema = await syncSelect<any[]>(`PRAGMA table_info(${table.name})`, [])
       const columnNames = schema.map((col: any) => col.name)
       console.log(`[SyncEngine] upgradeLocalVersions 检查表 ${table.name} 的列:`, columnNames)
-      
+
       if (!columnNames.includes('version')) {
         console.error(`[SyncEngine] 表 ${table.name} 缺少 version 列，跳过升级`)
         return { upgraded: 0, finalVersion: startVersion }

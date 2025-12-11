@@ -114,6 +114,12 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    // 升级旧数据的版本号（确保可以被同步）
+    upgrade_old_versions(&conn).map_err(|e| {
+        log::error!("upgrade_old_versions failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     Ok(conn)
 }
 
@@ -164,6 +170,84 @@ fn ensure_sync_columns(conn: &Connection) -> rusqlite::Result<()> {
     }
 
     log::info!("Database sync columns verified");
+    Ok(())
+}
+
+// 升级旧数据的版本号（version <= 0 或异常大的时间戳版本）
+#[cfg(not(mobile))]
+fn upgrade_old_versions(conn: &Connection) -> rusqlite::Result<()> {
+    let tables = vec!["notes", "moments", "assets", "workflows"];
+    
+    // 定义异常版本号阈值：超过 1000000 认为是旧的时间戳版本
+    const ABNORMAL_VERSION_THRESHOLD: i64 = 1000000;
+    
+    // 先重置所有异常大的时间戳版本号为 0（需要重新分配）
+    for table in &tables {
+        let reset_count = conn.execute(
+            &format!("UPDATE {} SET version = 0 WHERE version > ? AND deleted_at IS NULL", table),
+            [ABNORMAL_VERSION_THRESHOLD],
+        )?;
+        
+        if reset_count > 0 {
+            log::info!("Reset {} abnormal timestamp versions in {} table (> {})", 
+                reset_count, table, ABNORMAL_VERSION_THRESHOLD);
+        }
+    }
+    
+    // 查询所有表中的最大合法版本号，作为起始版本
+    let mut max_version: i64 = 0;
+    for table in &tables {
+        let table_max: Option<i64> = conn.query_row(
+            &format!("SELECT MAX(version) FROM {} WHERE version > 0 AND version <= ?", table),
+            [ABNORMAL_VERSION_THRESHOLD],
+            |row| row.get(0)
+        ).ok().flatten();
+        
+        if let Some(v) = table_max {
+            max_version = max_version.max(v);
+        }
+    }
+    
+    log::info!("Current max valid version across all tables: {}", max_version);
+    
+    for table in tables {
+        // 检查是否有 version <= 0 的记录（包括刚重置的）
+        let count: i64 = conn.query_row(
+            &format!("SELECT COUNT(*) FROM {} WHERE version <= 0 AND deleted_at IS NULL", table),
+            [],
+            |row| row.get(0)
+        )?;
+        
+        if count > 0 {
+            log::info!("Upgrading {} records in {} table with version <= 0", count, table);
+            
+            // 查询所有需要升级的记录ID
+            let mut stmt = conn.prepare(&format!(
+                "SELECT id FROM {} WHERE version <= 0 AND deleted_at IS NULL ORDER BY id",
+                table
+            ))?;
+            
+            let ids: Vec<i64> = stmt.query_map([], |row| row.get(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            
+            // 批量更新版本号，从 max_version + 1 开始递增
+            for (index, id) in ids.iter().enumerate() {
+                let new_version = max_version + (index as i64) + 1;
+                conn.execute(
+                    &format!("UPDATE {} SET version = ?, updated_at = datetime('now') WHERE id = ?", table),
+                    [&new_version, id],
+                )?;
+            }
+            
+            log::info!("Upgraded {} records in {} table (version range: {} - {})", 
+                count, table, max_version + 1, max_version + count);
+            
+            // 更新 max_version 以便后续表使用
+            max_version += count;
+        }
+    }
+    
+    log::info!("Old version upgrade completed, final max version: {}", max_version);
     Ok(())
 }
 

@@ -296,7 +296,8 @@ export function useSyncManager() {
       syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
 
       // 检测服务器版本号异常(时间戳污染)
-      const MAX_REASONABLE_VERSION = 1000000
+      // 使用 2100000000 作为上限，可以兼容时间戳版本号（当前约1733900000），同时防止真正的异常值
+      const MAX_REASONABLE_VERSION = 2100000000
       if (state.version && state.version > MAX_REASONABLE_VERSION) {
         const errorMsg = '服务器版本号异常,请在桌面端执行"重置同步状态"'
         console.error('[Sync]', errorMsg, '服务器版本:', state.version)
