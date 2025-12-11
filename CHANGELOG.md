@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.18.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.18.1...v0.18.2)
+
+### 🩹 Fixes
+
+- 修复老数据同步问题 ([b37d3b5](https://github.com/aatrooox/zotepad/commit/b37d3b5))
+
+### 🏡 Chore
+
+- **build:** Release v0.18.1 ([8bf6700](https://github.com/aatrooox/zotepad/commit/8bf6700))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.18.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.17.0...v0.18.1)
