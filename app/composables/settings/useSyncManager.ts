@@ -147,6 +147,9 @@ export function useSyncManager() {
 
     console.log(`[Sync] 开始同步单表: ${tableName}, currentVersion=${currentVersion}`)
 
+    // 显示同步状态指示器
+    activity.setSyncState(true)
+
     try {
       // 桌面端：升级本地负数版本号
       if (isDesktop.value) {
@@ -194,6 +197,10 @@ export function useSyncManager() {
       console.error(`[Sync] ${tableName} 同步失败:`, e)
       throw e
     }
+    finally {
+      // 结束同步状态指示器
+      activity.setSyncState(false)
+    }
   }
 
   /**
@@ -207,6 +214,9 @@ export function useSyncManager() {
     let totalPulled = 0
     let totalPushed = 0
     let maxVersion = currentVersion
+
+    // 显示同步状态指示器
+    activity.setSyncState(true)
 
     // 遍历所有可同步的表
     const tableNames = getSyncTableNames()
@@ -251,6 +261,9 @@ export function useSyncManager() {
         // 继续同步其他表，不中断整个流程
       }
     }
+
+    // 结束同步状态指示器
+    activity.setSyncState(false)
 
     return { totalPulled, totalPushed, maxVersion }
   }

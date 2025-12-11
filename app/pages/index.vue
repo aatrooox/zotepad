@@ -57,18 +57,6 @@ const { syncTable } = useSyncManager()
 const { isDesktop } = useEnvironment()
 const isLoading = ref(false)
 
-// 监听 tab 切换,移动端触发对应表的单表同步
-// 桌面端不需要,因为移动端推送后后端已经写入数据库,只需重新加载即可
-watch(activeTab, async (newTab) => {
-  if (!isDesktop.value) {
-    const tableName = tabToTableMap[newTab]
-    if (tableName) {
-      console.log(`[Tab切换] 移动端触发 ${tableName} 表同步`)
-      syncTable(tableName, true).catch((e: any) => console.error(`${tableName} 同步失败:`, e))
-    }
-  }
-})
-
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
 const notes = ref<Note[]>([])
@@ -121,10 +109,13 @@ const toggleAssetViewMode = async (mode: 'grid' | 'list') => {
 
 const loadAssets = async () => {
   try {
-    assets.value = await getAllAssets() || []
+    const rawAssets = await getAllAssets() || []
+    console.log(`[loadAssets] 从数据库查询到 ${rawAssets.length} 条资源`)
+    assets.value = rawAssets
+    console.log(`[loadAssets] 成功加载 ${assets.value.length} 条资源`)
   }
   catch (e) {
-    console.error(e)
+    console.error('[loadAssets] 加载资源失败:', e)
     toast.error('加载资源失败')
   }
 }
@@ -251,15 +242,32 @@ const momentToolbars: ToolbarNames[] = ['bold', 'italic', 'underline', '-', 'lin
 async function loadMoments() {
   try {
     const rawMoments = await getAllMoments() || []
-    moments.value = rawMoments.map(m => ({
-      ...m,
-      imagesList: m.images ? JSON.parse(m.images) : [],
-      tagsList: m.tags ? JSON.parse(m.tags) : [],
-    }))
+    console.log(`[loadMoments] 从数据库查询到 ${rawMoments.length} 条动态`)
+
+    moments.value = rawMoments.map((m, index) => {
+      try {
+        return {
+          ...m,
+          imagesList: m.images ? JSON.parse(m.images) : [],
+          tagsList: m.tags ? JSON.parse(m.tags) : [],
+        }
+      }
+      catch (parseError) {
+        console.error(`[loadMoments] 动态 #${m.id} (index ${index}) JSON 解析失败:`, parseError, '原始数据:', { images: m.images, tags: m.tags })
+        // 解析失败时返回空数组，避免整个列表挂掉
+        return {
+          ...m,
+          imagesList: [],
+          tagsList: [],
+        }
+      }
+    })
+
+    console.log(`[loadMoments] 成功处理 ${moments.value.length} 条动态`)
     nextTick(() => animateMomentCards())
   }
   catch (e) {
-    console.error(e)
+    console.error('[loadMoments] 加载动态失败:', e)
     toast.error('加载动态失败')
   }
 }
@@ -315,9 +323,19 @@ onMounted(async () => {
   if (!isDesktop.value) {
     const tableName = tabToTableMap[activeTab.value]
     if (tableName) {
-      syncTable(tableName, true).then(() => {
+      syncTable(tableName, true).then((result) => {
+        console.log(`[初始化同步] ${tableName}: 拉取 ${result?.pulled || 0} 条, 推送 ${result?.pushed || 0} 条`)
+        // 无论是否拉取到新数据，都重新加载以确保显示最新状态
         loadCurrentTabData(false)
-      }).catch((e: any) => console.error('页面初始化同步失败:', e))
+      }).catch((e: any) => {
+        console.error('页面初始化同步失败:', e)
+        // 同步失败也要加载本地数据
+        loadCurrentTabData(false)
+        // 如果是网络错误或配置问题，用户可能需要在设置中配置同步
+        if (e.message?.includes('配置') || e.message?.includes('网络')) {
+          toast.warning('后台同步失败，可在设置中配置局域网同步')
+        }
+      })
     }
   }
 })
@@ -336,9 +354,16 @@ watch(activeTab, async (newTab) => {
   if (!isDesktop.value) {
     const tableName = tabToTableMap[newTab]
     if (tableName) {
-      syncTable(tableName, true).then(() => {
+      console.log(`[Tab切换] 移动端触发 ${tableName} 表同步`)
+      syncTable(tableName, true).then((result) => {
+        console.log(`[Tab同步] ${tableName}: 拉取 ${result?.pulled || 0} 条, 推送 ${result?.pushed || 0} 条`)
+        // 无论是否拉取到新数据，都重新加载以确保显示最新状态
         loadCurrentTabData(false)
-      }).catch((e: any) => console.error('切换标签页同步失败:', e))
+      }).catch((e: any) => {
+        console.error(`${tableName} 同步失败:`, e)
+        // 同步失败也要加载本地数据
+        loadCurrentTabData(false)
+      })
     }
   }
 })
