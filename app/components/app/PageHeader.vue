@@ -24,7 +24,7 @@ const handleBack = () => {
 </script>
 
 <template>
-  <div class="page-header px-4 md:px-8 py-4 md:py-6 flex items-center gap-3 sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+  <div class="page-header px-4 md:px-8 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] md:pb-6 md:pt-[calc(1.5rem+env(safe-area-inset-top))] flex items-center gap-3 sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
     <Button v-if="showBack" variant="ghost" size="icon" class="shrink-0 -ml-2" @click="handleBack">
       <Icon name="lucide:arrow-left" class="w-5 h-5" />
     </Button>

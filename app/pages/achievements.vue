@@ -88,7 +88,7 @@ onMounted(() => {
 <template>
   <div class="h-full overflow-y-auto bg-muted/5">
     <!-- 头部 -->
-    <PageHeader title="成就中心" class="bg-background/80 backdrop-blur-md sticky top-0 z-20 border-b" />
+    <AppPageHeader title="成就中心" class="bg-background/80 backdrop-blur-md sticky top-0 z-20 border-b" />
 
     <div class="p-4 md:p-6 max-w-6xl mx-auto space-y-8 pb-12">
       <!-- 用户档案卡片 -->
