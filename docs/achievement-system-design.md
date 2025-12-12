@@ -903,40 +903,148 @@ function getExpForNextLevel(currentExp: number): number {
 
 ---
 
-## 五、统计指标定义
+## 五、统计指标系统（可扩展）
 
-### 5.1 全局统计（user_stats）
+### 5.1 统计指标架构
 
-| stat_key | 说明 | 更新时机 |
-|----------|------|----------|
-| `notes_total` | 笔记总数 | 创建笔记时 +1 |
-| `notes_deleted` | 删除笔记数 | 删除笔记时 +1 |
-| `notes_active` | 有效笔记数 | notes_total - notes_deleted |
-| `total_words` | 累计字数 | 创建/更新笔记时累加 |
-| `moments_total` | 动态总数 | 创建动态时 +1 |
-| `assets_total` | 资源总数 | 上传资源时 +1 |
-| `assets_size` | 资源总大小（bytes） | 上传时累加 |
-| `login_streak` | 连续登录天数 | 每日首次登录检查 |
-| `max_login_streak` | 最长连续登录 | 超过历史记录时更新 |
-| `daily_active` | 活跃天数 | 有任何操作的天数 |
-| `last_active_date` | 最后活跃日期 | 每次操作更新 |
+`user_stats` 表采用**键值对存储**，完全可扩展，支持动态添加新指标。
 
-### 5.2 日度统计（stat_date 非空）
+**指标分类体系**：
+
+| 分类前缀 | 说明 | 示例 | stat_type |
+|---------|------|------|-----------|
+| `content.*` | 内容创作 | `content.notes_total` | counter |
+| `social.*` | 社交互动 | `social.moments_total` | counter |
+| `asset.*` | 资源管理 | `asset.total_size` | counter |
+| `activity.*` | 活跃度 | `activity.login_streak` | max |
+| `quality.*` | 质量指标 | `quality.max_words` | max |
+| `health.*` | 健康数据 | `health.steps_today` | counter |
+| `travel.*` | 旅行数据 | `travel.cities_visited` | counter |
+| `custom.*` | 自定义 | `custom.any_metric` | counter |
+
+### 5.2 预设统计指标
+
+#### 内容创作类（content.*）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `content.notes_total` | counter | 笔记总数 | 创建笔记 +1 |
+| `content.notes_deleted` | counter | 删除笔记数 | 删除笔记 +1 |
+| `content.notes_active` | counter | 有效笔记数 | 计算值 |
+| `content.total_words` | counter | 累计字数 | 创建/更新笔记累加 |
+| `content.moments_total` | counter | 动态总数 | 创建动态 +1 |
+
+#### 资源管理类（asset.*）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `asset.total_count` | counter | 资源总数 | 上传 +1 |
+| `asset.total_size` | counter | 总大小（bytes） | 上传时累加 |
+| `asset.images_count` | counter | 图片数量 | 上传图片 +1 |
+| `asset.videos_count` | counter | 视频数量 | 上传视频 +1 |
+
+#### 活跃度类（activity.*）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `activity.login_streak` | counter | 连续登录天数 | 每日首次登录检查 |
+| `activity.max_login_streak` | max | 最长连续登录 | 超过历史记录更新 |
+| `activity.total_days` | counter | 活跃天数 | 有操作的天数 |
+| `activity.last_active_date` | last | 最后活跃日期 | 每次操作更新 |
+
+#### 质量指标类（quality.*）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `quality.max_note_words` | max | 单篇最高字数 | 创建笔记时比较 |
+| `quality.avg_note_words` | counter | 平均字数 | 定期计算 |
+| `quality.most_productive_hour` | last | 最高产时段 | 统计分析 |
+
+#### 健康数据类（health.* - 预留）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `health.steps_total` | counter | 累计步数 | 同步健康数据 |
+| `health.steps_today` | counter | 今日步数 | 每日更新 |
+| `health.distance_km` | counter | 累计距离（km） | 同步健康数据 |
+| `health.calories` | counter | 累计消耗（卡路里） | 同步健康数据 |
+| `health.workouts_count` | counter | 锻炼次数 | 记录锻炼 +1 |
+
+#### 旅行数据类（travel.* - 预留）
+
+| stat_key | stat_type | 说明 | 更新时机 |
+|----------|-----------|------|----------|
+| `travel.cities_visited` | counter | 访问城市数 | 新增城市 +1 |
+| `travel.countries_visited` | counter | 访问国家数 | 新增国家 +1 |
+| `travel.total_distance_km` | counter | 总旅行距离 | 累加 |
+| `travel.photos_taken` | counter | 旅行照片数 | 标记旅行照片 +1 |
+| `travel.furthest_city` | last | 最远城市 | 更新最远记录 |
+
+### 5.3 日度统计（stat_date 非空）
+
+日度统计使用相同的 key，但设置 `stat_date` 字段：
 
 | stat_key | 说明 |
 |----------|------|
-| `daily_notes` | 当日创建笔记数 |
-| `daily_moments` | 当日创建动态数 |
-| `daily_words` | 当日撰写字数 |
-| `daily_assets` | 当日上传资源数 |
+| `daily.notes` | 当日创建笔记数 |
+| `daily.moments` | 当日创建动态数 |
+| `daily.words` | 当日撰写字数 |
+| `daily.assets` | 当日上传资源数 |
+| `daily.steps` | 当日步数（健康数据） |
+| `daily.distance` | 当日旅行距离 |
 
-### 5.3 质量统计
+### 5.4 扩展新指标
 
-| stat_key | 说明 |
-|----------|------|
-| `max_note_words` | 单篇最高字数 |
-| `avg_note_words` | 平均字数 |
-| `most_productive_hour` | 最高产时段 |
+添加新统计指标只需两步：
+
+**1. 定义指标**（在配置文件中）：
+
+```typescript
+// app/config/stats-metrics.ts
+export const STATS_METRICS = {
+  // 现有指标...
+  
+  // 新增：健康数据
+  'health.steps_total': {
+    type: 'counter',
+    category: 'health',
+    name: '累计步数',
+    description: '同步健康数据累计的总步数',
+    unit: '步',
+  },
+  
+  // 新增：旅行数据
+  'travel.cities_visited': {
+    type: 'counter',
+    category: 'travel',
+    name: '访问城市',
+    description: '去过的城市数量',
+    unit: '个',
+  },
+}
+```
+
+**2. 更新指标值**（在对应操作中）：
+
+```typescript
+// 健康数据同步时
+await updateStat(userId, 'health.steps_total', steps, 'counter', operationId)
+
+// 记录旅行城市
+await updateStat(userId, 'travel.cities_visited', 1, 'counter', operationId)
+```
+
+### 5.5 指标查询与聚合
+
+```typescript
+// 查询单个指标
+const totalSteps = await getStat(userId, 'health.steps_total')
+
+// 查询某分类所有指标
+const healthStats = await getStatsByCategory(userId, 'health')
+
+// 查询日度数据
+const todaySteps = await getDailyStat(userId, 'daily.steps', '2025-12-12')
 
 ---
 
@@ -1049,28 +1157,359 @@ async function checkAchievements(userId: number, action: string, data: any) {
 
 ---
 
-## 八、实现优先级
+## 八、MVP 实施计划 ⚠️ 递进式开发
 
-### Phase 1：核心功能（MVP）
-- ✅ 数据库表创建
-- ✅ 基础统计收集（notes_total, moments_total等）
-- ✅ 里程碑成就实现
-- ✅ 积分系统
-- ✅ 成就页面基础UI
+### 8.0 核心原则
 
-### Phase 2：进阶功能
-- ✅ 进阶成就（可升级）
-- ✅ 连续打卡成就
-- ✅ 等级系统
-- ✅ 称号系统
-- ✅ 成就解锁动画
+**不破坏现有功能**：
+- ✅ 成就系统完全独立，不修改现有数据表
+- ✅ 不修改现有同步引擎代码，仅扩展配置
+- ✅ 使用独立的 composable，不侵入现有逻辑
+- ✅ 每个阶段都可独立测试和回滚
 
-### Phase 3：高级功能
-- ✅ 稀有成就（隐藏成就）
-- ✅ 质量成就
-- ✅ 每日任务（可选）
-- ✅ 成就分享
-- ✅ 排行榜（可选）
+**渐进式实施**：
+- ✅ 每个 Phase 完成后验证现有功能正常
+- ✅ 新功能采用功能开关控制
+- ✅ 分批发布，逐步稳定
+
+---
+
+### Phase 1：完整表结构 + 本地基础功能（1-2天）
+
+**策略调整**：Phase 1 就创建完整表结构（包含所有同步字段），避免后续数据迁移问题。但只实现本地 CRUD 功能，不实现同步逻辑。
+
+**实施步骤**：
+
+#### 1.1 数据库初始化（完整版）
+- [ ] 创建 5 张表（**包含所有同步字段**：`operation_id`, `device_id`, `synced_at`）
+- [ ] 初始化 5-8 个预设成就（里程碑 + 进阶）
+- [ ] 创建数据库迁移脚本
+
+**SQL 完整版本**（一次性到位）：
+```sql
+-- 1. 成就定义表（系统预设，不参与同步）
+CREATE TABLE IF NOT EXISTS achievements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL, -- milestone, progressive, streak, rare, quality
+  category TEXT NOT NULL,
+  points INTEGER DEFAULT 0,
+  exp INTEGER DEFAULT 0,
+  icon TEXT,
+  rule_config TEXT, -- JSON
+  created_at INTEGER NOT NULL
+);
+
+-- 2. 用户成就关联表（完整版，包含同步字段）
+CREATE TABLE IF NOT EXISTS user_achievements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  achievement_key TEXT NOT NULL,
+  level INTEGER DEFAULT 1,
+  progress INTEGER DEFAULT 0,
+  total_points INTEGER DEFAULT 0,
+  total_exp INTEGER DEFAULT 0,
+  unlocked_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  device_id TEXT,           -- 同步字段（Phase 1 不使用）
+  synced_at INTEGER,        -- 同步字段（Phase 1 不使用）
+  UNIQUE(user_id, achievement_key)
+);
+
+-- 3. 用户统计表（完整版，包含同步字段）
+CREATE TABLE IF NOT EXISTS user_stats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  stat_key TEXT NOT NULL,
+  stat_value TEXT NOT NULL,
+  stat_type TEXT DEFAULT 'counter', -- counter, max, last, date
+  updated_at INTEGER NOT NULL,
+  device_id TEXT,           -- 同步字段（Phase 1 不使用）
+  synced_at INTEGER,        -- 同步字段（Phase 1 不使用）
+  UNIQUE(user_id, stat_key)
+);
+
+-- 4. 积分日志表（完整版，核心同步表）
+CREATE TABLE IF NOT EXISTS user_points_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  operation_id TEXT NOT NULL UNIQUE, -- 同步去重字段（Phase 1 留空即可）
+  source_type TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  achievement_key TEXT,
+  points INTEGER NOT NULL,
+  exp INTEGER NOT NULL,
+  reason TEXT,
+  created_at INTEGER NOT NULL,
+  device_id TEXT,           -- 同步字段（Phase 1 不使用）
+  synced_at INTEGER         -- 同步字段（Phase 1 不使用）
+);
+
+-- 5. 用户成就档案表（完整版，计算字段，不直接同步）
+CREATE TABLE IF NOT EXISTS user_achievement_profile (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL UNIQUE,
+  total_points INTEGER DEFAULT 0,
+  total_exp INTEGER DEFAULT 0,
+  current_level INTEGER DEFAULT 1,
+  title TEXT,
+  achievements_count INTEGER DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+
+-- 索引
+CREATE INDEX idx_user_achievements_user ON user_achievements(user_id);
+CREATE INDEX idx_user_stats_user ON user_stats(user_id);
+CREATE INDEX idx_points_log_user ON user_points_log(user_id);
+CREATE INDEX idx_points_log_operation ON user_points_log(operation_id);
+CREATE INDEX idx_points_log_synced ON user_points_log(synced_at);
+```
+
+#### 1.2 核心功能实现
+- [ ] `useAchievementSystem.ts` - 成就检查和解锁
+- [ ] `usePointsSystem.ts` - 积分管理（operation_id 先留空）
+- [ ] `useStatsCollector.ts` - 统计收集
+
+#### 1.3 最小化触发点
+- [ ] 在 `useNoteRepository.ts` 的 `createNote` 中添加钩子
+- [ ] 在 `useMomentRepository.ts` 的 `createMoment` 中添加钩子
+- [ ] 触发统计更新和成就检查
+
+#### 1.4 基础 UI
+- [ ] 成就页面路由：`/achievements`
+- [ ] 显示已解锁成就列表
+- [ ] 显示总积分、等级和进度
+
+**不实现的功能**（留到 Phase 3）：
+- ❌ 不生成 operation_id（字段留空）
+- ❌ 不实现同步逻辑
+- ❌ 不在 SYNC_TABLES 注册
+- ❌ device_id 和 synced_at 字段暂不使用
+
+**验收标准**：
+- ✅ 5 张表创建成功，字段完整
+- ✅ 创建笔记/动态后统计数据正确更新
+- ✅ 达成条件后成就正确解锁
+- ✅ 积分和等级正确计算
+- ✅ 前端页面可查看成就和进度
+- ✅ **现有笔记/动态 CRUD 功能完全正常**
+- ✅ **现有同步功能完全正常**
+
+---
+
+### Phase 2：完善本地功能
+
+**目标**：扩展成就类型，优化 UI
+
+#### 2.1 扩展成就
+- [ ] 添加 10 个里程碑成就
+- [ ] 实现进阶成就（可升级）
+- [ ] 成就分类展示
+
+#### 2.2 统计增强
+- [ ] 收集更多统计指标（字数、动态、资源）
+- [ ] 日度统计（stat_date）
+
+#### 2.3 UI 优化
+- [ ] 成就卡片设计
+- [ ] 进度条显示
+- [ ] 解锁动画
+
+**验收标准**：
+- ✅ 多种成就类型正常工作
+- ✅ 统计数据准确
+- ✅ UI 交互流畅
+- ✅ **现有功能依然正常**
+
+---
+
+### Phase 3：实现同步逻辑（3-4天）
+
+**目标**：实现增量同步，集成到现有同步系统
+
+**优势**：表结构已在 Phase 1 就绪，无需 ALTER TABLE，只需添加代码逻辑。
+
+#### 3.1 实现 operation_id 生成
+
+**修改 `usePointsSystem.ts`**：
+```typescript
+let counter = 0
+
+async function addPoints(userId, sourceType, sourceId, points, exp, reason) {
+  const deviceId = await getDeviceId()
+  const operationId = `${deviceId}_${Date.now()}_${counter++}`
+  
+  await sql.execute(
+    'INSERT INTO user_points_log (..., operation_id, device_id) VALUES (...)',
+    [userId, operationId, sourceType, sourceId, points, exp, reason, deviceId, Date.now()]
+  )
+}
+```
+
+#### 3.2 配置同步表（不修改引擎）
+
+**扩展 `app/config/sync-tables.ts`**：
+```typescript
+export const SYNC_TABLES = [
+  // ... 现有表配置（不改动）
+  
+  // 新增成就同步配置
+  {
+    name: 'user_points_log',
+    syncMode: 'incremental', // 新增模式
+    idempotencyKey: 'operation_id',
+    conflictResolution: 'append'
+  },
+  {
+    name: 'user_achievements',
+    syncMode: 'merge',
+    conflictResolution: (local, remote) => {
+      return local.level >= remote.level ? local : remote
+    }
+  },
+  {
+    name: 'user_stats',
+    syncMode: 'calculated', // 从 points_log 重算
+    skipDirectSync: true
+  }
+]
+```
+
+#### 3.3 扩展同步引擎（选择实现方式）
+
+**方案 A：前端实现**（推荐）
+- [ ] 在 `useTauriServices` 中处理成就同步
+- [ ] 利用现有 SQL 插件执行去重和合并
+- [ ] 同步后调用 `recalculateStats()` 和 `recalculateProfile()`
+
+**方案 B：Rust 实现**
+- [ ] 修改 `src-tauri/src/sync_engine.rs`
+- [ ] 添加新的同步模式支持
+
+#### 3.4 实现同步后重算
+
+```typescript
+async function recalculateAfterSync(userId) {
+  // 1. 从 points_log 重算 user_stats
+  await recalculateStats(userId)
+  
+  // 2. 从 achievements 重算 profile
+  await recalculateProfile(userId)
+}
+```
+
+#### 3.5 添加同步钩子
+- [ ] 在现有同步完成后，调用 `syncAchievements()`
+- [ ] 使用 try-catch 包裹，失败不影响主同步
+
+```typescript
+// 在 useSyncManager.ts 中
+async function syncOnce() {
+  // 现有同步逻辑
+  await syncNotes()
+  await syncMoments()
+  await syncAssets()
+  await syncWorkflows()
+  
+  // 新增：成就同步（独立，失败不影响主流程）
+  try {
+    await syncAchievements()
+  } catch (e) {
+    console.error('成就同步失败（不影响主同步）:', e)
+  }
+}
+```
+
+**验收标准**：
+- ✅ 桌面端创建笔记，移动端同步后积分正确增加
+- ✅ 双端操作积分正确累加（50+30=80）
+- ✅ `operation_id` 去重正常工作
+- ✅ **现有笔记、动态等同步完全正常**
+- ✅ **成就同步失败不影响主同步流程**
+
+---
+
+### Phase 4：高级功能
+
+**目标**：完善体验，扩展功能
+
+#### 4.1 连续成就
+- [ ] 实现连续登录检测
+- [ ] 实现连续创作检测
+
+#### 4.2 稀有成就
+- [ ] 隐藏成就
+- [ ] 时间相关成就
+
+#### 4.3 称号系统
+- [ ] 称号解锁
+- [ ] 称号切换
+
+**验收标准**：
+- ✅ 连续成就正常工作
+- ✅ 稀有成就惊喜触发
+- ✅ 称号系统稳定
+
+---
+
+### Phase 5：未来扩展
+
+- [ ] 健康数据集成（`health.*` 指标）
+- [ ] 旅行数据集成（`travel.*` 指标）
+- [ ] 成就分享功能
+- [ ] 排行榜（可选）
+
+---
+
+### 8.1 防护措施清单
+
+#### 代码层面
+- [ ] 所有成就相关代码使用独立 composable
+- [ ] 不修改 `useNoteRepository` 等核心文件的主逻辑
+- [ ] 使用事件钩子机制触发成就检查
+- [ ] 使用功能开关控制成就系统启用
+
+#### 数据库层面
+- [ ] 新表使用独立命名空间（不与现有表冲突）
+- [ ] 使用事务确保数据一致性
+- [ ] 迁移脚本支持回滚
+
+#### 同步层面
+- [ ] 成就同步独立于主同步流程
+- [ ] 失败时不影响主同步
+- [ ] 可通过配置开关关闭成就同步
+
+#### 测试层面
+- [ ] 每个 Phase 完成后测试现有功能
+- [ ] 回归测试：笔记、动态、资源的 CRUD
+- [ ] 同步测试：双端数据一致性
+
+---
+
+### 8.2 回滚方案
+
+如果成就系统出现问题，可快速回滚：
+
+**数据库回滚**：
+```sql
+-- 删除成就相关表
+DROP TABLE IF EXISTS achievements;
+DROP TABLE IF EXISTS user_achievements;
+DROP TABLE IF EXISTS user_stats;
+DROP TABLE IF EXISTS user_points_log;
+DROP TABLE IF EXISTS user_achievement_profile;
+```
+
+**代码回滚**：
+- 移除成就相关路由
+- 注释掉成就触发钩子
+- 从同步配置中移除成就表
+
+**同步配置回滚**：
+- 从 `SYNC_TABLES` 移除成就相关表
+- 桌面端和移动端同步依然正常
 
 ---
 
@@ -1254,21 +1693,178 @@ export const PRESET_ACHIEVEMENTS = [
 
 ---
 
-## 十二、总结
+## 十二、设计总结与保障
+
+### 12.1 设计特点
 
 这套成就系统设计具有以下特点：
 
-✅ **灵活**：支持多种成就类型和规则
-✅ **可扩展**：轻松添加新成就和分类
-✅ **无上限**：进阶成就可无限升级
+✅ **完全独立**：不修改现有数据表，不侵入现有逻辑
+✅ **渐进实施**：5 个 Phase，每个阶段可独立测试
+✅ **可扩展统计**：键值对存储，支持动态添加指标（健康、旅行等）
+✅ **增量同步**：基于操作日志，双端操作都有效
+✅ **灵活规则**：支持多种成就类型和触发条件
+✅ **无上限成长**：进阶成就可无限升级
 ✅ **情绪价值**：积分膨胀，等级提升，称号解锁
 ✅ **易维护**：规则配置化，逻辑清晰
+✅ **可回滚**：出现问题可快速关闭或删除
 
-建议实施步骤：
-1. 先创建数据库表和基础统计
-2. 实现里程碑成就（最简单）
-3. 完善前端展示
-4. 逐步添加进阶、连续、稀有成就
-5. 优化性能和用户体验
+### 12.2 实施保障
 
-是否需要我开始实现代码部分？我可以先创建数据库迁移脚本和核心 composable 函数。
+#### 对现有功能的保护
+1. **代码隔离**：所有成就逻辑在独立 composable 中
+2. **数据独立**：5 张新表，不修改现有表结构
+3. **同步独立**：成就同步失败不影响主同步流程
+4. **功能开关**：可通过配置随时开关成就系统
+
+#### 测试验收标准
+每个 Phase 完成后必须验证：
+- [ ] 现有功能完全正常（笔记、动态、资源 CRUD）
+- [ ] 现有同步功能正常（双端数据一致）
+- [ ] 新功能按预期工作
+- [ ] 性能无明显下降
+
+### 12.3 统计系统可扩展性
+
+**当前支持**：
+- 内容创作（`content.*`）
+- 资源管理（`asset.*`）
+- 活跃度（`activity.*`）
+- 质量指标（`quality.*`）
+
+**未来扩展**（只需添加配置）：
+- 健康数据（`health.*`）：步数、距离、卡路里
+- 旅行数据（`travel.*`）：城市、国家、距离
+- 自定义指标（`custom.*`）：任意业务指标
+
+**扩展方式**：
+```typescript
+// 1. 在配置中定义新指标
+STATS_METRICS['health.steps_total'] = { type: 'counter', ... }
+
+// 2. 在数据同步时更新
+await updateStat(userId, 'health.steps_total', steps, 'counter', operationId)
+
+// 3. 创建相关成就
+PRESET_ACHIEVEMENTS.push({
+  key: 'health_10k_steps',
+  name: '健步如飞',
+  rule_config: { metric: 'health.steps_total', target: 10000 }
+})
+```
+
+### 12.4 下一步行动
+
+**调整后的执行顺序**：
+
+1. **Phase 1（1-2天）- 完整表结构 + 本地功能**
+   - 创建数据库迁移脚本（**完整版，包含所有同步字段**）
+   - 实现 3 个核心 composable（不生成 operation_id）
+   - 添加 5-8 个预设成就
+   - 创建 `/achievements` 页面
+   - **关键**：表结构完整，但不实现同步逻辑
+
+2. **测试与验证（半天）**
+   - 测试本地功能（创建笔记/动态 → 统计更新 → 成就解锁）
+   - **重点**：验证现有 CRUD 和同步功能不受影响
+   - 收集问题和反馈
+
+3. **Phase 2（2-3天）- 扩展与优化**
+   - 扩展成就类型（连续签到、质量成就）
+   - 优化 UI（动画、通知）
+   - 添加更多统计指标
+   - 完善前端展示
+
+4. **测试与验证（半天）**
+   - 回归测试
+   - 性能测试
+
+5. **Phase 3（3-4天）- 实现同步逻辑**
+   - **无需修改表结构**（已在 Phase 1 就绪）
+   - 实现 operation_id 生成
+   - 配置同步表和模式
+   - 实现增量同步逻辑
+   - 集成到现有同步流程
+
+6. **重点测试（1-2天）- 双端同步验证**
+   - 双端同步测试（同一设备、不同设备）
+   - 边缘情况（离线操作、冲突解决）
+   - 压力测试（大量操作日志）
+
+7. **Phase 4-5（按需）- 高级功能**
+   - 稀有成就、称号系统
+   - 未来扩展（健康、旅行数据）
+
+**优势**：
+- ✅ Phase 1 表结构完整，避免后续数据迁移
+- ✅ Phase 3 只需添加代码逻辑，不改表结构
+- ✅ 无历史数据兼容问题
+- ✅ 出问题可快速回滚（DROP TABLE）
+
+**当前状态**：设计完成 ✅  
+**下一步**：Phase 1 - 创建完整数据库表和核心功能
+
+---
+
+**准备好开始 Phase 1 了吗？**
+
+我会创建：
+1. **数据库迁移脚本**（**完整版，包含所有同步字段**）
+   - 5 张表 + 索引
+   - operation_id、device_id、synced_at 字段预留
+2. **核心 Composable**：
+   - `useAchievementSystem.ts` - 成就检查和解锁
+   - `usePointsSystem.ts` - 积分管理（operation_id 先留空）
+   - `useStatsCollector.ts` - 统计收集
+3. **预设成就配置**：
+   - 5-8 个基础成就（里程碑 + 进阶）
+4. **UI 页面**：
+   - `/achievements` - 成就展示页面
+5. **事件集成**：
+   - 在 `createNote`/`createMoment` 添加钩子
+
+**确认后立即开始实现！** 🚀
+   - **无需修改表结构**（已在 Phase 1 就绪）
+   - 实现 operation_id 生成
+   - 配置同步表和模式
+   - 实现增量同步逻辑
+   - 集成到现有同步流程
+
+6. **重点测试（1-2天）- 双端同步验证**
+   - 双端同步测试（同一设备、不同设备）
+   - 边缘情况（离线操作、冲突解决）
+   - 压力测试（大量操作日志）
+
+7. **Phase 4-5（按需）- 高级功能**
+   - 稀有成就、称号系统
+   - 未来扩展（健康、旅行数据）
+
+**优势**：
+- ✅ Phase 1 表结构完整，避免后续数据迁移
+- ✅ Phase 3 只需添加代码逻辑，不改表结构
+- ✅ 无历史数据兼容问题
+- ✅ 出问题可快速回滚（DROP TABLE）
+
+**当前状态**：设计完成 ✅  
+**下一步**：Phase 1 - 创建完整数据库表和核心功能
+
+---
+
+**准备好开始 Phase 1 了吗？**
+
+我会创建：
+1. **数据库迁移脚本**（**完整版，包含所有同步字段**）
+   - 5 张表 + 索引
+   - operation_id、device_id、synced_at 字段预留
+2. **核心 Composable**：
+   - `useAchievementSystem.ts` - 成就检查和解锁
+   - `usePointsSystem.ts` - 积分管理（operation_id 先留空）
+   - `useStatsCollector.ts` - 统计收集
+3. **预设成就配置**：
+   - 5-8 个基础成就（里程碑 + 进阶）
+4. **UI 页面**：
+   - `/achievements` - 成就展示页面
+5. **事件集成**：
+   - 在 `createNote`/`createMoment` 添加钩子
+
+**确认后立即开始实现！** 🚀
