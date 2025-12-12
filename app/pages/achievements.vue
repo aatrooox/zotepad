@@ -97,30 +97,55 @@ onMounted(() => {
         <div class="absolute top-0 right-0 -mt-24 -mr-24 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
         <div class="absolute bottom-0 left-0 -mb-16 -ml-16 w-48 h-48 bg-secondary/20 rounded-full blur-2xl pointer-events-none" />
 
-        <div class="p-6 md:p-8 relative z-10">
-          <div class="flex flex-col md:flex-row gap-8 items-center md:items-start">
-            <!-- 左侧：等级徽章 -->
-            <div class="relative shrink-0 group cursor-default">
-              <div class="w-28 h-28 rounded-full bg-gradient-to-br from-background to-muted flex items-center justify-center border-4 border-background shadow-xl ring-1 ring-border/50 relative overflow-hidden">
-                <div class="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-                <div class="text-center relative z-10">
-                  <div class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
-                    Level
-                  </div>
-                  <div class="text-5xl font-black text-primary tracking-tighter">
-                    {{ profile.current_level }}
+        <div class="p-5 md:p-8 relative z-10">
+          <div class="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
+            <!-- Mobile Top Row: Level + Stats -->
+            <div class="flex flex-row md:flex-col items-center md:items-start justify-between w-full md:w-auto gap-6">
+              <!-- 左侧：等级徽章 -->
+              <div class="relative shrink-0 group cursor-default">
+                <div class="w-20 h-20 md:w-28 md:h-28 rounded-full bg-gradient-to-br from-background to-muted flex items-center justify-center border-4 border-background shadow-xl ring-1 ring-border/50 relative overflow-hidden">
+                  <div class="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
+                  <div class="text-center relative z-10">
+                    <div class="text-[8px] md:text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                      Level
+                    </div>
+                    <div class="text-3xl md:text-5xl font-black text-primary tracking-tighter">
+                      {{ profile.current_level }}
+                    </div>
                   </div>
                 </div>
+                <div class="absolute -bottom-2 md:-bottom-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] md:text-xs font-bold px-2 md:px-3 py-0.5 md:py-1 rounded-full whitespace-nowrap shadow-lg border-2 border-background z-20">
+                  {{ profile.title || '初出茅庐' }}
+                </div>
               </div>
-              <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg border-2 border-background">
-                {{ profile.title || '初出茅庐' }}
+
+              <!-- Mobile Stats (Right side of level badge) -->
+              <div class="flex md:hidden flex-1 justify-around gap-2 items-center">
+                <div class="text-center">
+                  <div class="text-xl font-bold text-foreground tracking-tight">
+                    {{ profile.total_points.toLocaleString() }}
+                  </div>
+                  <div class="text-xs text-muted-foreground font-medium">
+                    总积分
+                  </div>
+                </div>
+                <div class="w-px h-8 bg-border/60" />
+                <div class="text-center">
+                  <div class="text-xl font-bold text-foreground tracking-tight">
+                    {{ profile.achievements_count }}
+                  </div>
+                  <div class="text-xs text-muted-foreground font-medium">
+                    已解锁
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- 中间：经验与信息 -->
-            <div class="flex-1 w-full text-center md:text-left space-y-5 pt-2">
-              <div>
-                <h2 class="text-2xl font-bold tracking-tight flex items-center justify-center md:justify-start gap-2">
+            <div class="flex-1 w-full space-y-4 md:pt-2">
+              <!-- Desktop Header (Hidden on mobile) -->
+              <div class="hidden md:block">
+                <h2 class="text-2xl font-bold tracking-tight flex items-center justify-start gap-2">
                   我的生涯
                   <Icon name="lucide:sparkles" class="w-5 h-5 text-yellow-500" />
                 </h2>
@@ -129,25 +154,25 @@ onMounted(() => {
                 </p>
               </div>
 
-              <div class="space-y-2 max-w-md mx-auto md:mx-0">
+              <div class="space-y-2 w-full">
                 <div class="flex justify-between text-sm font-medium px-1">
-                  <span class="text-muted-foreground">EXP 进度</span>
-                  <span class="font-mono text-primary">{{ levelProgress.current }} <span class="text-muted-foreground/60">/ {{ levelProgress.max }}</span></span>
+                  <span class="text-muted-foreground text-xs md:text-sm">EXP 进度</span>
+                  <span class="font-mono text-primary text-xs md:text-sm">{{ levelProgress.current }} <span class="text-muted-foreground/60">/ {{ levelProgress.max }}</span></span>
                 </div>
-                <div class="relative h-3 w-full overflow-hidden rounded-full bg-secondary/50">
+                <div class="relative h-2.5 md:h-3 w-full overflow-hidden rounded-full bg-secondary/50">
                   <div
                     class="h-full bg-primary transition-all duration-500 ease-out rounded-full"
                     :style="{ width: `${levelProgress.percentage}%` }"
                   />
                 </div>
-                <p class="text-xs text-muted-foreground text-right px-1">
+                <p class="text-[10px] md:text-xs text-muted-foreground text-right px-1">
                   距离下一级还需 <span class="font-bold text-foreground">{{ levelProgress.max - levelProgress.current }}</span> EXP
                 </p>
               </div>
             </div>
 
-            <!-- 右侧：统计数据 -->
-            <div class="grid grid-cols-2 gap-4 w-full md:w-auto shrink-0 pt-2">
+            <!-- 右侧：统计数据 (Desktop Only) -->
+            <div class="hidden md:grid grid-cols-2 gap-4 w-auto shrink-0 pt-2">
               <div class="bg-background/60 backdrop-blur-sm rounded-xl p-4 border shadow-sm text-center min-w-[110px] flex flex-col items-center justify-center gap-1 transition-colors hover:bg-background/80">
                 <div class="p-2 rounded-full bg-primary/10 text-primary mb-1">
                   <Icon name="lucide:trophy" class="w-5 h-5" />
