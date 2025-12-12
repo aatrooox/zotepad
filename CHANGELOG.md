@@ -1,6 +1,26 @@
 # Changelog
 
 
+## v0.19.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.18.3...v0.19.0)
+
+### 🚀 Enhancements
+
+- ⚠️  数据库文件更换v3版本; 引入数据库同步脚本; 新增环境变量手动同步功能 ([6788cce](https://github.com/aatrooox/zotepad/commit/6788cce))
+
+### 🏡 Chore
+
+- **build:** Release v0.18.3 ([ba0512a](https://github.com/aatrooox/zotepad/commit/ba0512a))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  数据库文件更换v3版本; 引入数据库同步脚本; 新增环境变量手动同步功能 ([6788cce](https://github.com/aatrooox/zotepad/commit/6788cce))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.18.3
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.18.2...v0.18.3)
