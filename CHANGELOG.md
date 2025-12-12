@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.19.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.19.1...v0.19.2)
+
+### 🩹 Fixes
+
+- 修复流同步时遗漏了步骤字段的问题 ([f880a6f](https://github.com/aatrooox/zotepad/commit/f880a6f))
+
+### 🏡 Chore
+
+- **build:** Release v0.19.1 ([d7a11f4](https://github.com/aatrooox/zotepad/commit/d7a11f4))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.19.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.19.0...v0.19.1)
