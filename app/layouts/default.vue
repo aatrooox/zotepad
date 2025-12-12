@@ -28,6 +28,8 @@ watch(() => route.path, async (newPath) => {
     menuToSave = '/assets'
   else if (newPath.startsWith('/workflows'))
     menuToSave = '/workflows'
+  else if (newPath === '/achievements')
+    menuToSave = '/achievements'
   else if (newPath === '/settings')
     menuToSave = '/settings'
 

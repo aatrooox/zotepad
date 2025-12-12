@@ -13,7 +13,34 @@ export function useMomentRepository() {
         'INSERT INTO moments (content, images, tags, version, updated_at) VALUES (?, ?, ?, ?, ?)',
         [content, JSON.stringify(images), JSON.stringify(tags), -Date.now(), now],
       )
-      return result.lastInsertId as number
+      const momentId = result.lastInsertId as number
+
+      // 成就系统集成（Phase 1）
+      try {
+        // 获取当前用户 ID
+        const { useCurrentUser } = await import('../useCurrentUser')
+        const { getCurrentUserId } = useCurrentUser()
+        const userId = getCurrentUserId()
+
+        // 动态导入避免循环依赖
+        const { useStatsCollector } = await import('../useStatsCollector')
+        const { useAchievementSystem } = await import('../useAchievementSystem')
+
+        const { collectMomentCreated } = useStatsCollector()
+        const { checkAchievements } = useAchievementSystem()
+
+        // 收集统计数据
+        await collectMomentCreated(userId)
+
+        // 检查相关成就
+        await checkAchievements(userId, 'content.moments_total')
+      }
+      catch (err) {
+        // 成就系统失败不影响主流程
+        console.warn('成就系统处理失败:', err)
+      }
+
+      return momentId
     }, '发布动态失败')
 
   const getMoment = (id: number) =>

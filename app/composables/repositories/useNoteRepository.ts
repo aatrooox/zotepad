@@ -13,7 +13,36 @@ export function useNoteRepository() {
         'INSERT INTO notes (title, content, tags, version, updated_at) VALUES (?, ?, ?, ?, ?)',
         [title, content, JSON.stringify(tags), -Date.now(), now],
       )
-      return result.lastInsertId as number
+      const noteId = result.lastInsertId as number
+
+      // 成就系统集成（Phase 1）
+      try {
+        // 获取当前用户 ID
+        const { useCurrentUser } = await import('../useCurrentUser')
+        const { getCurrentUserId } = useCurrentUser()
+        const userId = getCurrentUserId()
+        const wordCount = content.length
+
+        // 动态导入避免循环依赖
+        const { useStatsCollector } = await import('../useStatsCollector')
+        const { useAchievementSystem } = await import('../useAchievementSystem')
+
+        const { collectNoteCreated } = useStatsCollector()
+        const { checkAchievements } = useAchievementSystem()
+
+        // 收集统计数据
+        await collectNoteCreated(userId, wordCount)
+
+        // 检查相关成就
+        await checkAchievements(userId, 'content.notes_total')
+        await checkAchievements(userId, 'content.words_total')
+      }
+      catch (err) {
+        // 成就系统失败不影响主流程
+        console.warn('成就系统处理失败:', err)
+      }
+
+      return noteId
     }, '创建笔记失败')
 
   const getNote = (id: number) =>

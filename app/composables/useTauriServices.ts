@@ -13,8 +13,6 @@ export function useTauriServices() {
   const { initStore, setItem } = useTauriStore()
   const { sendSuccessNotification, sendErrorNotification } = useTauriNotification()
   const { initDatabase } = useTauriSQL()
-  // 引入 Repository 用于初始化默认数据（如果需要）
-  // const { setSetting } = useSettingRepository()
 
   const initializeServices = async () => {
     if (isInitialized.value)
@@ -27,11 +25,25 @@ export function useTauriServices() {
     try {
       // 初始化存储
       await initStore()
-      initProgress.value = 25
+      initProgress.value = 20
 
       // 初始化数据库
       await initDatabase()
-      initProgress.value = 66
+      initProgress.value = 50
+
+      // 成就系统表由 Tauri Migration (version 8) 自动创建
+      // 无需手动初始化
+      initProgress.value = 75
+
+      // 初始化当前用户
+      try {
+        const { useCurrentUser } = await import('./useCurrentUser')
+        const { initCurrentUser } = useCurrentUser()
+        await initCurrentUser()
+      }
+      catch (err) {
+        console.warn('初始化当前用户失败（不影响主功能）:', err)
+      }
 
       // 设置一些默认配置
       await setItem('app_version', '1.0.0')

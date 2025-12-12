@@ -600,36 +600,6 @@ pub fn run() {
                             kind: MigrationKind::Up,
                         },
                         Migration {
-                            version: 6,
-                            description: "create_workflow_schemas_table",
-                            sql: "\
-                CREATE TABLE IF NOT EXISTS workflow_schemas (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL,
-                  description TEXT,
-                  fields TEXT NOT NULL DEFAULT '[]',
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-                ALTER TABLE workflows ADD COLUMN schema_id INTEGER;
-              ",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 7,
-                            description: "create_workflow_envs_table",
-                            sql: "\
-                CREATE TABLE IF NOT EXISTS workflow_envs (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  key TEXT NOT NULL UNIQUE,
-                  value TEXT NOT NULL,
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-              ",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
                             version: 4,
                             description: "create_moments_table_with_sync_fields",
                             sql: "\
@@ -647,59 +617,126 @@ pub fn run() {
               ",
                             kind: MigrationKind::Up,
                         },
-                        Migration {
-                            version: 5,
-                            description: "add_category_to_settings_and_create_assets_with_sync_fields",
-                            sql: "\
-                ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
-                CREATE TABLE IF NOT EXISTS assets (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  url TEXT NOT NULL,
-                  path TEXT NOT NULL,
-                  filename TEXT NOT NULL,
-                  size INTEGER,
-                  mime_type TEXT,
-                  storage_type TEXT DEFAULT 'cos',
-                  version INTEGER DEFAULT 0,
-                  deleted_at DATETIME,
-                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);
-              ",
-                            kind: MigrationKind::Up,
-                        },
+                                                Migration {
+                                                        version: 5,
+                                                        description: "add_category_to_settings_and_create_assets_with_sync_fields",
+                                                        sql: "
+                                -- ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
+                                CREATE TABLE IF NOT EXISTS assets (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    url TEXT NOT NULL,
+                                    path TEXT NOT NULL,
+                                    filename TEXT NOT NULL,
+                                    size INTEGER,
+                                    mime_type TEXT,
+                                    storage_type TEXT DEFAULT 'cos',
+                                    version INTEGER DEFAULT 0,
+                                    deleted_at DATETIME,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);
+                            ",
+                                                        kind: MigrationKind::Up,
+                                                },
+                        // 成就系统表（Phase 1）
                         Migration {
                             version: 6,
-                            description: "create_workflow_schemas_table",
-                            sql: "\
-                CREATE TABLE IF NOT EXISTS workflow_schemas (\n\
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
-                  name TEXT NOT NULL,\n\
-                  description TEXT,\n\
-                  fields TEXT NOT NULL DEFAULT '[]',\n\
-                  deleted_at DATETIME,\n\
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n\
-                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n\
-                );\n\
-            ",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 7,
-                            description: "create_workflow_envs_table",
-                            sql: "\
-                CREATE TABLE IF NOT EXISTS workflow_envs (\n\
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
-                  name TEXT NOT NULL,\n\
-                  variables TEXT NOT NULL DEFAULT '[]',\n\
-                  deleted_at DATETIME,\n\
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n\
-                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n\
-                );\n\
-            ",
-                            kind: MigrationKind::Up,
-                        },
+                            description: "create_achievement_system_tables",
+                                                        sql: "\
+                                CREATE TABLE IF NOT EXISTS achievements (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    key TEXT NOT NULL UNIQUE,
+                                    name TEXT NOT NULL,
+                                    description TEXT,
+                                    type TEXT NOT NULL,
+                                    category TEXT NOT NULL,
+                                    points INTEGER DEFAULT 0,
+                                    exp INTEGER DEFAULT 0,
+                                    icon TEXT,
+                                    rule_config TEXT,
+                                    max_level INTEGER DEFAULT 1,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(type);
+                                CREATE INDEX IF NOT EXISTS idx_achievements_category ON achievements(category);
+
+                                CREATE TABLE IF NOT EXISTS user_achievements (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    user_id INTEGER NOT NULL,
+                                    achievement_key TEXT NOT NULL,
+                                    level INTEGER DEFAULT 1,
+                                    progress INTEGER DEFAULT 0,
+                                    total_points INTEGER DEFAULT 0,
+                                    total_exp INTEGER DEFAULT 0,
+                                    unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    device_id TEXT,
+                                    synced_at DATETIME,
+                                    UNIQUE(user_id, achievement_key)
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_user_achievements_synced ON user_achievements(synced_at);
+
+                                CREATE TABLE IF NOT EXISTS user_stats (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    user_id INTEGER NOT NULL,
+                                    stat_key TEXT NOT NULL,
+                                    stat_value TEXT NOT NULL,
+                                    stat_type TEXT DEFAULT 'counter',
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    device_id TEXT,
+                                    synced_at DATETIME,
+                                    UNIQUE(user_id, stat_key)
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_user_stats_user ON user_stats(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_user_stats_key ON user_stats(stat_key);
+                                CREATE INDEX IF NOT EXISTS idx_user_stats_synced ON user_stats(synced_at);
+
+                                CREATE TABLE IF NOT EXISTS user_points_log (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    user_id INTEGER NOT NULL,
+                                    operation_id TEXT NOT NULL UNIQUE,
+                                    source_type TEXT NOT NULL,
+                                    source_id TEXT NOT NULL,
+                                    achievement_key TEXT,
+                                    points INTEGER NOT NULL,
+                                    exp INTEGER NOT NULL,
+                                    reason TEXT,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    device_id TEXT,
+                                    synced_at DATETIME
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_points_log_user ON user_points_log(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_points_log_operation ON user_points_log(operation_id);
+                                CREATE INDEX IF NOT EXISTS idx_points_log_synced ON user_points_log(synced_at);
+                                CREATE INDEX IF NOT EXISTS idx_points_log_created ON user_points_log(created_at);
+
+                                CREATE TABLE IF NOT EXISTS user_achievement_profile (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    user_id INTEGER NOT NULL UNIQUE,
+                                    total_points INTEGER DEFAULT 0,
+                                    total_exp INTEGER DEFAULT 0,
+                                    current_level INTEGER DEFAULT 1,
+                                    title TEXT,
+                                    achievements_count INTEGER DEFAULT 0,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_profile_user ON user_achievement_profile(user_id);
+
+                                INSERT OR IGNORE INTO achievements (key, name, description, type, category, points, exp, icon, rule_config, max_level) VALUES
+                                ('writing_first_note', '初出茅庐', '创建第一篇笔记', 'milestone', 'writing', 10, 5, '📝', '{\"metric\":\"content.notes_total\",\"target\":1}', 1),
+                                ('writing_10_notes', '勤奋笔者', '创建10篇笔记', 'milestone', 'writing', 50, 20, '✍️', '{\"metric\":\"content.notes_total\",\"target\":10}', 1),
+                                ('writing_50_notes', '笔记达人', '创建50篇笔记', 'milestone', 'writing', 200, 100, '📚', '{\"metric\":\"content.notes_total\",\"target\":50}', 1),
+                                ('writing_words', '文字工匠', '累计书写字数（可升级）', 'progressive', 'writing', 10, 5, '✨', '{\"metric\":\"content.words_total\",\"baseTarget\":1000,\"rate\":2}', 999),
+                                ('social_first_moment', '分享时刻', '发布第一条动态', 'milestone', 'social', 10, 5, '💬', '{\"metric\":\"content.moments_total\",\"target\":1}', 1),
+                                ('social_10_moments', '活跃用户', '发布10条动态', 'milestone', 'social', 50, 20, '🎉', '{\"metric\":\"content.moments_total\",\"target\":10}', 1),
+                                ('asset_first_image', '摄影起步', '上传第一张图片', 'milestone', 'asset', 10, 5, '📷', '{\"metric\":\"asset.images_total\",\"target\":1}', 1),
+                                ('asset_collector', '素材收藏家', '累计上传素材（可升级）', 'progressive', 'asset', 10, 5, '🗂️', '{\"metric\":\"asset.total\",\"baseTarget\":10,\"rate\":2}', 999);
+                            ",
+                                                        kind: MigrationKind::Up,
+                                                },
 
                     ],
                 )
