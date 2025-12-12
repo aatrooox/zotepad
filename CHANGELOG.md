@@ -1,6 +1,38 @@
 # Changelog
 
 
+## v0.20.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.19.2...v0.20.0)
+
+### 🚀 Enhancements
+
+- 优化检测服务器状态的用户体验, 3s后判错, 减少loading时间 ([85136a4](https://github.com/aatrooox/zotepad/commit/85136a4))
+- 增加cos配置手动导入导出 ([a516088](https://github.com/aatrooox/zotepad/commit/a516088))
+- 增加成就系统第一阶段 ([51bc91e](https://github.com/aatrooox/zotepad/commit/51bc91e))
+
+### 🩹 Fixes
+
+- 修复流同步时遗漏了步骤字段的问题 ([f880a6f](https://github.com/aatrooox/zotepad/commit/f880a6f))
+
+### 📖 Documentation
+
+- 成就系统设计 ([607c8df](https://github.com/aatrooox/zotepad/commit/607c8df))
+- 完善成就系统开发计划 ([c5ec0f9](https://github.com/aatrooox/zotepad/commit/c5ec0f9))
+
+### 🏡 Chore
+
+- **release:** V0.19.2 ([0520d58](https://github.com/aatrooox/zotepad/commit/0520d58))
+- **build:** Release v0.19.2 ([53ce395](https://github.com/aatrooox/zotepad/commit/53ce395))
+
+### 🎨 Styles
+
+- 优化成就的移动端排版 ([e118d55](https://github.com/aatrooox/zotepad/commit/e118d55))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.19.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.19.1...v0.19.2)
