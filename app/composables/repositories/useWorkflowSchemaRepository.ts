@@ -8,9 +8,10 @@ export function useWorkflowSchemaRepository() {
 
   const createSchema = (name: string, description: string, fields: any[]) =>
     runAsync(async () => {
+      const now = new Date().toISOString()
       const result = await execute(
-        'INSERT INTO workflow_schemas (name, description, fields) VALUES (?, ?, ?)',
-        [name, description, JSON.stringify(fields)],
+        'INSERT INTO workflow_schemas (name, description, fields, version, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [name, description, JSON.stringify(fields), -Date.now(), now],
       )
       return result.lastInsertId as number
     }, 'Failed to create workflow schema')
@@ -22,22 +23,25 @@ export function useWorkflowSchemaRepository() {
     }, 'Failed to get workflow schema')
 
   const getAllSchemas = () =>
-    runAsync(() => select<WorkflowSchema[]>('SELECT * FROM workflow_schemas ORDER BY updated_at DESC'), 'Failed to list workflow schemas')
+    runAsync(() => select<WorkflowSchema[]>('SELECT * FROM workflow_schemas WHERE deleted_at IS NULL ORDER BY updated_at DESC'), 'Failed to list workflow schemas')
 
   const updateSchema = (id: number, name: string, description: string, fields: any[]) =>
     runAsync(() => execute(
-      'UPDATE workflow_schemas SET name = ?, description = ?, fields = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [name, description, JSON.stringify(fields), id],
+      'UPDATE workflow_schemas SET name = ?, description = ?, fields = ?, version = ?, updated_at = ? WHERE id = ?',
+      [name, description, JSON.stringify(fields), -Date.now(), new Date().toISOString(), id],
     ), 'Failed to update workflow schema')
 
   const deleteSchema = (id: number) =>
     runAsync(async () => {
       // Check if used by any workflow
-      const used = await select<any[]>('SELECT id FROM workflows WHERE schema_id = ?', [id])
+      const used = await select<any[]>('SELECT id FROM workflows WHERE schema_id = ? AND deleted_at IS NULL', [id])
       if (used.length > 0) {
         throw new Error('Cannot delete schema because it is used by one or more workflows')
       }
-      return execute('DELETE FROM workflow_schemas WHERE id = ?', [id])
+      return execute(
+        'UPDATE workflow_schemas SET deleted_at = ?, updated_at = ?, version = ? WHERE id = ?',
+        [new Date().toISOString(), new Date().toISOString(), -Date.now(), id],
+      )
     }, 'Failed to delete workflow schema')
 
   return {

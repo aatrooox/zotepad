@@ -539,7 +539,7 @@ pub fn run() {
                 .add_migrations(
                     "sqlite:app_v3.db",
                     vec![
-                        // 单一迁移版本 1：初始化最小必需表（users、settings）
+                        // Migration 1: Init minimal tables (users, settings)
                         Migration {
                             version: 1,
                             description: "init_minimal_tables",
@@ -617,10 +617,10 @@ pub fn run() {
               ",
                             kind: MigrationKind::Up,
                         },
-                                                Migration {
-                                                        version: 5,
-                                                        description: "add_category_to_settings_and_create_assets_with_sync_fields",
-                                                        sql: "
+                        Migration {
+                            version: 5,
+                            description: "add_category_to_settings_and_create_assets_with_sync_fields",
+                            sql: "
                                 -- ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
                                 CREATE TABLE IF NOT EXISTS assets (
                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -637,13 +637,13 @@ pub fn run() {
                                 );
                                 CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);
                             ",
-                                                        kind: MigrationKind::Up,
-                                                },
-                        // 成就系统表（Phase 1）
+                            kind: MigrationKind::Up,
+                        },
+                        // Migration 6: Achievement system tables
                         Migration {
                             version: 6,
                             description: "create_achievement_system_tables",
-                                                        sql: "\
+                            sql: "\
                                 CREATE TABLE IF NOT EXISTS achievements (
                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     key TEXT NOT NULL UNIQUE,
@@ -735,8 +735,38 @@ pub fn run() {
                                 ('asset_first_image', '摄影起步', '上传第一张图片', 'milestone', 'asset', 10, 5, '📷', '{\"metric\":\"asset.images_total\",\"target\":1}', 1),
                                 ('asset_collector', '素材收藏家', '累计上传素材（可升级）', 'progressive', 'asset', 10, 5, '🗂️', '{\"metric\":\"asset.total\",\"baseTarget\":10,\"rate\":2}', 999);
                             ",
-                                                        kind: MigrationKind::Up,
-                                                },
+                            kind: MigrationKind::Up,
+                        },
+                        // Migration 7: Fix schema discrepancies and add missing tables
+                        Migration {
+                            version: 7,
+                            description: "fix_schema_discrepancies",
+                            sql: "\
+                                CREATE TABLE IF NOT EXISTS workflow_schemas (
+                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  name TEXT NOT NULL,
+                                  description TEXT,
+                                  fields TEXT DEFAULT '[]',
+                                  version INTEGER DEFAULT 0,
+                                  deleted_at DATETIME,
+                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_workflow_schemas_version ON workflow_schemas(version);
+
+                                CREATE TABLE IF NOT EXISTS workflow_envs (
+                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  key TEXT NOT NULL UNIQUE,
+                                  value TEXT NOT NULL,
+                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+
+                                ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
+                                ALTER TABLE workflows ADD COLUMN schema_id INTEGER;
+                            ",
+                            kind: MigrationKind::Up,
+                        },
 
                     ],
                 )

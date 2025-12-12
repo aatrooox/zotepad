@@ -53,8 +53,14 @@ pub const SYNC_TABLES: &[TableConfig] = &[
     TableConfig {
         name: "workflows",
         primary_key: "id",
-        fields: &["id", "name", "description", "steps", "schema", "type", "created_at", "updated_at", "deleted_at", "version"],
-        json_fields: &["steps", "schema"],
+        fields: &["id", "name", "description", "steps", "schema_id", "type", "created_at", "updated_at", "deleted_at", "version"],
+        json_fields: &["steps"],
+    },
+    TableConfig {
+        name: "workflow_schemas",
+        primary_key: "id",
+        fields: &["id", "name", "description", "fields", "created_at", "updated_at", "deleted_at", "version"],
+        json_fields: &["fields"],
     },
 ];
 

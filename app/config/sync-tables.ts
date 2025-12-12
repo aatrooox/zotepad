@@ -22,7 +22,7 @@ export interface SyncableTable {
 
 /**
  * 所有可同步的表配置
- * 排除了 Settings（敏感信息）和 WorkflowSchemas（模板定义）
+ * 排除了 Settings（敏感信息）
  */
 export const SYNC_TABLES: Record<string, SyncableTable> = {
   notes: {
@@ -55,8 +55,17 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   workflows: {
     name: 'workflows',
     primaryKey: 'id',
-    fields: ['id', 'name', 'description', 'steps', 'schema', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
-    jsonFields: ['steps', 'schema'],
+    fields: ['id', 'name', 'description', 'steps', 'schema_id', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    jsonFields: ['steps'],
+    hasVersion: true,
+    hasSoftDelete: true,
+    hasUpdatedAt: true,
+  },
+  workflow_schemas: {
+    name: 'workflow_schemas',
+    primaryKey: 'id',
+    fields: ['id', 'name', 'description', 'fields', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    jsonFields: ['fields'],
     hasVersion: true,
     hasSoftDelete: true,
     hasUpdatedAt: true,
