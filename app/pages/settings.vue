@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
+import { useCOSManager } from '~/composables/settings/useCOSManager'
 import { useDesktopServer } from '~/composables/settings/useDesktopServer'
 import { useEnvironmentManager } from '~/composables/settings/useEnvironmentManager'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
@@ -13,19 +13,28 @@ import { useTauriStore } from '~/composables/useTauriStore'
 const config = useRuntimeConfig()
 const version = config.public.version
 const store = useTauriStore()
-const { setSetting, getSettingsByCategory } = useSettingRepository()
 const { isDesktop } = useEnvironment()
 const { setNavigation } = useSidebar()
 
 // COS 和通用设置
 const customCss = ref('')
-const cosSecretId = ref('')
-const cosSecretKey = ref('')
-const cosBucket = ref('')
-const cosRegion = ref('')
-const cosPathPrefix = ref('')
-const cosCustomDomain = ref('')
 const isInitializing = ref(false)
+
+// COS Manager
+const {
+  cosSecretId,
+  cosSecretKey,
+  cosBucket,
+  cosRegion,
+  cosPathPrefix,
+  cosCustomDomain,
+  isExporting: isCOSExporting,
+  isImporting: isCOSImporting,
+  loadCOSSettings,
+  saveCOSSettings,
+  handleExportCOS,
+  handleImportCOS,
+} = useCOSManager()
 
 // 使用 4 个子 composable
 const {
@@ -94,12 +103,7 @@ async function saveSettings() {
     await store.saveStore()
 
     // Save COS settings to SQL database
-    await setSetting('secret_id', cosSecretId.value, 'cos')
-    await setSetting('secret_key', cosSecretKey.value, 'cos')
-    await setSetting('bucket', cosBucket.value, 'cos')
-    await setSetting('region', cosRegion.value, 'cos')
-    await setSetting('path_prefix', cosPathPrefix.value, 'cos')
-    await setSetting('custom_domain', cosCustomDomain.value, 'cos')
+    await saveCOSSettings()
 
     toast.success('设置已保存')
   }
@@ -118,23 +122,16 @@ async function initSettingsPage() {
     await store.initStore()
 
     // 并行加载所有数据(不阻塞 UI)
-    const [cosSettings] = await Promise.all([
-      getSettingsByCategory('cos'),
-      // 其他加载操作不需要 await,直接触发即可
+    await Promise.all([
+      loadCOSSettings().catch(e => console.error('加载 COS 配置失败:', e)),
       loadSyncConfig().catch(e => console.error('加载同步配置失败:', e)),
       loadEnvs().catch(e => console.error('加载环境变量失败:', e)),
       loadSystemWorkflows().catch(e => console.error('加载系统流失败:', e)),
       isDesktop.value ? loadServerInfo().catch(e => console.error('加载服务器信息失败:', e)) : Promise.resolve(),
     ])
 
-    // 加载 COS 设置
+    // 加载其他设置
     customCss.value = (await store.getItem<string>('customCss')) || ''
-    cosSecretId.value = cosSettings.secret_id || ''
-    cosSecretKey.value = cosSettings.secret_key || ''
-    cosBucket.value = cosSettings.bucket || ''
-    cosRegion.value = cosSettings.region || ''
-    cosPathPrefix.value = cosSettings.path_prefix || ''
-    cosCustomDomain.value = cosSettings.custom_domain || ''
 
     // 移动端：静默同步一次(不阻塞,不等待结果)
     // 桌面端：不需要 syncOnce,只需要重新加载数据即可(移动端推送后后端已经写入数据库)
@@ -192,7 +189,7 @@ onMounted(async () => {
             <AccordionContent>
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
-                  <CardDescription>配置对象存储（腾讯云COS）以支持图片上传功能。</CardDescription>
+                  <CardDescription>配置对象存储（腾讯云COS）以支持图片上传功能。支持导入/导出到剪贴板。</CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
                   <div class="grid gap-2">
@@ -226,6 +223,37 @@ onMounted(async () => {
                     <p class="text-xs text-muted-foreground">
                       配置后将使用此域名生成图片链接，请确保包含协议头 (http/https)。
                     </p>
+                  </div>
+
+                  <div class="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="flex-1"
+                      :disabled="isCOSExporting"
+                      @click="handleExportCOS"
+                    >
+                      <Icon
+                        :name="isCOSExporting ? 'lucide:loader-2' : 'lucide:copy'"
+                        class="w-3.5 h-3.5 mr-1.5"
+                        :class="{ 'animate-spin': isCOSExporting }"
+                      />
+                      {{ isCOSExporting ? '导出中...' : '复制配置' }}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="flex-1"
+                      :disabled="isCOSImporting"
+                      @click="handleImportCOS"
+                    >
+                      <Icon
+                        :name="isCOSImporting ? 'lucide:loader-2' : 'lucide:clipboard-paste'"
+                        class="w-3.5 h-3.5 mr-1.5"
+                        :class="{ 'animate-spin': isCOSImporting }"
+                      />
+                      {{ isCOSImporting ? '导入中...' : '粘贴配置' }}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
