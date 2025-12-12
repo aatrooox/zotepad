@@ -102,153 +102,13 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
             log::error!("resolve app_data_dir failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    path.push("app_v2.db");
+    path.push("app_v3.db");
     let conn = Connection::open(&path).map_err(|e| {
         log::error!("open_db failed: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 确保同步字段存在（兼容性修复）
-    ensure_sync_columns(&conn).map_err(|e| {
-        log::error!("ensure_sync_columns failed: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    // 升级旧数据的版本号（确保可以被同步）
-    upgrade_old_versions(&conn).map_err(|e| {
-        log::error!("upgrade_old_versions failed: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
     Ok(conn)
-}
-
-// 确保所有同步表都有必需的列
-#[cfg(not(mobile))]
-fn ensure_sync_columns(conn: &Connection) -> rusqlite::Result<()> {
-    let tables = vec!["moments", "assets", "workflows"];
-    
-    for table in tables {
-        // 检查 version 列是否存在
-        let has_version: bool = conn
-            .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'version'", table))?
-            .query_row([], |row| row.get::<_, i64>(0))
-            .map(|count| count > 0)?;
-        
-        if !has_version {
-            log::info!("Adding version column to {} table", table);
-            conn.execute(&format!("ALTER TABLE {} ADD COLUMN version INTEGER DEFAULT 0", table), [])?;
-            conn.execute(&format!("CREATE INDEX IF NOT EXISTS idx_{}_version ON {}(version)", table, table), [])?;
-        }
-
-        // 检查 deleted_at 列是否存在
-        let has_deleted_at: bool = conn
-            .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'deleted_at'", table))?
-            .query_row([], |row| row.get::<_, i64>(0))
-            .map(|count| count > 0)?;
-        
-        if !has_deleted_at {
-            log::info!("Adding deleted_at column to {} table", table);
-            conn.execute(&format!("ALTER TABLE {} ADD COLUMN deleted_at DATETIME", table), [])?;
-        }
-
-        // assets 表还需要 updated_at（使用 NULL 作为默认值，避免 CURRENT_TIMESTAMP 问题）
-        if table == "assets" {
-            let has_updated_at: bool = conn
-                .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'updated_at'", table))?
-                .query_row([], |row| row.get::<_, i64>(0))
-                .map(|count| count > 0)?;
-            
-            if !has_updated_at {
-                log::info!("Adding updated_at column to {} table", table);
-                // 使用 NULL 作为默认值
-                conn.execute(&format!("ALTER TABLE {} ADD COLUMN updated_at DATETIME", table), [])?;
-                // 为现有记录填充当前时间（使用 datetime('now') SQLite 函数）
-                conn.execute(&format!("UPDATE {} SET updated_at = datetime('now') WHERE updated_at IS NULL", table), [])?;
-            }
-        }
-    }
-
-    log::info!("Database sync columns verified");
-    Ok(())
-}
-
-// 升级旧数据的版本号（version <= 0 或异常大的时间戳版本）
-#[cfg(not(mobile))]
-fn upgrade_old_versions(conn: &Connection) -> rusqlite::Result<()> {
-    let tables = vec!["notes", "moments", "assets", "workflows"];
-    
-    // 定义异常版本号阈值：超过 1000000 认为是旧的时间戳版本
-    const ABNORMAL_VERSION_THRESHOLD: i64 = 1000000;
-    
-    // 先重置所有异常大的时间戳版本号为 0（需要重新分配）
-    for table in &tables {
-        let reset_count = conn.execute(
-            &format!("UPDATE {} SET version = 0 WHERE version > ? AND deleted_at IS NULL", table),
-            [ABNORMAL_VERSION_THRESHOLD],
-        )?;
-        
-        if reset_count > 0 {
-            log::info!("Reset {} abnormal timestamp versions in {} table (> {})", 
-                reset_count, table, ABNORMAL_VERSION_THRESHOLD);
-        }
-    }
-    
-    // 查询所有表中的最大合法版本号，作为起始版本
-    let mut max_version: i64 = 0;
-    for table in &tables {
-        let table_max: Option<i64> = conn.query_row(
-            &format!("SELECT MAX(version) FROM {} WHERE version > 0 AND version <= ?", table),
-            [ABNORMAL_VERSION_THRESHOLD],
-            |row| row.get(0)
-        ).ok().flatten();
-        
-        if let Some(v) = table_max {
-            max_version = max_version.max(v);
-        }
-    }
-    
-    log::info!("Current max valid version across all tables: {}", max_version);
-    
-    for table in tables {
-        // 检查是否有 version <= 0 的记录（包括刚重置的）
-        let count: i64 = conn.query_row(
-            &format!("SELECT COUNT(*) FROM {} WHERE version <= 0 AND deleted_at IS NULL", table),
-            [],
-            |row| row.get(0)
-        )?;
-        
-        if count > 0 {
-            log::info!("Upgrading {} records in {} table with version <= 0", count, table);
-            
-            // 查询所有需要升级的记录ID
-            let mut stmt = conn.prepare(&format!(
-                "SELECT id FROM {} WHERE version <= 0 AND deleted_at IS NULL ORDER BY id",
-                table
-            ))?;
-            
-            let ids: Vec<i64> = stmt.query_map([], |row| row.get(0))?
-                .collect::<Result<Vec<_>, _>>()?;
-            
-            // 批量更新版本号，从 max_version + 1 开始递增
-            for (index, id) in ids.iter().enumerate() {
-                let new_version = max_version + (index as i64) + 1;
-                conn.execute(
-                    &format!("UPDATE {} SET version = ?, updated_at = datetime('now') WHERE id = ?", table),
-                    [&new_version, id],
-                )?;
-            }
-            
-            log::info!("Upgraded {} records in {} table (version range: {} - {})", 
-                count, table, max_version + 1, max_version + count);
-            
-            // 更新 max_version 以便后续表使用
-            max_version += count;
-        }
-    }
-    
-    log::info!("Old version upgrade completed, final max version: {}", max_version);
-    Ok(())
 }
 
 // 示例：接收的请求体
@@ -665,6 +525,8 @@ fn get_http_server_port() -> u16 {
     54577
 }
 
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -675,7 +537,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
-                    "sqlite:app_v2.db",
+                    "sqlite:app_v3.db",
                     vec![
                         // 单一迁移版本 1：初始化最小必需表（users、settings）
                         Migration {
@@ -701,43 +563,40 @@ pub fn run() {
                         },
                         Migration {
                             version: 2,
-                            description: "create_notes_table",
+                            description: "create_notes_table_with_sync_fields",
                             sql: "\
                 CREATE TABLE IF NOT EXISTS notes (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   title TEXT,
                   content TEXT,
+                  tags TEXT DEFAULT '[]',
+                  version INTEGER DEFAULT 0,
+                  deleted_at DATETIME,
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE INDEX IF NOT EXISTS idx_notes_version ON notes(version);
               ",
                             kind: MigrationKind::Up,
                         },
                         Migration {
                             version: 3,
-                            description: "add_tags_to_notes",
-                            sql: "ALTER TABLE notes ADD COLUMN tags TEXT DEFAULT '[]';",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 4,
-                            description: "create_workflows_table",
+                            description: "create_workflows_table_with_sync_fields",
                             sql: "\
                 CREATE TABLE IF NOT EXISTS workflows (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT NOT NULL,
                   description TEXT,
                   steps TEXT NOT NULL DEFAULT '[]',
+                  schema TEXT DEFAULT '[]',
+                  type TEXT DEFAULT 'user',
+                  version INTEGER DEFAULT 0,
+                  deleted_at DATETIME,
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE INDEX IF NOT EXISTS idx_workflows_version ON workflows(version);
               ",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 5,
-                            description: "add_schema_to_workflows",
-                            sql: "ALTER TABLE workflows ADD COLUMN schema TEXT DEFAULT '[]';",
                             kind: MigrationKind::Up,
                         },
                         Migration {
@@ -771,23 +630,26 @@ pub fn run() {
                             kind: MigrationKind::Up,
                         },
                         Migration {
-                            version: 8,
-                            description: "create_moments_table",
+                            version: 4,
+                            description: "create_moments_table_with_sync_fields",
                             sql: "\
                 CREATE TABLE IF NOT EXISTS moments (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   content TEXT,
                   images TEXT DEFAULT '[]',
                   tags TEXT DEFAULT '[]',
+                  version INTEGER DEFAULT 0,
+                  deleted_at DATETIME,
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE INDEX IF NOT EXISTS idx_moments_version ON moments(version);
               ",
                             kind: MigrationKind::Up,
                         },
                         Migration {
-                            version: 9,
-                            description: "add_category_to_settings_and_create_assets",
+                            version: 5,
+                            description: "add_category_to_settings_and_create_assets_with_sync_fields",
                             sql: "\
                 ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
                 CREATE TABLE IF NOT EXISTS assets (
@@ -798,55 +660,43 @@ pub fn run() {
                   size INTEGER,
                   mime_type TEXT,
                   storage_type TEXT DEFAULT 'cos',
+                  version INTEGER DEFAULT 0,
+                  deleted_at DATETIME,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);
               ",
                             kind: MigrationKind::Up,
                         },
                         Migration {
-                            version: 10,
-                            description: "add_type_to_workflows",
-                            sql: "ALTER TABLE workflows ADD COLUMN type TEXT DEFAULT 'user';",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 11,
-                            description: "add_deleted_at_columns",
+                            version: 6,
+                            description: "create_workflow_schemas_table",
                             sql: "\
-                ALTER TABLE users ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE settings ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE notes ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE workflows ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE workflow_schemas ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE workflow_envs ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE moments ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE assets ADD COLUMN deleted_at DATETIME;\n\
+                CREATE TABLE IF NOT EXISTS workflow_schemas (\n\
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
+                  name TEXT NOT NULL,\n\
+                  description TEXT,\n\
+                  fields TEXT NOT NULL DEFAULT '[]',\n\
+                  deleted_at DATETIME,\n\
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n\
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n\
+                );\n\
             ",
                             kind: MigrationKind::Up,
                         },
                         Migration {
-                            version: 12,
-                            description: "add_version_columns_for_sync",
+                            version: 7,
+                            description: "create_workflow_envs_table",
                             sql: "\
-                ALTER TABLE notes ADD COLUMN version INTEGER DEFAULT 0;\n\
-                CREATE INDEX IF NOT EXISTS idx_notes_version ON notes(version);\n\
-            ",
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 13,
-                            description: "add_sync_fields_to_moments_assets_workflows",
-                            sql: "\
-                ALTER TABLE moments ADD COLUMN version INTEGER DEFAULT 0;\n\
-                ALTER TABLE moments ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE assets ADD COLUMN version INTEGER DEFAULT 0;\n\
-                ALTER TABLE assets ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;\n\
-                ALTER TABLE assets ADD COLUMN deleted_at DATETIME;\n\
-                ALTER TABLE workflows ADD COLUMN version INTEGER DEFAULT 0;\n\
-                ALTER TABLE workflows ADD COLUMN deleted_at DATETIME;\n\
-                CREATE INDEX IF NOT EXISTS idx_moments_version ON moments(version);\n\
-                CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);\n\
-                CREATE INDEX IF NOT EXISTS idx_workflows_version ON workflows(version);\n\
+                CREATE TABLE IF NOT EXISTS workflow_envs (\n\
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
+                  name TEXT NOT NULL,\n\
+                  variables TEXT NOT NULL DEFAULT '[]',\n\
+                  deleted_at DATETIME,\n\
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n\
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n\
+                );\n\
             ",
                             kind: MigrationKind::Up,
                         },

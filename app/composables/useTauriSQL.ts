@@ -9,7 +9,7 @@ class DatabaseService {
   private dbPath: string
   private logger = useLog()
 
-  constructor(dbPath = 'sqlite:app_v2.db') {
+  constructor(dbPath = 'sqlite:app_v3.db') {
     this.dbPath = dbPath
   }
 

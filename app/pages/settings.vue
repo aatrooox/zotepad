@@ -50,8 +50,12 @@ const {
   envs,
   newEnvKey,
   newEnvValue,
+  isExporting,
+  isImporting,
   handleAddEnv,
   handleDeleteEnv,
+  handleExportEnvs,
+  handleImportEnvs,
   loadEnvs,
 } = useEnvironmentManager()
 
@@ -239,7 +243,7 @@ onMounted(async () => {
               <Card class="border-0 shadow-none">
                 <CardHeader class="px-0 pt-0">
                   <CardDescription>
-                    配置敏感信息（如 API Key）。在流、拉取API中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。
+                    配置敏感信息（如 API Key）。在流、拉取API中通过 <code>{{ `\{\{env.KEY\}\}` }}</code> 使用。支持导入/导出到剪贴板。
                   </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4 px-0 pb-2">
@@ -268,6 +272,37 @@ onMounted(async () => {
                   </div>
                   <div v-else class="text-sm text-muted-foreground text-center py-2">
                     暂无环境变量
+                  </div>
+
+                  <div class="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="flex-1"
+                      :disabled="isExporting || envs.length === 0"
+                      @click="handleExportEnvs"
+                    >
+                      <Icon
+                        :name="isExporting ? 'lucide:loader-2' : 'lucide:copy'"
+                        class="w-3.5 h-3.5 mr-1.5"
+                        :class="{ 'animate-spin': isExporting }"
+                      />
+                      {{ isExporting ? '导出中...' : '复制' }}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="flex-1"
+                      :disabled="isImporting"
+                      @click="handleImportEnvs"
+                    >
+                      <Icon
+                        :name="isImporting ? 'lucide:loader-2' : 'lucide:clipboard-paste'"
+                        class="w-3.5 h-3.5 mr-1.5"
+                        :class="{ 'animate-spin': isImporting }"
+                      />
+                      {{ isImporting ? '导入中...' : '粘贴' }}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

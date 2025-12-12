@@ -34,6 +34,7 @@ const route = useRoute()
 const router = useRouter()
 const { setNavigation } = useSidebar()
 const { fetchNotes } = useNoteStore()
+const logger = useLog()
 // Tab state
 const tabs = [
   { id: 'articles', label: '文章', icon: 'lucide:file-text' },
@@ -509,7 +510,7 @@ async function handlePublishMoment() {
     await loadMoments()
   }
   catch (e) {
-    console.error(e)
+    logger.error('发布动态失败:', e)
     toast.error('发布失败')
   }
   finally {

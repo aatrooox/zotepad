@@ -27,7 +27,7 @@ export function useTauriServices() {
     try {
       // 初始化存储
       await initStore()
-      initProgress.value = 33
+      initProgress.value = 25
 
       // 初始化数据库
       await initDatabase()
