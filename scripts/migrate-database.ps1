@@ -165,27 +165,27 @@ INSERT OR IGNORE INTO main.settings (key, value, category, created_at, updated_a
 SELECT key, value, COALESCE(category, 'general'), created_at, updated_at
 FROM old.settings;
 
--- 迁移 notes
+-- 迁移 notes（使用负数时间戳作为版本号，表示未同步）
 INSERT OR IGNORE INTO main.notes (id, title, content, tags, version, deleted_at, created_at, updated_at)
-SELECT id, title, content, COALESCE(tags, '[]'), 0, NULL, created_at, updated_at
+SELECT id, title, content, COALESCE(tags, '[]'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
 FROM old.notes
 WHERE deleted_at IS NULL OR deleted_at = '';
 
--- 迁移 moments
+-- 迁移 moments（使用负数时间戳作为版本号）
 INSERT OR IGNORE INTO main.moments (id, content, images, tags, version, deleted_at, created_at, updated_at)
-SELECT id, content, COALESCE(images, '[]'), COALESCE(tags, '[]'), 0, NULL, created_at, updated_at
+SELECT id, content, COALESCE(images, '[]'), COALESCE(tags, '[]'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
 FROM old.moments
 WHERE deleted_at IS NULL OR deleted_at = '';
 
--- 迁移 assets
+-- 迁移 assets（使用负数时间戳作为版本号）
 INSERT OR IGNORE INTO main.assets (id, url, path, filename, size, mime_type, storage_type, version, deleted_at, updated_at, created_at)
-SELECT id, url, path, filename, size, mime_type, COALESCE(storage_type, 'cos'), 0, NULL, COALESCE(updated_at, created_at), created_at
+SELECT id, url, path, filename, size, mime_type, COALESCE(storage_type, 'cos'), -strftime('%s', created_at) * 1000, NULL, COALESCE(updated_at, created_at), created_at
 FROM old.assets
 WHERE deleted_at IS NULL OR deleted_at = '';
 
--- 迁移 workflows
+-- 迁移 workflows（使用负数时间戳作为版本号）
 INSERT OR IGNORE INTO main.workflows (id, name, description, steps, schema, type, version, deleted_at, created_at, updated_at)
-SELECT id, name, description, steps, COALESCE(schema, '[]'), COALESCE(type, 'user'), 0, NULL, created_at, updated_at
+SELECT id, name, description, steps, COALESCE(schema, '[]'), COALESCE(type, 'user'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
 FROM old.workflows
 WHERE (deleted_at IS NULL OR deleted_at = '') AND (type IS NULL OR type = 'user' OR NOT type LIKE 'system:%');
 

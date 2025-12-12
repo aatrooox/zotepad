@@ -95,6 +95,54 @@ pub fn max_version_all_tables(conn: &Connection) -> i64 {
     max
 }
 
+/// 升级表中 version <= 0 的记录（迁移的旧数据 + 本地未同步数据）
+fn upgrade_zero_versions(conn: &Connection, table_name: &str, config: &TableConfig) -> rusqlite::Result<()> {
+    // 获取当前最大版本号
+    let max_version = max_version_all_tables(conn);
+    
+    // 查询所有 version <= 0 且未删除的记录
+    // 对于 workflows 表，排除系统流
+    let where_clause = if table_name == "workflows" {
+        "version <= 0 AND deleted_at IS NULL AND (type IS NULL OR type = 'user' OR type NOT LIKE 'system:%')"
+    } else {
+        "version <= 0 AND deleted_at IS NULL"
+    };
+    
+    let query = format!(
+        "SELECT {} FROM {} WHERE {} ORDER BY created_at ASC",
+        config.primary_key, table_name, where_clause
+    );
+    
+    let mut stmt = conn.prepare(&query)?;
+    let mut rows = stmt.query([])?;
+    
+    let mut ids_to_upgrade: Vec<i64> = Vec::new();
+    while let Some(row) = rows.next()? {
+        ids_to_upgrade.push(row.get(0)?);
+    }
+    drop(rows);
+    drop(stmt);
+    
+    if ids_to_upgrade.is_empty() {
+        return Ok(());
+    }
+    
+    log::info!("[SyncEngine] 升级 {} 表中 {} 条 version<=0 的记录", table_name, ids_to_upgrade.len());
+    
+    // 批量更新版本号
+    let mut current_version = max_version;
+    for id in ids_to_upgrade {
+        current_version += 1;
+        let update_sql = format!(
+            "UPDATE {} SET version = ?1, updated_at = ?2 WHERE {} = ?3",
+            table_name, config.primary_key
+        );
+        conn.execute(&update_sql, params![current_version, now_iso(), id])?;
+    }
+    
+    Ok(())
+}
+
 /// 加载指定表的变更记录
 pub fn load_table_changes(
     conn: &Connection,
@@ -106,6 +154,9 @@ pub fn load_table_changes(
         Some(c) => c,
         None => return Ok(Vec::new()), // 不支持的表
     };
+
+    // 在查询前，先升级所有 version <= 0 的数据（迁移的旧数据 + 本地未同步数据）
+    upgrade_zero_versions(conn, table_name, config)?;
 
     // 动态构建查询
     let fields_str = config.fields.join(", ");
