@@ -36,6 +36,11 @@ const globalIsSyncing = () => useState('sync_is_syncing', () => false)
 const globalSyncStatus = () => useState('sync_status', () => '未同步')
 const globalSyncInfo = () => useState<SyncInfoState>('sync_info', () => ({ status: 'idle', message: '', version: null, paired: false }))
 const globalSyncWorkflowId = () => useState<number | null>('sync_workflow_id', () => null)
+const globalLastFailedAt = () => useState<number | null>('sync_last_failed_at', () => null) // 上次失败时间戳
+
+// 常量配置
+const FETCH_TIMEOUT_MS = 3000 // fetchSyncState 超时时间 3秒
+const RETRY_COOLDOWN_MS = 60 * 60 * 1000 // 重试冷却时间 1小时
 
 export function useSyncManager() {
   const { setSetting, getSetting } = useSettingRepository()
@@ -53,6 +58,7 @@ export function useSyncManager() {
   const syncStatus = globalSyncStatus()
   const syncInfo = globalSyncInfo()
   const syncWorkflowId = globalSyncWorkflowId()
+  const lastFailedAt = globalLastFailedAt()
   const activity = useActivityStatus()
   const { setWorking } = useMascotController()
 
@@ -84,18 +90,32 @@ export function useSyncManager() {
       throw new Error('请先配置服务器地址')
 
     console.log('[Sync] 发送 state 请求到:', `${base}/state`)
+
+    // 创建超时 Promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('连接超时，无法连接到服务器')), FETCH_TIMEOUT_MS)
+    })
+
     try {
-      const res = await fetch(`${base}/state`, {
+      const fetchPromise = fetch(`${base}/state`, {
         headers: buildSyncHeaders(),
         mode: 'cors',
         cache: 'no-cache',
       })
+
+      // 使用 Promise.race 实现超时
+      const res = await Promise.race([fetchPromise, timeoutPromise]) as Response
       console.log('[Sync] state 响应状态:', res.status, res.statusText)
 
       if (!res.ok)
         throw new Error(`state 请求失败: ${res.status}`)
+
       const data = await res.json()
       console.log('[Sync] state 响应数据:', data)
+
+      // 连接成功，清除失败状态
+      lastFailedAt.value = null
+
       return data.data as { version: number, paired?: boolean, server_version?: string }
     }
     catch (fetchError: any) {
@@ -103,8 +123,11 @@ export function useSyncManager() {
       console.error('[Sync] fetch 错误类型:', fetchError.constructor.name)
       console.error('[Sync] fetch 错误消息:', fetchError.message)
 
+      // 记录失败时间
+      lastFailedAt.value = Date.now()
+
       // 尝试提供更详细的错误信息
-      if (fetchError.message?.includes('Failed to fetch')) {
+      if (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('连接超时')) {
         console.error('[Sync] 这是网络连接失败。可能原因:')
         console.error('[Sync] 1. 设备不在同一 WiFi 网络')
         console.error('[Sync] 2. 服务器地址错误:', base)
@@ -113,6 +136,27 @@ export function useSyncManager() {
       }
       throw fetchError
     }
+  }
+
+  /**
+   * 检查是否在冷却期内（上次失败后1小时内）
+   */
+  function isInCooldown(): boolean {
+    if (!lastFailedAt.value)
+      return false
+    const elapsed = Date.now() - lastFailedAt.value
+    return elapsed < RETRY_COOLDOWN_MS
+  }
+
+  /**
+   * 获取剩余冷却时间（分钟）
+   */
+  function getRemainingCooldownMinutes(): number {
+    if (!lastFailedAt.value)
+      return 0
+    const elapsed = Date.now() - lastFailedAt.value
+    const remaining = RETRY_COOLDOWN_MS - elapsed
+    return Math.ceil(remaining / 1000 / 60)
   }
 
   /**
@@ -276,6 +320,16 @@ export function useSyncManager() {
       return
     }
 
+    // 检查是否在冷却期内
+    if (isInCooldown()) {
+      const remainingMinutes = getRemainingCooldownMinutes()
+      console.log(`[Sync] 同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      if (!silent) {
+        toast.warning(`服务器暂时无法连接，${remainingMinutes} 分钟后自动重试`, { duration: 3000 })
+      }
+      return
+    }
+
     console.log('[Sync] ========== 开始同步 ==========')
     console.log('[Sync] 当前 lastVersion:', lastVersion.value)
 
@@ -407,13 +461,18 @@ export function useSyncManager() {
       // 如果之前是断开状态,现在连接成功了,显示提示
       if (wasDisconnected && state.server_version) {
         console.log('[Sync] 重新连接到桌面端:', state.server_version)
+        toast.success('已重新连接到服务器', { duration: 2000 })
       }
     }
     catch (e: any) {
       console.error('获取同步状态失败:', e)
       let userMessage = '连接失败'
-      if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')) {
+      if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError') || e.message?.includes('连接超时')) {
         userMessage = '无法连接到服务器'
+        const remainingMinutes = getRemainingCooldownMinutes()
+        if (remainingMinutes > 0) {
+          userMessage += ` (${remainingMinutes}分钟后重试)`
+        }
       }
       else if (e.message?.includes('401') || e.message?.includes('403')) {
         userMessage = '认证失败'
