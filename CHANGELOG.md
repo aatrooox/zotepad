@@ -1,6 +1,27 @@
 # Changelog
 
 
+## v0.21.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.20.0...v0.21.0)
+
+### 🩹 Fixes
+
+- 表接口遗漏问题 ([7bec64b](https://github.com/aatrooox/zotepad/commit/7bec64b))
+- ⚠️  修复开发成就系统导致表结构混乱问题 ([9fabccb](https://github.com/aatrooox/zotepad/commit/9fabccb))
+
+### 🏡 Chore
+
+- **build:** Release v0.20.0 ([64c1f32](https://github.com/aatrooox/zotepad/commit/64c1f32))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  修复开发成就系统导致表结构混乱问题 ([9fabccb](https://github.com/aatrooox/zotepad/commit/9fabccb))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.20.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.19.2...v0.20.0)
