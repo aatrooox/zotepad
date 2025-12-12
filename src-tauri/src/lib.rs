@@ -102,7 +102,7 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
             log::error!("resolve app_data_dir failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    path.push("app_v3.db");
+    path.push("app_v4.db");
     let conn = Connection::open(&path).map_err(|e| {
         log::error!("open_db failed: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -537,7 +537,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
-                    "sqlite:app_v3.db",
+                    "sqlite:app_v4.db",
                     vec![
                         // Migration 1: Init minimal tables (users, settings)
                         Migration {
@@ -555,6 +555,7 @@ pub fn run() {
                 CREATE TABLE IF NOT EXISTS settings (
                   key TEXT PRIMARY KEY,
                   value TEXT NOT NULL,
+                  category TEXT DEFAULT 'general',
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
@@ -583,12 +584,32 @@ pub fn run() {
                             version: 3,
                             description: "create_workflows_table_with_sync_fields",
                             sql: "\
+                CREATE TABLE IF NOT EXISTS workflow_schemas (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT NOT NULL,
+                  description TEXT,
+                  fields TEXT DEFAULT '[]',
+                  version INTEGER DEFAULT 0,
+                  deleted_at DATETIME,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_workflow_schemas_version ON workflow_schemas(version);
+
+                CREATE TABLE IF NOT EXISTS workflow_envs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  key TEXT NOT NULL UNIQUE,
+                  value TEXT NOT NULL,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE TABLE IF NOT EXISTS workflows (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT NOT NULL,
                   description TEXT,
                   steps TEXT NOT NULL DEFAULT '[]',
-                  schema TEXT DEFAULT '[]',
+                  schema_id INTEGER,
                   type TEXT DEFAULT 'user',
                   version INTEGER DEFAULT 0,
                   deleted_at DATETIME,
@@ -619,9 +640,8 @@ pub fn run() {
                         },
                         Migration {
                             version: 5,
-                            description: "add_category_to_settings_and_create_assets_with_sync_fields",
+                            description: "create_assets_with_sync_fields",
                             sql: "
-                                -- ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
                                 CREATE TABLE IF NOT EXISTS assets (
                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     url TEXT NOT NULL,
@@ -734,36 +754,6 @@ pub fn run() {
                                 ('social_10_moments', '活跃用户', '发布10条动态', 'milestone', 'social', 50, 20, '🎉', '{\"metric\":\"content.moments_total\",\"target\":10}', 1),
                                 ('asset_first_image', '摄影起步', '上传第一张图片', 'milestone', 'asset', 10, 5, '📷', '{\"metric\":\"asset.images_total\",\"target\":1}', 1),
                                 ('asset_collector', '素材收藏家', '累计上传素材（可升级）', 'progressive', 'asset', 10, 5, '🗂️', '{\"metric\":\"asset.total\",\"baseTarget\":10,\"rate\":2}', 999);
-                            ",
-                            kind: MigrationKind::Up,
-                        },
-                        // Migration 7: Fix schema discrepancies and add missing tables
-                        Migration {
-                            version: 7,
-                            description: "fix_schema_discrepancies",
-                            sql: "\
-                                CREATE TABLE IF NOT EXISTS workflow_schemas (
-                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                  name TEXT NOT NULL,
-                                  description TEXT,
-                                  fields TEXT DEFAULT '[]',
-                                  version INTEGER DEFAULT 0,
-                                  deleted_at DATETIME,
-                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                                );
-                                CREATE INDEX IF NOT EXISTS idx_workflow_schemas_version ON workflow_schemas(version);
-
-                                CREATE TABLE IF NOT EXISTS workflow_envs (
-                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                  key TEXT NOT NULL UNIQUE,
-                                  value TEXT NOT NULL,
-                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                                );
-
-                                ALTER TABLE settings ADD COLUMN category TEXT DEFAULT 'general';
-                                ALTER TABLE workflows ADD COLUMN schema_id INTEGER;
                             ",
                             kind: MigrationKind::Up,
                         },

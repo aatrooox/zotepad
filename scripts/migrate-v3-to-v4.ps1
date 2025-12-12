@@ -1,5 +1,5 @@
 # ZotePad 数据库迁移脚本
-# 从 app_v2.db 迁移到 app_v3.db
+# 从 app_v3.db 迁移到 app_v4.db
 
 param(
     [Parameter(Mandatory=$false)]
@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 # 配置
 $AppName = "com.zzaoclub.zotepad"
 $AppNameDev = "com.zzaoclub.zotepad.dev"
-$BackupDir = "$PSScriptRoot\database-backup"
+$BackupDir = "$PSScriptRoot\database-backup-v3"
 $BackupTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
 # 颜色输出
@@ -23,7 +23,7 @@ function Write-ColorOutput {
 
 # 1. 备份阶段
 function Backup-Database {
-    Write-ColorOutput "`n=== 第一步：备份数据库 ===" "Cyan"
+    Write-ColorOutput "`n=== 第一步：备份数据库 (v3) ===" "Cyan"
     
     # 创建备份目录
     if (-not (Test-Path $BackupDir)) {
@@ -33,10 +33,13 @@ function Backup-Database {
     
     # 查找所有可能的数据库位置
     $possiblePaths = @(
-        "$env:APPDATA\$AppName\app_v2.db",
-        "$env:APPDATA\$AppNameDev\app_v2.db",
-        "$env:LOCALAPPDATA\$AppName\app_v2.db",
-        "$env:LOCALAPPDATA\$AppNameDev\app_v2.db"
+        "$env:APPDATA\$AppName\app_v3.db",
+        "$env:APPDATA\$AppNameDev\app_v3.db",
+        "$env:LOCALAPPDATA\$AppName\app_v3.db",
+        "$env:LOCALAPPDATA\$AppNameDev\app_v3.db",
+        # 开发环境可能的位置
+        "$PSScriptRoot\..\src-tauri\target\debug\app_v3.db",
+        "$PSScriptRoot\..\src-tauri\target\release\app_v3.db"
     )
     
     $foundDatabases = @()
@@ -49,7 +52,7 @@ function Backup-Database {
     }
     
     if ($foundDatabases.Count -eq 0) {
-        Write-ColorOutput "✗ 未找到任何 app_v2.db 文件" "Red"
+        Write-ColorOutput "✗ 未找到任何 app_v3.db 文件" "Red"
         Write-ColorOutput "  可能的位置:" "Gray"
         $possiblePaths | ForEach-Object { Write-ColorOutput "  - $_" "Gray" }
         exit 1
@@ -58,7 +61,14 @@ function Backup-Database {
     # 备份所有找到的数据库
     foreach ($dbPath in $foundDatabases) {
         $fileName = Split-Path $dbPath -Parent | Split-Path -Leaf
-        $backupName = "app_v2_${fileName}_${BackupTimestamp}.db"
+        # 如果是 target/debug 这种，文件名可能重复，加个前缀
+        if ($dbPath -match "target") {
+            $prefix = "dev_"
+        } else {
+            $prefix = "prod_"
+        }
+        
+        $backupName = "app_v3_${prefix}${BackupTimestamp}.db"
         $backupPath = Join-Path $BackupDir $backupName
         
         Copy-Item $dbPath $backupPath -Force
@@ -78,18 +88,13 @@ function Backup-Database {
     
     Write-ColorOutput "`n备份完成！备份位置: $BackupDir" "Green"
     Write-ColorOutput "`n下一步操作:" "Cyan"
-    Write-ColorOutput "1. 卸载 ZotePad 应用" "White"
-    Write-ColorOutput "2. 删除应用数据目录:" "White"
-    Write-ColorOutput "   - $env:APPDATA\$AppName" "Gray"
-    Write-ColorOutput "   - $env:APPDATA\$AppNameDev" "Gray"
-    Write-ColorOutput "3. 安装新版本应用" "White"
-    Write-ColorOutput "4. 启动应用一次（创建 app_v3.db）" "White"
-    Write-ColorOutput "5. 运行迁移命令: .\migrate-database.ps1 -Action migrate" "Yellow"
+    Write-ColorOutput "1. 启动新版本应用一次（创建 app_v4.db）" "White"
+    Write-ColorOutput "2. 运行迁移命令: .\migrate-v3-to-v4.ps1 -Action migrate" "Yellow"
 }
 
 # 2. 迁移阶段
 function Migrate-Database {
-    Write-ColorOutput "`n=== 第二步：迁移数据 ===" "Cyan"
+    Write-ColorOutput "`n=== 第二步：迁移数据 (v3 -> v4) ===" "Cyan"
     
     # 检查 SQLite 是否安装
     $sqliteCmd = Get-Command sqlite3 -ErrorAction SilentlyContinue
@@ -97,8 +102,6 @@ function Migrate-Database {
         Write-ColorOutput "✗ 未找到 sqlite3 命令" "Red"
         Write-ColorOutput "  请先安装 SQLite:" "Yellow"
         Write-ColorOutput "  winget install SQLite.SQLite" "Gray"
-        Write-ColorOutput "  或" "Gray"
-        Write-ColorOutput "  scoop install sqlite" "Gray"
         exit 1
     }
     Write-ColorOutput "✓ SQLite 已安装: $($sqliteCmd.Source)" "Green"
@@ -109,7 +112,7 @@ function Migrate-Database {
         exit 1
     }
     
-    $backupFiles = Get-ChildItem "$BackupDir\app_v2_*.db" | Sort-Object LastWriteTime -Descending
+    $backupFiles = Get-ChildItem "$BackupDir\app_v3_*.db" | Sort-Object LastWriteTime -Descending
     if ($backupFiles.Count -eq 0) {
         Write-ColorOutput "✗ 未找到备份文件" "Red"
         exit 1
@@ -125,81 +128,99 @@ function Migrate-Database {
     $selectedBackup = $backupFiles[[int]$selection].FullName
     Write-ColorOutput "✓ 选择: $($backupFiles[[int]$selection].Name)" "Green"
     
-    # 查找 v3 数据库
-    $v3Paths = @(
-        "$env:APPDATA\$AppName\app_v3.db",
-        "$env:APPDATA\$AppNameDev\app_v3.db"
+    # 查找 v4 数据库
+    $v4Paths = @(
+        "$env:APPDATA\$AppName\app_v4.db",
+        "$env:APPDATA\$AppNameDev\app_v4.db",
+        "$PSScriptRoot\..\src-tauri\target\debug\app_v4.db",
+        "$PSScriptRoot\..\src-tauri\target\release\app_v4.db"
     )
     
-    $v3Path = $null
-    foreach ($path in $v3Paths) {
+    $v4Path = $null
+    foreach ($path in $v4Paths) {
         if (Test-Path $path) {
-            $v3Path = $path
-            Write-ColorOutput "✓ 找到 app_v3.db: $v3Path" "Green"
+            $v4Path = $path
+            Write-ColorOutput "✓ 找到 app_v4.db: $v4Path" "Green"
             break
         }
     }
     
-    if (-not $v3Path) {
-        Write-ColorOutput "✗ 未找到 app_v3.db" "Red"
+    if (-not $v4Path) {
+        Write-ColorOutput "✗ 未找到 app_v4.db" "Red"
         Write-ColorOutput "  请先启动应用以创建数据库" "Yellow"
         exit 1
     }
     
-    # 备份 v3（以防万一）
-    $v3Backup = "$v3Path.before-migration"
-    Copy-Item $v3Path $v3Backup -Force
-    Write-ColorOutput "✓ 已备份 app_v3.db 到: $v3Backup" "Green"
+    # 备份 v4（以防万一）
+    $v4Backup = "$v4Path.before-migration"
+    Copy-Item $v4Path $v4Backup -Force
+    Write-ColorOutput "✓ 已备份 app_v4.db 到: $v4Backup" "Green"
     
     # 执行迁移
     Write-ColorOutput "`n开始迁移数据..." "Cyan"
     
     # 转义路径中的反斜杠
-    $v2PathEscaped = $selectedBackup.Replace('\', '\\')
+    $v3PathEscaped = $selectedBackup.Replace('\', '\\')
     
     $migrationSQL = @"
-ATTACH DATABASE '$v2PathEscaped' AS old;
+ATTACH DATABASE '$v3PathEscaped' AS old;
 
 -- 迁移 settings
 INSERT OR IGNORE INTO main.settings (key, value, category, created_at, updated_at)
-SELECT key, value, COALESCE(category, 'general'), created_at, updated_at
+SELECT key, value, 
+       CASE WHEN (SELECT COUNT(*) FROM old.sqlite_master WHERE type='table' AND name='settings' AND sql LIKE '%category%') > 0 
+            THEN category 
+            ELSE 'general' 
+       END, 
+       created_at, updated_at
 FROM old.settings;
 
--- 迁移 notes（使用负数时间戳作为版本号，表示未同步）
-INSERT OR IGNORE INTO main.notes (id, title, content, tags, version, deleted_at, created_at, updated_at)
-SELECT id, title, content, COALESCE(tags, '[]'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
-FROM old.notes
-WHERE deleted_at IS NULL OR deleted_at = '';
+-- 迁移 users
+INSERT OR IGNORE INTO main.users SELECT * FROM old.users;
 
--- 迁移 moments（使用负数时间戳作为版本号）
-INSERT OR IGNORE INTO main.moments (id, content, images, tags, version, deleted_at, created_at, updated_at)
-SELECT id, content, COALESCE(images, '[]'), COALESCE(tags, '[]'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
-FROM old.moments
-WHERE deleted_at IS NULL OR deleted_at = '';
+-- 迁移 notes
+INSERT OR IGNORE INTO main.notes SELECT * FROM old.notes;
 
--- 迁移 assets（使用负数时间戳作为版本号）
-INSERT OR IGNORE INTO main.assets (id, url, path, filename, size, mime_type, storage_type, version, deleted_at, updated_at, created_at)
-SELECT id, url, path, filename, size, mime_type, COALESCE(storage_type, 'cos'), -strftime('%s', created_at) * 1000, NULL, COALESCE(updated_at, created_at), created_at
-FROM old.assets
-WHERE deleted_at IS NULL OR deleted_at = '';
+-- 迁移 moments
+INSERT OR IGNORE INTO main.moments SELECT * FROM old.moments;
 
--- 迁移 workflows（使用负数时间戳作为版本号）
-INSERT OR IGNORE INTO main.workflows (id, name, description, steps, schema, type, version, deleted_at, created_at, updated_at)
-SELECT id, name, description, steps, COALESCE(schema, '[]'), COALESCE(type, 'user'), -strftime('%s', created_at) * 1000, NULL, created_at, updated_at
-FROM old.workflows
-WHERE (deleted_at IS NULL OR deleted_at = '') AND (type IS NULL OR type = 'user' OR NOT type LIKE 'system:%');
+-- 迁移 assets
+INSERT OR IGNORE INTO main.assets SELECT * FROM old.assets;
 
--- 迁移 workflow_schemas（如果表存在，不指定 deleted_at 使用默认值）
-INSERT OR IGNORE INTO main.workflow_schemas (id, name, description, fields, created_at, updated_at)
-SELECT id, name, description, fields, created_at, updated_at
-FROM old.workflow_schemas
+-- 迁移 workflows
+-- 注意：v3 可能没有 schema_id，也可能没有 deleted_at (如果是在 Migration 3 之前创建的)
+-- v4 肯定有 schema_id 和 deleted_at
+INSERT OR IGNORE INTO main.workflows (id, name, description, steps, schema_id, type, version, deleted_at, created_at, updated_at)
+SELECT 
+    id, name, description, steps, 
+    CASE WHEN (SELECT COUNT(*) FROM old.sqlite_master WHERE type='table' AND name='workflows' AND sql LIKE '%schema_id%') > 0 
+         THEN schema_id 
+         ELSE NULL 
+    END,
+    type, version, 
+    CASE WHEN (SELECT COUNT(*) FROM old.sqlite_master WHERE type='table' AND name='workflows' AND sql LIKE '%deleted_at%') > 0 
+         THEN deleted_at 
+         ELSE NULL 
+    END,
+    created_at, updated_at
+FROM old.workflows;
+
+-- 迁移 workflow_schemas (如果存在)
+INSERT OR IGNORE INTO main.workflow_schemas 
+SELECT * FROM old.workflow_schemas 
 WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='workflow_schemas');
 
--- 迁移 workflow_envs（如果表存在，字段名：key, value，不指定 deleted_at 使用默认值）
-INSERT OR IGNORE INTO main.workflow_envs (id, key, value, created_at, updated_at)
-SELECT id, key, value, created_at, updated_at
-FROM old.workflow_envs
+-- 迁移 workflow_envs (如果存在)
+INSERT OR IGNORE INTO main.workflow_envs 
+SELECT * FROM old.workflow_envs 
 WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='workflow_envs');
+
+-- 迁移 achievements 相关表 (如果存在)
+INSERT OR IGNORE INTO main.achievements SELECT * FROM old.achievements WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='achievements');
+INSERT OR IGNORE INTO main.user_achievements SELECT * FROM old.user_achievements WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='user_achievements');
+INSERT OR IGNORE INTO main.user_stats SELECT * FROM old.user_stats WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='user_stats');
+INSERT OR IGNORE INTO main.user_points_log SELECT * FROM old.user_points_log WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='user_points_log');
+INSERT OR IGNORE INTO main.user_achievement_profile SELECT * FROM old.user_achievement_profile WHERE EXISTS (SELECT 1 FROM old.sqlite_master WHERE type='table' AND name='user_achievement_profile');
 
 DETACH DATABASE old;
 
@@ -216,12 +237,12 @@ UNION ALL SELECT 'settings', COUNT(*) FROM settings;
 "@
     
     # 创建临时 SQL 文件
-    $tempSQL = Join-Path $BackupDir "migration_temp.sql"
+    $tempSQL = Join-Path $BackupDir "migration_v3_v4_temp.sql"
     $migrationSQL | Out-File -FilePath $tempSQL -Encoding UTF8 -NoNewline
     
-    # 执行迁移（直接传递 SQL 而不是通过文件）
+    # 执行迁移
     try {
-        $output = $migrationSQL | & sqlite3 $v3Path
+        $output = $migrationSQL | & sqlite3 $v4Path
         Write-ColorOutput "`n✓ 迁移完成！" "Green"
         Write-ColorOutput "`n迁移结果:" "Cyan"
         Write-Output $output
@@ -229,7 +250,7 @@ UNION ALL SELECT 'settings', COUNT(*) FROM settings;
     catch {
         Write-ColorOutput "✗ 迁移失败: $_" "Red"
         Write-ColorOutput "  正在恢复备份..." "Yellow"
-        Copy-Item $v3Backup $v3Path -Force
+        Copy-Item $v4Backup $v4Path -Force
         Write-ColorOutput "✓ 已恢复备份" "Green"
         exit 1
     }
@@ -239,7 +260,7 @@ UNION ALL SELECT 'settings', COUNT(*) FROM settings;
     
     Write-ColorOutput "`n迁移完成！请启动应用验证数据。" "Green"
     Write-ColorOutput "如果一切正常，可以删除备份文件:" "Gray"
-    Write-ColorOutput "  - $v3Backup" "Gray"
+    Write-ColorOutput "  - $v4Backup" "Gray"
     Write-ColorOutput "  - $BackupDir" "Gray"
 }
 
