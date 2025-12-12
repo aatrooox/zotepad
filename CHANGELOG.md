@@ -1,6 +1,38 @@
 # Changelog
 
 
+## v0.21.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.0...v0.21.1)
+
+### 🩹 Fixes
+
+- 表接口遗漏问题 ([7bec64b](https://github.com/aatrooox/zotepad/commit/7bec64b))
+- ⚠️  修复开发成就系统导致表结构混乱问题 ([9fabccb](https://github.com/aatrooox/zotepad/commit/9fabccb))
+- 手机端因为授权通知而卡死白屏 ([7837491](https://github.com/aatrooox/zotepad/commit/7837491))
+- 给同步操作增加冷却期 ([74e237e](https://github.com/aatrooox/zotepad/commit/74e237e))
+
+### 📖 Documentation
+
+- 优化了README ([b4b0524](https://github.com/aatrooox/zotepad/commit/b4b0524))
+
+### 🏡 Chore
+
+- **release:** V0.21.0 ([0ac6642](https://github.com/aatrooox/zotepad/commit/0ac6642))
+- **build:** Release v0.21.0 ([758dccf](https://github.com/aatrooox/zotepad/commit/758dccf))
+
+### 🎨 Styles
+
+- 优化移动端展示问题 ([c74b3b5](https://github.com/aatrooox/zotepad/commit/c74b3b5))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  修复开发成就系统导致表结构混乱问题 ([9fabccb](https://github.com/aatrooox/zotepad/commit/9fabccb))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.21.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.20.0...v0.21.0)
