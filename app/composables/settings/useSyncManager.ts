@@ -177,6 +177,16 @@ export function useSyncManager() {
       return { pulled: 0, pushed: 0, version: lastVersion.value }
     }
 
+    // 检查是否在冷却期内
+    if (isInCooldown()) {
+      const remainingMinutes = getRemainingCooldownMinutes()
+      console.log(`[Sync] 单表同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      if (!silent) {
+        toast.warning(`服务器暂时无法连接，${remainingMinutes} 分钟后自动重试`, { duration: 3000 })
+      }
+      return { pulled: 0, pushed: 0, version: lastVersion.value }
+    }
+
     const table = SYNC_TABLES[tableName]
     if (!table) {
       console.error(`[Sync] 表 ${tableName} 不存在`)
@@ -250,6 +260,14 @@ export function useSyncManager() {
    */
   async function syncAllTables(_silent = false) {
     const base = getSyncBaseUrl()
+
+    // 检查是否在冷却期内
+    if (isInCooldown()) {
+      const remainingMinutes = getRemainingCooldownMinutes()
+      console.log(`[Sync] 全量同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      return { totalPulled: 0, totalPushed: 0, maxVersion: lastVersion.value || 0 }
+    }
+
     const headers = buildSyncHeaders()
     const currentVersion = lastVersion.value || 0
 
