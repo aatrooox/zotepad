@@ -10,8 +10,9 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev -p 4577",
-    "android:dev": "pnpm tauri android dev --open",
-    "android:build": "pnpm tauri android build --apk --target aarch64",
+    "dev:android": "pnpm tauri android dev --open",
+    "build:android": "pnpm tauri android build --apk --target aarch64",
+    "build:local": "pnpm tauri build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
