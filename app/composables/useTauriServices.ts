@@ -11,7 +11,7 @@ export function useTauriServices() {
   const initProgress = ref(0)
 
   const { initStore, setItem } = useTauriStore()
-  const { sendSuccessNotification, sendErrorNotification } = useTauriNotification()
+  const { sendErrorNotification } = useTauriNotification()
   const { initDatabase } = useTauriSQL()
 
   const initializeServices = async () => {
@@ -54,8 +54,8 @@ export function useTauriServices() {
       })
       initProgress.value = 100
 
-      // 发送初始化完成通知
-      await sendSuccessNotification('应用初始化完成')
+      // 不要在初始化时发送通知，避免阻塞启动（特别是在移动端请求权限时）
+      // await sendSuccessNotification('应用初始化完成')
 
       isInitialized.value = true
       console.log('所有服务初始化完成')
@@ -63,7 +63,8 @@ export function useTauriServices() {
     catch (err) {
       error.value = err instanceof Error ? err.message : '服务初始化失败'
       console.error('服务初始化失败:', err)
-      await sendErrorNotification('应用初始化失败')
+      // 错误通知不阻塞
+      sendErrorNotification('应用初始化失败').catch(e => console.error('发送错误通知失败', e))
       throw err
     }
     finally {
