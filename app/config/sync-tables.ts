@@ -55,8 +55,8 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   workflows: {
     name: 'workflows',
     primaryKey: 'id',
-    fields: ['id', 'name', 'description', 'schema_id', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
-    jsonFields: [],
+    fields: ['id', 'name', 'description', 'steps', 'schema', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    jsonFields: ['steps', 'schema'],
     hasVersion: true,
     hasSoftDelete: true,
     hasUpdatedAt: true,
