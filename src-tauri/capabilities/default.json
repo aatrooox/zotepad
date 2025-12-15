@@ -44,6 +44,9 @@
           "url": "https://**"
         },
         {
+          "url": "https://zzao.club/**"
+        },
+        {
           "url": "http://**"
         },
         {
@@ -51,9 +54,6 @@
         },
         {
           "url": "http://localhost:4775/**"
-        },
-        {
-          "url": "about:blank"
         }
       ]
     },

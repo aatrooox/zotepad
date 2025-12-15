@@ -174,7 +174,7 @@ export function useWorkflowRunner() {
         body = replaceString(body)
       }
 
-      await debug(`[Workflow] API Body: ${body.substring(0, 200)}${body.length > 200 ? '...' : ''}`)
+      await debug(`[Workflow] API Body: ${body}`)
     }
 
     // ============ 微信素材上传特殊处理 ============
@@ -251,8 +251,9 @@ export function useWorkflowRunner() {
 
     // 获取 access_token (从上一步的输出中获取)
     const accessToken = ctx.step1?.data?.accessToken
+
     if (!accessToken) {
-      await logError('[Workflow] Access token not found in context (step1.data.accessToken)')
+      await logError(`[Workflow] Access token not found. step1 structure: ${JSON.stringify(ctx.step1).slice(0, 200)}`)
       throw new Error('Access token not found. Please ensure step 1 (get token) completed successfully.')
     }
 
@@ -491,12 +492,20 @@ export function useWorkflowRunner() {
         const output = await executeStep(step, currentCtx)
         log.output = output
 
-        // 将步骤输出存储到 step1, step2, ... 中，避免后续步骤覆盖
+        // 简化逻辑：直接将 output 挂载到 stepX
+        currentCtx = {
+          ...currentCtx,
+          [`step${stepIndex}`]: output,
+        }
+        if (step.id) {
+          currentCtx[step.id] = output
+        }
+
+        // 如果脚本步骤返回了对象，将其合并到根上下文，以便后续步骤直接使用变量
         if (typeof output === 'object' && output !== null) {
           currentCtx = {
             ...currentCtx,
-            ...output, // merge returned fields into context (e.g., updated html/photos)
-            [`step${stepIndex}`]: output,
+            ...output,
           }
         }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
 import type { Asset, Moment, Note } from '~/types/models'
+import type { Workflow } from '~/types/workflow'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useFileDialog } from '@vueuse/core'
 import gsap from 'gsap'
@@ -16,17 +17,9 @@ import { useNoteStore } from '~/composables/stores/useNoteStore'
 import { useSidebar } from '~/composables/useSidebar'
 import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
-import 'md-editor-v3/lib/style.css'
+import { WORKFLOW_TYPES } from '~/types/workflow'
 
-interface Workflow {
-  id: number
-  name: string
-  description?: string
-  steps: string
-  schema?: {
-    fields?: string
-  }
-}
+import 'md-editor-v3/lib/style.css'
 
 useHead({ title: '笔记 - ZotePad' })
 
@@ -214,7 +207,7 @@ const formatFileSize = (bytes?: number) => {
 
 // ==================== Moments Logic ====================
 const { createMoment, getAllMoments, deleteMoment } = useMomentRepository()
-const { getAllWorkflows } = useWorkflowRepository()
+const { getAllWorkflows, getAllWorkflowsWithSystem } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
 
 interface MomentDisplay extends Moment {
@@ -542,6 +535,87 @@ function handleDeleteMoment(id: number) {
     },
     cancel: { label: '取消' },
   })
+}
+
+async function handleRunSystemWorkflow(type: string, moment: MomentDisplay) {
+  if (!moment)
+    return
+
+  // Ensure workflows are loaded
+  if (workflows.value.length === 0) {
+    try {
+      workflows.value = await getAllWorkflowsWithSystem() || []
+    }
+    catch (e) {
+      console.error(e)
+      toast.error('加载流配置失败')
+      return
+    }
+  }
+
+  const workflow = workflows.value.find(w => w.type === type)
+  if (!workflow) {
+    toast.error('未找到对应的系统流，请在设置中启用')
+    return
+  }
+
+  // Check for content requirement for WeChat
+  if (!moment.content || !moment.content.trim()) {
+    toast.error('发布到公众号必须包含文字内容')
+    return
+  }
+
+  isRunningWorkflow.value = true
+  try {
+    let steps = []
+    try {
+      steps = JSON.parse(workflow.steps)
+    }
+    catch {
+      toast.error('无效的流步骤')
+      return
+    }
+
+    const ctx = {
+      title: moment.content ? moment.content.slice(0, 20) : '分享图片',
+      content: moment.content,
+      html: '',
+      tags: moment.tagsList || [],
+      images: moment.imagesList || [],
+      photos: moment.imagesList || [],
+      created_at: moment.created_at,
+      id: moment.id,
+    }
+
+    console.log(`moment ctx ======== `, ctx)
+    let schemaFields: any[] = []
+    if (workflow.schema && workflow.schema.fields) {
+      try {
+        schemaFields = JSON.parse(workflow.schema.fields)
+      }
+      catch (e) {
+        console.error('Failed to parse schema fields', e)
+      }
+    }
+
+    toast.info(`正在执行流: ${workflow.name}`)
+    const result = await runWorkflow(steps, ctx, schemaFields)
+
+    const errors = result.logs.filter(l => l.status === 'error')
+    if (errors.length > 0 && errors[0]) {
+      toast.error(`流失败: ${errors[0].error}`)
+    }
+    else {
+      toast.success('流执行成功')
+    }
+  }
+  catch (e: any) {
+    console.error(e)
+    toast.error(`流执行失败: ${e.message}`)
+  }
+  finally {
+    isRunningWorkflow.value = false
+  }
 }
 
 async function openWorkflowDialog(moment: MomentDisplay) {
@@ -983,6 +1057,16 @@ async function handleRunWorkflow(workflow: Workflow) {
                   {{ new Date(moment.created_at!).toLocaleString() }}
                 </div>
                 <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    v-if="moment.imagesList && moment.imagesList.length > 0"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                    title="发布到公众号(图文)"
+                    @click="handleRunSystemWorkflow(WORKFLOW_TYPES.SYSTEM_WX_NEWSPIC_DRAFT, moment)"
+                  >
+                    <Icon name="lucide:book-open" class="w-4 h-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" class="h-8 w-8" @click="openWorkflowDialog(moment)">
                     <Icon name="lucide:workflow" class="w-4 h-4 text-primary" />
                   </Button>

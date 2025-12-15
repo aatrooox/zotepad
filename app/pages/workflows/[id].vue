@@ -539,7 +539,7 @@ const moveStep = (index: number, direction: 'up' | 'down') => {
                   <template v-if="step.type === 'javascript'">
                     <div class="space-y-2">
                       <Label>脚本</Label>
-                      <Textarea v-model="step.script" class="font-mono text-sm" rows="8" placeholder="// return { ...ctx, newKey: 'value' }" />
+                      <Textarea v-model="step.script" class="font-mono text-sm" rows="8" placeholder="// return { ...ctx, newKey: 'value' }" :disabled="isReadonly" />
                       <div class="text-xs text-muted-foreground">
                         可用上下文: <code>ctx</code>。返回新上下文或数据以合并。
                       </div>

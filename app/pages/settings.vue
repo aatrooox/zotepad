@@ -48,7 +48,7 @@ const handleFileSelect = async (event: Event) => {
 
   try {
     // Force compression using current settings
-    const compressedFile = await compressImage(file, {
+    const compressedFile = await compressImage(file!, {
       force: true,
     })
 

@@ -138,10 +138,12 @@ export function useWorkflowRepository() {
         }
 
         // 更新第一个(如果是已删除的则恢复)
-        await execute(
+        // 确保 steps 被正确更新
+        const updateResult = await execute(
           'UPDATE workflows SET name = ?, description = ?, steps = ?, schema_id = ?, updated_at = ?, version = ?, deleted_at = NULL WHERE id = ?',
           [name, description, JSON.stringify(steps), schemaId || null, now, -Date.now(), existing[0].id],
         )
+        console.log(`[Workflow] Upsert updated workflow ${existing[0].id}, rows affected: ${updateResult.rowsAffected}`)
         return existing[0].id
       }
 

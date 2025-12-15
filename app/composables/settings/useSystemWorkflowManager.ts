@@ -12,7 +12,7 @@ interface SystemWorkflowSpec {
   buildSteps: () => any[]
 }
 
-const WX_WORKFLOW_NAME = '📤 上传至公众号草稿箱'
+const WX_WORKFLOW_NAME = '📤 上传至公众号文章草稿箱'
 
 export function useSystemWorkflowManager() {
   const { getAllWorkflowsWithSystem, deleteWorkflowsByType, upsertSystemWorkflow } = useWorkflowRepository()
@@ -21,7 +21,7 @@ export function useSystemWorkflowManager() {
   const isCreatingSystemWorkflow = ref<string | null>(null)
   const isDeletingWorkflowId = ref<number | null>(null)
 
-  function buildWxDraftSteps() {
+  function getCommonWxSteps() {
     return [
       {
         id: 'get-access-token',
@@ -46,6 +46,12 @@ export function useSystemWorkflowManager() {
         body: '',
         timeout: 60000,
       },
+    ]
+  }
+
+  function buildWxDraftSteps() {
+    return [
+      ...getCommonWxSteps(),
       {
         id: 'add-to-wx-draft',
         name: '📝 上传到草稿箱',
@@ -72,14 +78,63 @@ export function useSystemWorkflowManager() {
     ]
   }
 
+  function buildWxNewspicDraftSteps() {
+    return [
+      ...getCommonWxSteps(),
+      {
+        id: 'prepare-image-info',
+        name: '🔄 准备图片信息',
+        type: 'javascript',
+        script: `
+          console.log('[Workflow] Preparing image info for newspic (v2)...');
+          const media = ctx.step2.data.uploadedMedia || [];
+          const image_list = media.map(m => ({ image_media_id: m.mediaId }));
+          return { image_info: { image_list: image_list } };
+        `,
+      },
+      {
+        id: 'add-to-wx-newspic-draft',
+        name: '📝 上传到小绿书草稿箱',
+        type: 'api',
+        url: 'https://zzao.club/api/v1/wx/cgi-bin/draft/add',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer {{env.ZZCLUB_PAT}}',
+        },
+        body: JSON.stringify({
+          access_token: '{{step1.data.accessToken}}',
+          articles: [
+            {
+              article_type: 'newspic',
+              title: '{{title}}',
+              content: '{{content}}',
+              thumb_media_id: '{{step2.data.coverMediaId}}',
+              image_info: '{{step3.image_info}}',
+            },
+          ],
+        }),
+        timeout: 30000,
+      },
+    ]
+  }
+
   const systemWorkflowSpecs: SystemWorkflowSpec[] = [
     {
       type: WORKFLOW_TYPES.SYSTEM_WX_DRAFT,
-      displayName: '公众号草稿箱',
+      displayName: '公众号文章草稿箱',
       name: WX_WORKFLOW_NAME,
-      description: '上传文章至微信公众号草稿箱',
+      description: '上传文章至微信公众号草稿箱(图文模式)',
       requiredEnvs: ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET'],
       buildSteps: buildWxDraftSteps,
+    },
+    {
+      type: WORKFLOW_TYPES.SYSTEM_WX_NEWSPIC_DRAFT,
+      displayName: '小绿书草稿箱',
+      name: '📤 上传至小绿书草稿箱',
+      description: '上传图片消息至微信公众号草稿箱(小绿书模式)',
+      requiredEnvs: ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET'],
+      buildSteps: buildWxNewspicDraftSteps,
     },
   ]
 

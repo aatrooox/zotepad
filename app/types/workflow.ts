@@ -35,7 +35,8 @@ export interface WorkflowSchema {
 // 系统工作流类型常量
 export const WORKFLOW_TYPES = {
   USER: 'user', // 用户创建的普通工作流
-  SYSTEM_WX_DRAFT: 'system:wx:draft', // 微信草稿箱工作流
+  SYSTEM_WX_DRAFT: 'system:wx:draft', // 微信草稿箱工作流 (图文)
+  SYSTEM_WX_NEWSPIC_DRAFT: 'system:wx:newspic_draft', // 微信草稿箱工作流 (图片消息/小绿书)
 } as const
 
 export type WorkflowType = typeof WORKFLOW_TYPES[keyof typeof WORKFLOW_TYPES] | string

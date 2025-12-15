@@ -29,7 +29,7 @@ console.log('📝 使用 changelogen 更新版本号和生成 changelog...')
 try {
   execSync(`pnpm release:${versionType}`, { stdio: 'inherit', cwd: rootDir })
 }
-catch (error) {
+catch {
   console.error('❌ changelogen 执行失败')
   process.exit(1)
 }
