@@ -25,7 +25,7 @@ interface SyncTotalSummary {
 }
 
 const SYNC_WORKFLOW_NAME = '🔗 局域网同步测试'
-
+const logger = useLog()
 // 使用 useState 创建全局单例状态,确保所有页面共享同一份数据
 const globalServerUrl = () => useState('sync_server_url', () => '')
 const globalSyncServerAddress = () => useState('sync_server_address', () => '')
@@ -85,11 +85,11 @@ export function useSyncManager() {
 
   async function fetchSyncState() {
     const base = getSyncBaseUrl()
-    console.log('[Sync] fetchSyncState 开始, base=', base)
+    logger.info(`[Sync] fetchSyncState 开始, base=${base}`)
     if (!base)
       throw new Error('请先配置服务器地址')
 
-    console.log('[Sync] 发送 state 请求到:', `${base}/state`)
+    logger.info(`[Sync] 发送 state 请求到: ${base}/state`)
 
     // 创建超时 Promise
     const timeoutPromise = new Promise((_, reject) => {
@@ -105,13 +105,13 @@ export function useSyncManager() {
 
       // 使用 Promise.race 实现超时
       const res = await Promise.race([fetchPromise, timeoutPromise]) as Response
-      console.log('[Sync] state 响应状态:', res.status, res.statusText)
+      logger.info(`[Sync] state 响应状态: ${res.status} ${res.statusText}`)
 
       if (!res.ok)
         throw new Error(`state 请求失败: ${res.status}`)
 
       const data = await res.json()
-      console.log('[Sync] state 响应数据:', data)
+      logger.info('[Sync] state 响应数据:', data)
 
       // 连接成功，清除失败状态
       lastFailedAt.value = null
@@ -180,7 +180,7 @@ export function useSyncManager() {
     // 检查是否在冷却期内
     if (isInCooldown()) {
       const remainingMinutes = getRemainingCooldownMinutes()
-      console.log(`[Sync] 单表同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      logger.info(`[Sync] 单表同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
       if (!silent) {
         toast.warning(`服务器暂时无法连接，${remainingMinutes} 分钟后自动重试`, { duration: 3000 })
       }
@@ -199,7 +199,7 @@ export function useSyncManager() {
     let totalPushed = 0
     let maxVersion = currentVersion
 
-    console.log(`[Sync] 开始同步单表: ${tableName}, currentVersion=${currentVersion}`)
+    logger.info(`[Sync] 开始同步单表: ${tableName}, currentVersion=${currentVersion}`)
 
     // 显示同步状态指示器
     activity.setSyncState(true)
@@ -208,7 +208,7 @@ export function useSyncManager() {
       // 移动端和桌面端都需要：先升级本地负数版本号（避免版本冲突）
       const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
       if (upgraded > 0) {
-        console.log(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
+        logger.info(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
         maxVersion = finalVersion
       }
 
@@ -217,20 +217,20 @@ export function useSyncManager() {
         const pushResult = await syncEngine.pushTableChanges(table, base, headers, currentVersion)
         totalPushed += pushResult.applied
         maxVersion = Math.max(maxVersion, pushResult.server_version)
-        console.log(`[Sync] ${tableName} 推送完成:`, pushResult)
+        logger.info(`[Sync] ${tableName} 推送完成: ${JSON.stringify(pushResult)}`)
       }
 
       // 拉取远程变更
       const pullResult = await syncEngine.pullTableChanges(table, base, headers, currentVersion)
       totalPulled += pullResult.pulled
       maxVersion = Math.max(maxVersion, pullResult.lastServerVersion)
-      console.log(`[Sync] ${tableName} 拉取完成:`, pullResult)
+      logger.info(`[Sync] ${tableName} 拉取完成: ${JSON.stringify(pullResult)}`)
 
       // 更新版本号
       if (maxVersion > lastVersion.value) {
         lastVersion.value = maxVersion
         await setSetting('sync_last_version', String(maxVersion), 'sync')
-        console.log('[Sync] 单表同步更新 lastVersion 到:', maxVersion)
+        logger.info(`[Sync] 单表同步更新 lastVersion 到: ${maxVersion}`)
       }
 
       // 更新统计
@@ -264,7 +264,7 @@ export function useSyncManager() {
     // 检查是否在冷却期内
     if (isInCooldown()) {
       const remainingMinutes = getRemainingCooldownMinutes()
-      console.log(`[Sync] 全量同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      logger.info(`[Sync] 全量同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
       return { totalPulled: 0, totalPushed: 0, maxVersion: lastVersion.value || 0 }
     }
 
@@ -280,7 +280,7 @@ export function useSyncManager() {
 
     // 遍历所有可同步的表
     const tableNames = getSyncTableNames()
-    console.log('[Sync] 开始同步表:', tableNames)
+    logger.info(`[Sync] 开始同步表: ${JSON.stringify(tableNames)}`)
 
     for (const tableName of tableNames) {
       const table = SYNC_TABLES[tableName]
@@ -288,12 +288,12 @@ export function useSyncManager() {
         continue
 
       try {
-        console.log(`[Sync] 同步表: ${tableName}`)
+        logger.info(`[Sync] 同步表: ${tableName}`)
 
         // 移动端和桌面端都需要：先升级本地负数版本号（避免版本冲突）
         const { upgraded, finalVersion } = await syncEngine.upgradeLocalVersions(table, maxVersion)
         if (upgraded > 0) {
-          console.log(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
+          logger.info(`[Sync] ${tableName} 升级 ${upgraded} 条本地记录版本号 -> ${finalVersion}`)
           maxVersion = finalVersion
         }
 
@@ -302,14 +302,14 @@ export function useSyncManager() {
           const pushResult = await syncEngine.pushTableChanges(table, base, headers, currentVersion)
           totalPushed += pushResult.applied
           maxVersion = Math.max(maxVersion, pushResult.server_version)
-          console.log(`[Sync] ${tableName} 推送完成:`, pushResult)
+          logger.info(`[Sync] ${tableName} 推送完成: ${JSON.stringify(pushResult)}`)
         }
 
         // 拉取远程变更
         const pullResult = await syncEngine.pullTableChanges(table, base, headers, currentVersion)
         totalPulled += pullResult.pulled
         maxVersion = Math.max(maxVersion, pullResult.lastServerVersion)
-        console.log(`[Sync] ${tableName} 拉取完成:`, pullResult)
+        logger.info(`[Sync] ${tableName} 拉取完成: ${JSON.stringify(pullResult)}`)
 
         // 更新 Activity 指示器
         activity.setSyncCounts(totalPushed, totalPulled)
@@ -328,7 +328,7 @@ export function useSyncManager() {
 
   async function syncOnce(silent = false) {
     const base = getSyncBaseUrl()
-    console.log('[Sync] syncOnce 被调用, silent=', silent, ', base=', base)
+    logger.info(`[Sync] syncOnce 被调用, silent= ${silent}, base= ${base}`)
 
     if (!base) {
       console.warn('[Sync] 同步终止: 未配置服务器地址')
@@ -341,15 +341,15 @@ export function useSyncManager() {
     // 检查是否在冷却期内
     if (isInCooldown()) {
       const remainingMinutes = getRemainingCooldownMinutes()
-      console.log(`[Sync] 同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      logger.info(`[Sync] 同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
       if (!silent) {
         toast.warning(`服务器暂时无法连接，${remainingMinutes} 分钟后自动重试`, { duration: 3000 })
       }
       return
     }
 
-    console.log('[Sync] ========== 开始同步 ==========')
-    console.log('[Sync] 当前 lastVersion:', lastVersion.value)
+    logger.info('[Sync] ========== 开始同步 ==========')
+    logger.info(`[Sync] 当前 lastVersion: ${lastVersion.value}`)
 
     isSyncing.value = true
     syncStatus.value = '同步中…'
@@ -358,9 +358,9 @@ export function useSyncManager() {
 
     const toastId = silent ? undefined : undefined // Disable loading toast
     try {
-      console.log('[Sync] 准备调用 fetchSyncState, base=', base)
+      logger.info(`[Sync] 准备调用 fetchSyncState, base= ${base}`)
       const state = await fetchSyncState()
-      console.log('[Sync] fetchSyncState 成功,服务器状态:', JSON.stringify(state, null, 2))
+      logger.info(`[Sync] fetchSyncState 成功,服务器状态: ${JSON.stringify(state, null, 2)}`)
       syncInfo.value = { status: 'ok', message: '服务器可用', version: state.version ?? null, paired: state.paired }
 
       // 检测服务器版本号异常(时间戳污染)
@@ -407,17 +407,16 @@ export function useSyncManager() {
       // 执行多表同步
       const { totalPulled, totalPushed, maxVersion } = await syncAllTables(silent)
 
-      console.log('[Sync] 同步完成:', {
+      logger.info(`[Sync] 同步完成: ${JSON.stringify({
         maxVersion,
         pulled: totalPulled,
         pushed: totalPushed,
-      })
-
+      })}`)
       // 总是更新 lastVersion 为服务器版本号
       if (maxVersion > lastVersion.value) {
         lastVersion.value = maxVersion
         await setSetting('sync_last_version', String(maxVersion), 'sync')
-        console.log('[Sync] 更新 lastVersion 到:', maxVersion)
+        logger.info(`[Sync] 更新 lastVersion 到: ${maxVersion}`)
       }
 
       lastSyncSummary.value = { pulled: totalPulled, pushed: totalPushed, at: Date.now() }
@@ -503,7 +502,7 @@ export function useSyncManager() {
 
       // 如果之前是断开状态,现在连接成功了,显示提示
       if (wasDisconnected && state.server_version) {
-        console.log('[Sync] 重新连接到桌面端:', state.server_version)
+        logger.info(`[Sync] 重新连接到桌面端: ${state.server_version}`)
         toast.success('已重新连接到服务器', { duration: 2000 })
       }
     }
@@ -541,7 +540,7 @@ export function useSyncManager() {
           syncServerAddress.value = localServerUrl
           // 保存到数据库,下次直接加载
           await setSetting('sync_server_address', localServerUrl, 'sync')
-          console.log('[Sync] 桌面端自动配置同步地址:', localServerUrl)
+          logger.info(`[Sync] 桌面端自动配置同步地址: ${localServerUrl}`)
         }
       }
       catch (e) {
@@ -637,7 +636,7 @@ export function useSyncManager() {
       // 显示连接成功提示
       const serverVersion = state.server_version || '未知版本'
       toast.success(`已连接到桌面端 ${serverVersion}`, { duration: 3000 })
-      console.log('[Sync] 配对成功:', { serverVersion, dbVersion: state.version })
+      logger.info(`[Sync] 配对成功: ${JSON.stringify({ serverVersion, dbVersion: state.version })}`)
     }
     catch (e: any) {
       console.error('Failed to save sync config:', e)
@@ -670,7 +669,7 @@ export function useSyncManager() {
                   `UPDATE ${tableName} SET version = 0 WHERE version > 1000000`,
                   [],
                 )
-                console.log(`[Sync] 已清理 ${tableName} 表中的异常版本号`)
+                logger.info(`[Sync] 已清理 ${tableName} 表中的异常版本号`)
               }
             }
             catch (e) {

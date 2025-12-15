@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { save } from '@tauri-apps/plugin-dialog'
-import { writeFile } from '@tauri-apps/plugin-fs'
+import { create, writeFile } from '@tauri-apps/plugin-fs'
+import { info, warn } from '@tauri-apps/plugin-log'
 import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useCOSManager } from '~/composables/settings/useCOSManager'
@@ -52,36 +53,61 @@ const handleFileSelect = async (event: Event) => {
     })
 
     // Save logic
-    if (isDesktop.value) {
-      // Desktop: Use Tauri Dialog & FS
-      try {
-        const ext = compressedFile.name.split('.').pop() || 'png'
-        const filePath = await save({
-          defaultPath: compressedFile.name,
-          filters: [{
-            name: 'Image',
-            extensions: [ext],
-          }],
-        })
+    let saved = false
+    try {
+      // Try Tauri Dialog & FS (Works on Desktop and Mobile if supported)
+      const ext = compressedFile.name.split('.').pop() || 'png'
+      const filePath = await save({
+        defaultPath: compressedFile.name,
+        filters: [{
+          name: 'Image',
+          extensions: [ext],
+        }],
+        title: '保存图片',
+      })
 
-        if (!filePath) {
-          toast.info('已取消保存', { id: toastId })
-          return
+      if (filePath) {
+        const buffer = await compressedFile.arrayBuffer()
+        const uint8Array = new Uint8Array(buffer)
+
+        // Use chunked writing to avoid OOM on Android
+        const CHUNK_SIZE = 1024 * 1024 // 1MB chunks
+        if (uint8Array.length > CHUNK_SIZE) {
+          const fileHandle = await create(filePath)
+          try {
+            for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+              const chunk = uint8Array.slice(i, i + CHUNK_SIZE)
+              await fileHandle.write(chunk)
+            }
+          }
+          finally {
+            await fileHandle.close()
+          }
+        }
+        else {
+          // Small files can be written directly
+          await writeFile(filePath, uint8Array)
         }
 
-        const buffer = await compressedFile.arrayBuffer()
-        await writeFile(filePath, new Uint8Array(buffer))
-
         toast.success('图片已保存', { id: toastId })
+        saved = true
       }
-      catch (err) {
-        console.error('Save failed:', err)
+      else {
+        toast.info('已取消保存', { id: toastId })
+        return
+      }
+    }
+    catch (err) {
+      console.error('Save/Dialog failed:', err)
+      if (isDesktop.value) {
         toast.error('保存失败，请重试', { id: toastId })
       }
     }
-    else {
-      // Mobile: Share or Download
+
+    if (!saved && !isDesktop.value) {
+      // Mobile Fallback: Share or Download
       // Try Web Share API Level 2 (File sharing)
+      info('=========== 手机端图片处理完成，准备分享 ===========')
       if (navigator.canShare && navigator.canShare({ files: [compressedFile] })) {
         await navigator.share({
           files: [compressedFile],
@@ -101,6 +127,8 @@ const handleFileSelect = async (event: Event) => {
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
         toast.success('图片已下载', { id: toastId })
+        warn('======================================= ')
+        warn('当前浏览器不支持文件分享，请检查保存位置')
       }
     }
   }
@@ -507,7 +535,7 @@ onMounted(async () => {
               </div>
 
               <!-- Manual Compression Tool (Beta) -->
-              <div class="space-y-3 border rounded-lg p-3 bg-muted/30">
+              <div v-if="isDesktop" class="space-y-3 border rounded-lg p-3 bg-muted/30">
                 <div class="flex items-center justify-between">
                   <div class="space-y-0.5">
                     <div class="flex items-center gap-2">

@@ -40,7 +40,7 @@ export function useCOSManager() {
       await setSetting('path_prefix', cosPathPrefix.value, 'cos')
       await setSetting('custom_domain', cosCustomDomain.value, 'cos')
       await setSetting('enabled', String(cosEnabled.value), 'cos')
-      toast.success('COS 配置已保存')
+      // toast.success('COS 配置已保存')
     }
     catch (e) {
       console.error('保存 COS 配置失败:', e)

@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
+import { info, error as logError } from '@tauri-apps/plugin-log'
 import { ref } from 'vue'
+import { useEnvironment } from './useEnvironment'
 import { useTauriStore } from './useTauriStore'
 
 export interface CompressOptions {
@@ -10,6 +12,7 @@ export interface CompressOptions {
 
 export const useImageCompressor = () => {
   const store = useTauriStore()
+  const { isMobile } = useEnvironment()
 
   const enableCompression = ref(false)
   const enableFormatConversion = ref(true)
@@ -33,7 +36,7 @@ export const useImageCompressor = () => {
       }
     }
     catch (e) {
-      console.error('Failed to load image settings', e)
+      logError(`Failed to load image settings: ${JSON.stringify(e)}`)
     }
     finally {
       isInitializing.value = false
@@ -49,8 +52,69 @@ export const useImageCompressor = () => {
       await store.saveStore()
     }
     catch (e) {
-      console.error('Failed to save image settings', e)
+      logError(`Failed to save image settings: ${JSON.stringify(e)}`)
     }
+  }
+
+  const compressImageJs = async (file: File, quality: number, targetFormat?: string): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Canvas context not available'))
+          return
+        }
+        ctx.drawImage(img, 0, 0)
+
+        let mimeType = file.type
+        let ext = file.name.split('.').pop() || ''
+
+        if (targetFormat) {
+          switch (targetFormat.toLowerCase()) {
+            case 'png':
+              mimeType = 'image/png'
+              ext = 'png'
+              break
+            case 'jpeg':
+            case 'jpg':
+              mimeType = 'image/jpeg'
+              ext = 'jpg'
+              break
+            case 'webp':
+              mimeType = 'image/webp'
+              ext = 'webp'
+              break
+          }
+        }
+
+        // Canvas toBlob quality is 0.0 - 1.0
+        const q = quality / 100
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Canvas toBlob failed'))
+            return
+          }
+          const newFileName = `${file.name.replace(/\.[^/.]+$/, '')}.${ext}`
+          const newFile = new File([blob], newFileName, { type: mimeType })
+          resolve(newFile)
+        }, mimeType, q)
+      }
+
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url)
+        reject(e)
+      }
+
+      img.src = url
+    })
   }
 
   const compressImage = async (file: File, options: CompressOptions = {}): Promise<File> => {
@@ -61,9 +125,6 @@ export const useImageCompressor = () => {
     }
 
     try {
-      const buffer = await file.arrayBuffer()
-      const uint8Array = new Uint8Array(buffer)
-
       // Determine target format
       let targetFormat = options.targetFormat
       if (!targetFormat && enableFormatConversion.value) {
@@ -72,9 +133,20 @@ export const useImageCompressor = () => {
 
       // Determine quality
       const quality = options.quality ?? compressionQuality.value
-      console.log('Compressing image with quality:', quality, 'and target format:', targetFormat)
+
+      // Mobile Optimization: Use JS Canvas for compression to avoid expensive IPC
+      // Skip GIF as Canvas doesn't support animated GIF encoding
+      if (isMobile.value && file.type !== 'image/gif' && (!targetFormat || targetFormat !== 'gif')) {
+        await info('Using JS Canvas compression for mobile')
+        return await compressImageJs(file, quality, targetFormat)
+      }
+
+      const buffer = await file.arrayBuffer()
+      const uint8Array = new Uint8Array(buffer)
+
+      await info(`Compressing image with quality: ${quality} and target format: ${targetFormat}`)
       const compressedData = await invoke<number[]>('compress_image', {
-        buffer: Array.from(uint8Array),
+        buffer: uint8Array, // Pass Uint8Array directly, let Tauri handle serialization
         quality,
         targetFormat,
       })
@@ -107,7 +179,7 @@ export const useImageCompressor = () => {
       return new File([new Uint8Array(compressedData)], fileName, { type: mimeType })
     }
     catch (e) {
-      console.error('Image compression failed:', e)
+      logError(`Image compression failed: ${JSON.stringify(e)}`)
       return file // Fallback to original
     }
   }
