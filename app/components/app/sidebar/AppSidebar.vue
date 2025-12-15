@@ -27,7 +27,7 @@ const toggleSidebar = async () => {
 
 // Dynamic width based on mode
 const sidebarWidth = computed(() => {
-  if (mode.value === 'context')
+  if (mode.value === 'context' && contextType.value === 'notes')
     return 'w-64'
   return isSidebarOpen.value ? 'w-48' : 'w-16'
 })
@@ -41,18 +41,15 @@ const sidebarWidth = computed(() => {
   >
     <div class="h-full w-full relative">
       <Transition name="fade" mode="out-in">
+        <NoteList
+          v-if="mode === 'context' && contextType === 'notes'"
+        />
+        <!-- Add other context components here -->
         <SidebarNavigation
-          v-if="mode === 'navigation'"
+          v-else
           :is-sidebar-open="isSidebarOpen"
           @toggle="toggleSidebar"
         />
-        <NoteList
-          v-else-if="mode === 'context' && contextType === 'notes'"
-        />
-        <!-- Add other context components here -->
-        <div v-else class="flex items-center justify-center h-full text-muted-foreground">
-          Unknown Context
-        </div>
       </Transition>
     </div>
   </aside>
