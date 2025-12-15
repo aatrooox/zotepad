@@ -1,6 +1,30 @@
 # Changelog
 
 
+## v0.22.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.2...v0.22.0)
+
+### 🚀 Enhancements
+
+- 增加基于rust/image包的图片压缩及格式转换功能 ([5ac5b3a](https://github.com/aatrooox/zotepad/commit/5ac5b3a))
+- 增强底层图片处理的功能; 前端开放部分配置参数 ([73bafb9](https://github.com/aatrooox/zotepad/commit/73bafb9))
+- 增加「小绿书发布」流 ([a0b6440](https://github.com/aatrooox/zotepad/commit/a0b6440))
+
+### 🩹 Fixes
+
+- 修复因为服务器版本重置导致移动端数据版本大于桌面端的问题 ([a6b99a9](https://github.com/aatrooox/zotepad/commit/a6b99a9))
+- 移动端优先用canvas来压缩图片 ([7e91e29](https://github.com/aatrooox/zotepad/commit/7e91e29))
+
+### 🏡 Chore
+
+- **release:** V0.21.2 ([fce8019](https://github.com/aatrooox/zotepad/commit/fce8019))
+- **build:** Release v0.21.2 ([871f5c2](https://github.com/aatrooox/zotepad/commit/871f5c2))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.21.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.1...v0.21.2)
