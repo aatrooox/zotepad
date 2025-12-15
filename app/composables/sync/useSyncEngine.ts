@@ -349,11 +349,34 @@ export function useSyncEngine() {
     return { upgraded: localChanges.length, finalVersion: currentVersion }
   }
 
+  /**
+   * 重置指定表中所有已同步记录的版本号为 0
+   * 用于处理服务器版本回滚的情况
+   * @param table 表配置
+   */
+  async function resetSyncedVersions(table: SyncableTable): Promise<void> {
+    console.log(`[SyncEngine] 重置表 ${table.name} 的已同步版本号...`)
+    try {
+      // 仅重置 version > 0 的记录（已同步记录）
+      // version <= 0 的记录是本地未同步修改，必须保留原样以便后续推送
+      await syncExecute(
+        `UPDATE ${table.name} SET version = 0 WHERE version > 0`,
+        [],
+      )
+      console.log(`[SyncEngine] 表 ${table.name} 版本号重置完成`)
+    }
+    catch (e) {
+      console.error(`[SyncEngine] 重置表 ${table.name} 版本号失败:`, e)
+      throw e
+    }
+  }
+
   return {
     collectLocalChanges,
     applyRemoteChanges,
     pullTableChanges,
     pushTableChanges,
     upgradeLocalVersions,
+    resetSyncedVersions,
   }
 }

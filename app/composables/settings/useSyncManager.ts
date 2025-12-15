@@ -379,6 +379,31 @@ export function useSyncManager() {
         return
       }
 
+      // 检测服务器版本回滚（Client Version > Server Version）
+      // 这通常发生在服务器重置数据库或切换环境后
+      if (state.version !== null && lastVersion.value > state.version) {
+        console.warn(`[Sync] 检测到服务器版本回滚 (Client: ${lastVersion.value}, Server: ${state.version})`)
+        console.warn('[Sync] 正在重置本地同步状态以适应新服务器...')
+
+        // 1. 重置本地 lastVersion
+        lastVersion.value = 0
+        await setSetting('sync_last_version', '0', 'sync')
+
+        // 2. 重置所有表的已同步版本号 (version > 0 -> version = 0)
+        // 这样下次拉取时，本地 version=0 < 远程 version，从而接受远程数据
+        const tableNames = getSyncTableNames()
+        for (const tableName of tableNames) {
+          const table = SYNC_TABLES[tableName]
+          if (table) {
+            await syncEngine.resetSyncedVersions(table)
+          }
+        }
+
+        if (!silent) {
+          toast.info('检测到服务器重置，正在重新同步所有数据...')
+        }
+      }
+
       // 执行多表同步
       const { totalPulled, totalPushed, maxVersion } = await syncAllTables(silent)
 
