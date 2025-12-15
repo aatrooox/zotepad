@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.21.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.1...v0.21.2)
+
+### 🚀 Enhancements
+
+- 优化设置页面的展示 ([1684c73](https://github.com/aatrooox/zotepad/commit/1684c73))
+- 图床功能修改为适配器模式; 优化图床设置功能; 统一上传图床的提示信息; ([025fdb6](https://github.com/aatrooox/zotepad/commit/025fdb6))
+
+### 🩹 Fixes
+
+- Sidebar mode 不显示未知 ([f7fc54d](https://github.com/aatrooox/zotepad/commit/f7fc54d))
+
+### 📖 Documentation
+
+- 优化了README ([b4b0524](https://github.com/aatrooox/zotepad/commit/b4b0524))
+- Readme ([86394f7](https://github.com/aatrooox/zotepad/commit/86394f7))
+
+### 🏡 Chore
+
+- **release:** V0.21.1 ([4983f0c](https://github.com/aatrooox/zotepad/commit/4983f0c))
+- **build:** Release v0.21.1 ([ecc5334](https://github.com/aatrooox/zotepad/commit/ecc5334))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.21.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.0...v0.21.1)
