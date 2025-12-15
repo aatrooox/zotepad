@@ -5,35 +5,86 @@ use tauri_plugin_notification;
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_store;
 use std::io::Cursor;
-use image::ImageFormat;
+use image::{ImageFormat, ImageEncoder, AnimationDecoder};
+use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
+use image::codecs::webp::WebPEncoder;
+use image::codecs::gif::{GifDecoder, GifEncoder};
 
 // 图片压缩命令
 #[tauri::command]
-async fn compress_image(buffer: Vec<u8>, _quality: u8, target_format: Option<String>) -> Result<Vec<u8>, String> {
+async fn compress_image(buffer: Vec<u8>, quality: u8, target_format: Option<String>) -> Result<Vec<u8>, String> {
     // 1. 猜测原始格式
     let detected_format = image::guess_format(&buffer).map_err(|e| e.to_string())?;
 
-    // 2. 加载图片
-    let img = image::load_from_memory(&buffer).map_err(|e| e.to_string())?;
-
-    // 3. 决定输出格式
+    // 2. 决定输出格式
     let format_to_use = if let Some(fmt_str) = target_format {
         match fmt_str.to_lowercase().as_str() {
             "png" => ImageFormat::Png,
             "jpeg" | "jpg" => ImageFormat::Jpeg,
             "webp" => ImageFormat::WebP,
+            "gif" => ImageFormat::Gif,
             _ => detected_format,
         }
     } else {
         detected_format
     };
 
-    // 4. 编码输出
+    // 3. 准备输出
     let mut output_buffer = Vec::new();
-    let mut cursor = Cursor::new(&mut output_buffer);
+    // let mut cursor = Cursor::new(&mut output_buffer); // 移除顶层 cursor，避免借用冲突
 
-    img.write_to(&mut cursor, format_to_use)
-        .map_err(|e| e.to_string())?;
+    // 4. 特殊处理：GIF 转 GIF (尝试保留动画)
+    if detected_format == ImageFormat::Gif && format_to_use == ImageFormat::Gif {
+        // 尝试解码为动画
+        let decoder = GifDecoder::new(Cursor::new(&buffer)).map_err(|e| e.to_string())?;
+        let frames = decoder.into_frames().collect_frames().map_err(|e| e.to_string())?;
+        
+        {
+            let mut cursor = Cursor::new(&mut output_buffer);
+            let mut encoder = GifEncoder::new(&mut cursor);
+            encoder.set_repeat(image::codecs::gif::Repeat::Infinite).map_err(|e| e.to_string())?;
+            encoder.encode_frames(frames.into_iter()).map_err(|e| e.to_string())?;
+        } // cursor 作用域结束，释放 output_buffer 借用
+        
+        return Ok(output_buffer);
+    }
+
+    // 5. 常规静态图片处理
+    let img = image::load_from_memory(&buffer).map_err(|e| e.to_string())?;
+    let (width, height) = (img.width(), img.height());
+
+    {
+        let mut cursor = Cursor::new(&mut output_buffer);
+        match format_to_use {
+            ImageFormat::Jpeg => {
+                let rgb = img.to_rgb8();
+                let encoder = JpegEncoder::new_with_quality(&mut cursor, quality);
+                encoder.write_image(rgb.as_raw(), width, height, image::ColorType::Rgb8.into()).map_err(|e| e.to_string())?;
+            },
+            ImageFormat::Png => {
+                let rgba = img.to_rgba8();
+                // image 0.25 PngEncoder configuration might vary, using default for compatibility
+                let encoder = PngEncoder::new(&mut cursor);
+                encoder.write_image(rgba.as_raw(), width, height, image::ColorType::Rgba8.into()).map_err(|e| e.to_string())?;
+            },
+            ImageFormat::WebP => {
+                let rgba = img.to_rgba8();
+                // image 0.25 WebPEncoder only supports lossless via new_lossless
+                let encoder = WebPEncoder::new_lossless(&mut cursor);
+                encoder.write_image(rgba.as_raw(), width, height, image::ColorType::Rgba8.into()).map_err(|e| e.to_string())?;
+            },
+            ImageFormat::Gif => {
+                // 静态 GIF
+                let rgba = img.to_rgba8();
+                let mut encoder = GifEncoder::new(&mut cursor);
+                encoder.encode_frame(image::Frame::new(rgba)).map_err(|e| e.to_string())?;
+            },
+            _ => {
+                img.write_to(&mut cursor, format_to_use).map_err(|e| e.to_string())?;
+            }
+        }
+    } // cursor 作用域结束，释放 output_buffer 借用
 
     Ok(output_buffer)
 }
@@ -567,6 +618,8 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(

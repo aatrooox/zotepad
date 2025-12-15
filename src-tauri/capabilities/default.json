@@ -59,6 +59,17 @@
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-image",
     "clipboard-manager:allow-write-image",
-    "clipboard-manager:allow-write-html"
+    "clipboard-manager:allow-write-html",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-write-file",
+    "fs:allow-download-write-recursive",
+    "fs:allow-desktop-write-recursive",
+    "fs:allow-document-write-recursive",
+    "fs:allow-picture-write-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": ["$DOWNLOAD/**", "$DESKTOP/**", "$DOCUMENT/**", "$PICTURE/**"]
+    }
   ]
 }

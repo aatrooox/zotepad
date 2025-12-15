@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useCOSManager } from '~/composables/settings/useCOSManager'
@@ -19,9 +21,94 @@ const { setNavigation } = useSidebar()
 const {
   enableCompression,
   enableFormatConversion,
+  compressionQuality,
+  conversionFormat,
   loadSettings: loadImageSettings,
   saveSettings: saveImageSettings,
+  compressImage,
 } = useImageCompressor()
+
+// Manual Compression Tool
+const fileInput = ref<HTMLInputElement | null>(null)
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
+const handleFileSelect = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.length)
+    return
+
+  const file = input.files[0]
+  // Reset input so same file can be selected again
+  input.value = ''
+
+  const toastId = toast.loading('正在处理图片...')
+
+  try {
+    // Force compression using current settings
+    const compressedFile = await compressImage(file, {
+      force: true,
+    })
+
+    // Save logic
+    if (isDesktop.value) {
+      // Desktop: Use Tauri Dialog & FS
+      try {
+        const ext = compressedFile.name.split('.').pop() || 'png'
+        const filePath = await save({
+          defaultPath: compressedFile.name,
+          filters: [{
+            name: 'Image',
+            extensions: [ext],
+          }],
+        })
+
+        if (!filePath) {
+          toast.info('已取消保存', { id: toastId })
+          return
+        }
+
+        const buffer = await compressedFile.arrayBuffer()
+        await writeFile(filePath, new Uint8Array(buffer))
+
+        toast.success('图片已保存', { id: toastId })
+      }
+      catch (err) {
+        console.error('Save failed:', err)
+        toast.error('保存失败，请重试', { id: toastId })
+      }
+    }
+    else {
+      // Mobile: Share or Download
+      // Try Web Share API Level 2 (File sharing)
+      if (navigator.canShare && navigator.canShare({ files: [compressedFile] })) {
+        await navigator.share({
+          files: [compressedFile],
+          title: '保存图片',
+          text: '已压缩图片',
+        })
+        toast.success('请选择保存位置', { id: toastId })
+      }
+      else {
+        // Fallback to download
+        const url = URL.createObjectURL(compressedFile)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = compressedFile.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('图片已下载', { id: toastId })
+      }
+    }
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('处理失败', { id: toastId })
+  }
+}
 
 // Tabs configuration
 const tabs = [
@@ -365,14 +452,86 @@ onMounted(async () => {
               <CardDescription>上传前自动压缩图片以节省带宽和存储空间。</CardDescription>
             </CardHeader>
             <CardContent v-if="enableCompression" class="space-y-4">
-              <div class="flex items-center justify-between border rounded-lg p-3 bg-muted/30">
-                <div class="space-y-0.5">
-                  <Label class="text-base">格式转换</Label>
-                  <p class="text-xs text-muted-foreground">
-                    自动将图片转换为 WebP 格式，通常能获得更好的压缩率。
+              <!-- Compression Quality -->
+              <div class="space-y-3 border rounded-lg p-3 bg-muted/30">
+                <div class="flex items-center justify-between">
+                  <Label class="text-base">压缩质量</Label>
+                  <span class="text-sm font-medium text-muted-foreground">{{ compressionQuality }}%</span>
+                </div>
+                <div class="pt-2">
+                  <input
+                    v-model.number="compressionQuality"
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    class="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                  >
+                  <p class="text-xs text-muted-foreground mt-2">
+                    数值越小文件越小，但画质越差。推荐 75-85。
                   </p>
                 </div>
-                <Switch v-model="enableFormatConversion" />
+              </div>
+
+              <!-- Format Conversion -->
+              <div class="space-y-3 border rounded-lg p-3 bg-muted/30">
+                <div class="flex items-center justify-between">
+                  <div class="space-y-0.5">
+                    <Label class="text-base">格式转换</Label>
+                    <p class="text-xs text-muted-foreground">
+                      自动将图片转换为指定格式。
+                    </p>
+                  </div>
+                  <Switch v-model="enableFormatConversion" />
+                </div>
+
+                <div v-if="enableFormatConversion" class="pt-2 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <Label class="text-sm text-muted-foreground whitespace-nowrap">目标格式</Label>
+                  <Select v-model="conversionFormat">
+                    <SelectTrigger class="w-[140px]">
+                      <SelectValue placeholder="选择格式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="webp">
+                        WebP (推荐)
+                      </SelectItem>
+                      <SelectItem value="jpeg">
+                        JPEG
+                      </SelectItem>
+                      <SelectItem value="png">
+                        PNG
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <!-- Manual Compression Tool (Beta) -->
+              <div class="space-y-3 border rounded-lg p-3 bg-muted/30">
+                <div class="flex items-center justify-between">
+                  <div class="space-y-0.5">
+                    <div class="flex items-center gap-2">
+                      <Label class="text-base">手动压缩工具</Label>
+                      <Badge variant="secondary" class="text-[10px] h-5 px-1.5">
+                        Beta
+                      </Badge>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      选择本地图片应用当前配置进行压缩和转换。
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" @click="triggerFileInput">
+                    <Icon name="lucide:upload" class="w-4 h-4 mr-2" />
+                    选择图片
+                  </Button>
+                  <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="handleFileSelect"
+                  >
+                </div>
               </div>
             </CardContent>
           </Card>
