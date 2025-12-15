@@ -5,12 +5,12 @@ import { toast } from 'vue-sonner'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
-import { useCOSService } from '~/composables/useCOSService'
+import { useStorageService } from '~/composables/useStorageService'
 
 useHead({ title: '资源库 - ZotePad' })
 
 const { getAllAssets, createAsset, deleteAsset } = useAssetRepository()
-const { uploadFile } = useCOSService()
+const { uploadFile } = useStorageService()
 const { getSetting, setSetting } = useSettingRepository()
 const { syncTable } = useSyncManager()
 const { isDesktop } = useEnvironment()

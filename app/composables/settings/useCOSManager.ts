@@ -10,6 +10,7 @@ export function useCOSManager() {
   const cosRegion = ref('')
   const cosPathPrefix = ref('')
   const cosCustomDomain = ref('')
+  const cosEnabled = ref(false)
   const isExporting = ref(false)
   const isImporting = ref(false)
 
@@ -22,6 +23,7 @@ export function useCOSManager() {
       cosRegion.value = settings.region || ''
       cosPathPrefix.value = settings.path_prefix || ''
       cosCustomDomain.value = settings.custom_domain || ''
+      cosEnabled.value = settings.enabled === 'true'
     }
     catch (e) {
       console.error('加载 COS 配置失败:', e)
@@ -37,6 +39,7 @@ export function useCOSManager() {
       await setSetting('region', cosRegion.value, 'cos')
       await setSetting('path_prefix', cosPathPrefix.value, 'cos')
       await setSetting('custom_domain', cosCustomDomain.value, 'cos')
+      await setSetting('enabled', String(cosEnabled.value), 'cos')
       toast.success('COS 配置已保存')
     }
     catch (e) {
@@ -158,6 +161,7 @@ export function useCOSManager() {
     cosRegion,
     cosPathPrefix,
     cosCustomDomain,
+    cosEnabled,
     isExporting,
     isImporting,
     loadCOSSettings,

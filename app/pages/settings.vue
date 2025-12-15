@@ -40,6 +40,7 @@ const {
   cosRegion,
   cosPathPrefix,
   cosCustomDomain,
+  cosEnabled,
   isExporting: isCOSExporting,
   isImporting: isCOSImporting,
   loadCOSSettings,
@@ -47,6 +48,13 @@ const {
   handleExportCOS,
   handleImportCOS,
 } = useCOSManager()
+
+// 监听 COS 开关变化，自动保存
+watch(cosEnabled, async () => {
+  if (!isInitializing.value) {
+    await saveCOSSettings()
+  }
+})
 
 // 使用 4 个子 composable
 const {
@@ -259,13 +267,16 @@ onMounted(async () => {
         <div v-if="activeTab === 'storage'" class="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
           <Card class="border border-border/50 shadow-sm">
             <CardHeader>
-              <div class="flex items-center gap-2">
-                <Icon name="lucide:cloud" class="w-5 h-5 text-primary" />
-                <CardTitle>腾讯云 COS</CardTitle>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <Icon name="lucide:cloud" class="w-5 h-5 text-primary" />
+                  <CardTitle>腾讯云 COS</CardTitle>
+                </div>
+                <Switch v-model="cosEnabled" />
               </div>
               <CardDescription>配置对象存储以支持图片上传功能。</CardDescription>
             </CardHeader>
-            <CardContent class="space-y-4">
+            <CardContent v-if="cosEnabled" class="space-y-4">
               <div class="grid gap-2">
                 <Label>SecretId</Label>
                 <Input v-model="cosSecretId" type="password" placeholder="AKID..." />

@@ -13,8 +13,8 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useNoteStore } from '~/composables/stores/useNoteStore'
-import { useCOSService } from '~/composables/useCOSService'
 import { useSidebar } from '~/composables/useSidebar'
+import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -62,7 +62,7 @@ const isLoading = ref(false)
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
 const notes = ref<Note[]>([])
 const noteCardsRef = ref<HTMLElement[]>([])
-const { uploadFile } = useCOSService()
+const { uploadFile } = useStorageService()
 
 const animateNoteCards = () => {
   if (noteCardsRef.value.length) {

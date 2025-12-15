@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import GlobalActivityIndicator from '@/components/app/GlobalActivityIndicator.vue'
+import StorageProviderSelector from '@/components/app/StorageProviderSelector.vue'
 import Toaster from '@/components/ui/sonner.vue'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import 'vue-sonner/style.css'
@@ -50,5 +51,6 @@ onMounted(async () => {
       <NuxtPage />
     </NuxtLayout>
     <Toaster class="pointer-events-auto" rich-colors theme="light" :duration="2500" />
+    <StorageProviderSelector />
   </div>
 </template>

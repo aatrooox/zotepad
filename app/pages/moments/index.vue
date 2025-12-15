@@ -8,7 +8,7 @@ import { toast } from 'vue-sonner'
 import { useMomentRepository } from '~/composables/repositories/useMomentRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
-import { useCOSService } from '~/composables/useCOSService'
+import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import 'md-editor-v3/lib/style.css'
 
@@ -31,7 +31,7 @@ useHead({ title: '动态 - ZotePad' })
 const { createMoment, getAllMoments, deleteMoment } = useMomentRepository()
 const { getAllWorkflows } = useWorkflowRepository()
 const { runWorkflow } = useWorkflowRunner()
-const { uploadFile } = useCOSService()
+const { uploadFile } = useStorageService()
 const { syncTable } = useSyncManager()
 const { isDesktop } = useEnvironment()
 

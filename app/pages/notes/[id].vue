@@ -11,8 +11,8 @@ import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
-import { useCOSService } from '~/composables/useCOSService'
 import { useSidebar } from '~/composables/useSidebar'
+import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import { WORKFLOW_TYPES } from '~/types/workflow'
 import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
@@ -60,7 +60,7 @@ const { getSetting } = useSettingRepository()
 const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
-const { uploadFile } = useCOSService()
+const { uploadFiles } = useStorageService()
 const { setContext } = useSidebar()
 // const { celebrateAchievement } = useMascotController()
 
@@ -520,15 +520,14 @@ const sendToWxDraft = async () => {
 }
 
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
-  const uploadPromises = files.map(file => uploadFile(file))
   try {
-    const results = await Promise.all(uploadPromises)
+    const results = await uploadFiles(files)
     const urls = results.map(r => r.url)
     callback(urls)
   }
-  catch (e) {
+  catch (e: any) {
     console.error(e)
-    toast.error('图片上传失败')
+    toast.error(e.message || '图片上传失败')
   }
 }
 </script>
