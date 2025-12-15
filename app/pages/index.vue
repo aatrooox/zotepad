@@ -133,14 +133,14 @@ const handleAssetUpload = async (event: Event) => {
   assetIsUploading.value = true
 
   try {
-    const { url, path } = await uploadFile(file)
+    const result = await uploadFile(file)
 
     await createAsset({
-      url,
-      path,
-      filename: file.name,
-      size: file.size,
-      mime_type: file.type,
+      url: result.url,
+      path: result.path,
+      filename: result.filename || file.name,
+      size: result.size || file.size,
+      mime_type: result.mime_type || file.type,
       storage_type: 'cos',
     })
 

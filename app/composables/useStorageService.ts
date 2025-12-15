@@ -1,7 +1,10 @@
 import type { IStorageAdapter, StorageConfig } from '~/lib/storage/types'
 import { COSAdapter } from '~/lib/storage/adapters/cos'
 import { useSettingRepository } from './repositories/useSettingRepository'
+import { useCurrentUser } from './useCurrentUser'
+import { useImageCompressor } from './useImageCompressor'
 import { useLog } from './useLog'
+import { useStatsCollector } from './useStatsCollector'
 import { useStorageSelector } from './useStorageSelector'
 
 // 存储适配器工厂
@@ -23,6 +26,9 @@ export function useStorageService() {
   const { getSettingsByCategory, getSetting } = useSettingRepository()
   const { openSelector } = useStorageSelector()
   const logger = useLog()
+  const { compressImage, loadSettings: loadImageSettings } = useImageCompressor()
+  const { incrementCounter } = useStatsCollector()
+  const { currentUserId } = useCurrentUser()
 
   /**
    * 获取所有已配置可用的存储服务商
@@ -86,6 +92,29 @@ export function useStorageService() {
 
     logger.info(`[Storage] Starting upload. Provider: ${provider}, File: ${file.name}, Size: ${file.size}`)
 
+    // 图片压缩处理
+    let fileToUpload = file
+    if (file.type.startsWith('image/')) {
+      try {
+        await loadImageSettings()
+        const compressed = await compressImage(file)
+        if (compressed !== file) {
+          const savedBytes = file.size - compressed.size
+          logger.info(`[Storage] Image compressed. Original: ${file.size}, Compressed: ${compressed.size}, Saved: ${savedBytes}, Type: ${compressed.type}`)
+          fileToUpload = compressed
+
+          // 记录压缩统计
+          if (savedBytes > 0) {
+            incrementCounter(currentUserId.value, 'asset.compression_saved_bytes', savedBytes)
+            incrementCounter(currentUserId.value, 'asset.compressed_count', 1)
+          }
+        }
+      }
+      catch (e) {
+        logger.error(`[Storage] Compression failed, using original file: ${e}`)
+      }
+    }
+
     try {
       // 2. 获取该 Provider 的配置
       const rawSettings = await getSettingsByCategory(provider)
@@ -126,10 +155,15 @@ export function useStorageService() {
 
       // 4. 创建适配器并上传
       const adapter = StorageFactory.createAdapter(provider)
-      const result = await adapter.upload(file, config)
+      const result = await adapter.upload(fileToUpload, config)
 
       logger.info(`[Storage] Upload success. URL: ${result.url}`)
-      return result
+      return {
+        ...result,
+        size: fileToUpload.size,
+        filename: fileToUpload.name,
+        mime_type: fileToUpload.type,
+      }
     }
     catch (error) {
       logger.error(`[Storage] Upload process failed (${provider})`, error)

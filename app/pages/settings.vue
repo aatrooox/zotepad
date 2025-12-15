@@ -7,6 +7,7 @@ import { useEnvironmentManager } from '~/composables/settings/useEnvironmentMana
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useSystemWorkflowManager } from '~/composables/settings/useSystemWorkflowManager'
 import { useEnvironment } from '~/composables/useEnvironment'
+import { useImageCompressor } from '~/composables/useImageCompressor'
 import { useSidebar } from '~/composables/useSidebar'
 import { useTauriStore } from '~/composables/useTauriStore'
 
@@ -15,6 +16,12 @@ const version = config.public.version
 const store = useTauriStore()
 const { isDesktop } = useEnvironment()
 const { setNavigation } = useSidebar()
+const {
+  enableCompression,
+  enableFormatConversion,
+  loadSettings: loadImageSettings,
+  saveSettings: saveImageSettings,
+} = useImageCompressor()
 
 // Tabs configuration
 const tabs = [
@@ -120,6 +127,7 @@ watch(desktopServerUrl, (newUrl) => {
 async function saveSettings() {
   try {
     await store.setItem('customCss', customCss.value)
+    await saveImageSettings()
     await store.saveStore()
 
     // Save COS settings to SQL database
@@ -147,6 +155,7 @@ async function initSettingsPage() {
       loadSyncConfig().catch(e => console.error('加载同步配置失败:', e)),
       loadEnvs().catch(e => console.error('加载环境变量失败:', e)),
       loadSystemWorkflows().catch(e => console.error('加载系统流失败:', e)),
+      loadImageSettings().catch(e => console.error('加载图片设置失败:', e)),
       isDesktop.value ? loadServerInfo().catch(e => console.error('加载服务器信息失败:', e)) : Promise.resolve(),
     ])
 
@@ -339,6 +348,31 @@ onMounted(async () => {
                   />
                   {{ isCOSImporting ? '导入中...' : '粘贴配置' }}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <!-- Image Optimization Card -->
+          <Card class="border border-border/50 shadow-sm">
+            <CardHeader>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <Icon name="lucide:image-plus" class="w-5 h-5 text-primary" />
+                  <CardTitle>图片优化</CardTitle>
+                </div>
+                <Switch v-model="enableCompression" />
+              </div>
+              <CardDescription>上传前自动压缩图片以节省带宽和存储空间。</CardDescription>
+            </CardHeader>
+            <CardContent v-if="enableCompression" class="space-y-4">
+              <div class="flex items-center justify-between border rounded-lg p-3 bg-muted/30">
+                <div class="space-y-0.5">
+                  <Label class="text-base">格式转换</Label>
+                  <p class="text-xs text-muted-foreground">
+                    自动将图片转换为 WebP 格式，通常能获得更好的压缩率。
+                  </p>
+                </div>
+                <Switch v-model="enableFormatConversion" />
               </div>
             </CardContent>
           </Card>

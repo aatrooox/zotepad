@@ -4,6 +4,39 @@ use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification;
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_store;
+use std::io::Cursor;
+use image::ImageFormat;
+
+// 图片压缩命令
+#[tauri::command]
+async fn compress_image(buffer: Vec<u8>, _quality: u8, target_format: Option<String>) -> Result<Vec<u8>, String> {
+    // 1. 猜测原始格式
+    let detected_format = image::guess_format(&buffer).map_err(|e| e.to_string())?;
+
+    // 2. 加载图片
+    let img = image::load_from_memory(&buffer).map_err(|e| e.to_string())?;
+
+    // 3. 决定输出格式
+    let format_to_use = if let Some(fmt_str) = target_format {
+        match fmt_str.to_lowercase().as_str() {
+            "png" => ImageFormat::Png,
+            "jpeg" | "jpg" => ImageFormat::Jpeg,
+            "webp" => ImageFormat::WebP,
+            _ => detected_format,
+        }
+    } else {
+        detected_format
+    };
+
+    // 4. 编码输出
+    let mut output_buffer = Vec::new();
+    let mut cursor = Cursor::new(&mut output_buffer);
+
+    img.write_to(&mut cursor, format_to_use)
+        .map_err(|e| e.to_string())?;
+
+    Ok(output_buffer)
+}
 
 // 同步引擎模块
 #[cfg(not(mobile))]
@@ -780,6 +813,7 @@ pub fn run() {
             get_local_ip,
             #[cfg(not(mobile))]
             get_http_server_port,
+            compress_image
         ])
         .setup(|app| {
             // HTTP 服务器只在桌面端启动

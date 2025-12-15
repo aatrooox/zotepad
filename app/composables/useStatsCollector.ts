@@ -37,6 +37,8 @@ export const STATS_METRICS = {
   'asset.images_total': { type: 'counter' as StatType, name: '图片总数' },
   'asset.videos_total': { type: 'counter' as StatType, name: '视频总数' },
   'asset.total': { type: 'counter' as StatType, name: '素材总数' },
+  'asset.compression_saved_bytes': { type: 'counter' as StatType, name: '压缩节省流量' },
+  'asset.compressed_count': { type: 'counter' as StatType, name: '压缩图片数量' },
 
   // 活跃度
   'activity.days_active': { type: 'counter' as StatType, name: '活跃天数' },

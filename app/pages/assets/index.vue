@@ -50,15 +50,15 @@ const handleUpload = async (event: Event) => {
   isUploading.value = true
 
   try {
-    const { url, path } = await uploadFile(file)
+    const result = await uploadFile(file)
 
     await createAsset({
-      url,
-      path,
-      filename: file.name,
-      size: file.size,
-      mime_type: file.type,
-      storage_type: 'cos',
+      url: result.url,
+      path: result.path,
+      filename: result.filename || file.name,
+      size: result.size || file.size,
+      mime_type: result.mime_type || file.type,
+      storage_type: 'cos', // TODO: Should get actual provider from result
     })
 
     toast.success('上传成功')
