@@ -148,7 +148,7 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: pnpm tauri build ${{ matrix.args }}
         env:
-          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.CRYPTO_SECRET_KEY }}
+          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.NUXT_PUBLIC_CRYPTO_SECRET_KEY }}
 
       - name: Rename macOS DMG with version
         if: matrix.platform == 'macos-latest'
@@ -174,7 +174,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: pnpm tauri build ${{ matrix.args }}
         env:
-          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.CRYPTO_SECRET_KEY }}
+          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.NUXT_PUBLIC_CRYPTO_SECRET_KEY }}
 
       - name: Rename Windows installers with version
         if: matrix.platform == 'windows-latest'
@@ -229,7 +229,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/src-tauri/release.keystore
-          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.CRYPTO_SECRET_KEY }}
+          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.NUXT_PUBLIC_CRYPTO_SECRET_KEY }}
         run: |
           pnpm tauri android init
 

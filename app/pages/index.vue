@@ -1056,7 +1056,7 @@ async function handleRunWorkflow(workflow: Workflow) {
                 <div class="text-sm text-muted-foreground">
                   {{ new Date(moment.created_at!).toLocaleString() }}
                 </div>
-                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex gap-2">
                   <Button
                     v-if="moment.imagesList && moment.imagesList.length > 0"
                     variant="ghost"
