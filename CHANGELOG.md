@@ -1,6 +1,26 @@
 # Changelog
 
 
+## v0.23.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.22.0...v0.23.0)
+
+### 🩹 Fixes
+
+- ⚠️  环境变量未载入 ([ea275b4](https://github.com/aatrooox/zotepad/commit/ea275b4))
+
+### 🏡 Chore
+
+- **build:** Release v0.22.0 ([d4c6d79](https://github.com/aatrooox/zotepad/commit/d4c6d79))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  环境变量未载入 ([ea275b4](https://github.com/aatrooox/zotepad/commit/ea275b4))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.22.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.21.2...v0.22.0)
