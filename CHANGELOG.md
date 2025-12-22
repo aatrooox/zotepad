@@ -1,6 +1,35 @@
 # Changelog
 
 
+## v0.24.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.23.0...v0.24.0)
+
+### 🚀 Enhancements
+
+- 重构部分同步功能; 增加手动合并 ([b0f91a9](https://github.com/aatrooox/zotepad/commit/b0f91a9))
+
+### 🩹 Fixes
+
+- ⚠️  环境变量未载入 ([ea275b4](https://github.com/aatrooox/zotepad/commit/ea275b4))
+
+### 📖 Documentation
+
+- Version warning ([8ea3f81](https://github.com/aatrooox/zotepad/commit/8ea3f81))
+
+### 🏡 Chore
+
+- **release:** V0.23.0 ([dd1927b](https://github.com/aatrooox/zotepad/commit/dd1927b))
+- **build:** Release v0.23.0 ([3515532](https://github.com/aatrooox/zotepad/commit/3515532))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  环境变量未载入 ([ea275b4](https://github.com/aatrooox/zotepad/commit/ea275b4))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.23.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.22.0...v0.23.0)
