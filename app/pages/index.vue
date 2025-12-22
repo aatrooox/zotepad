@@ -47,7 +47,7 @@ const tabToTableMap: Record<TabId, string> = {
 }
 
 const { getSetting, setSetting } = useSettingRepository()
-const { syncTable } = useSyncManager()
+const { syncTable, syncMode } = useSyncManager()
 const { isDesktop } = useEnvironment()
 const isLoading = ref(false)
 
@@ -56,6 +56,7 @@ const { getAllNotes, deleteNote, createNote } = useNoteRepository()
 const notes = ref<Note[]>([])
 const noteCardsRef = ref<HTMLElement[]>([])
 const { uploadFile } = useStorageService()
+const { syncTableSmart } = useSyncManager()
 
 const animateNoteCards = () => {
   if (noteCardsRef.value.length) {
@@ -67,7 +68,53 @@ const animateNoteCards = () => {
   }
 }
 
-const loadNotes = async (silent = false) => {
+/**
+ * 处理同步按钮点击
+ */
+const handleSync = async () => {
+  if (isLoading.value)
+    return
+
+  const tableName = tabToTableMap[activeTab.value]
+  if (!tableName) {
+    toast.error('当前标签不支持同步')
+    return
+  }
+
+  isLoading.value = true
+  try {
+    // 使用智能同步（会根据 syncMode 决定是否进入合并页面）
+    const result = await syncTableSmart(tableName)
+
+    // 同步完成后重新加载数据
+    if (activeTab.value === 'articles') {
+      await loadNotes(true)
+    }
+    else if (activeTab.value === 'moments') {
+      await loadMoments()
+    }
+    else if (activeTab.value === 'assets') {
+      await loadAssets()
+    }
+
+    if (result.pulled > 0 || result.pushed > 0) {
+      toast.success(`同步完成：↓${result.pulled} ↑${result.pushed}`)
+    }
+    else {
+      toast.success('已是最新版本')
+    }
+  }
+  catch (e: any) {
+    console.error('[Sync] 同步失败:', e)
+    const errorMsg = e?.message || e?.toString() || '未知错误'
+    toast.error(`同步失败: ${errorMsg}`)
+  }
+  finally {
+    isLoading.value = false
+  }
+}
+
+async function loadNotes(silent = false) {
   try {
     notes.value = await getAllNotes() || []
     if (!silent) {
@@ -101,7 +148,7 @@ const toggleAssetViewMode = async (mode: 'grid' | 'list') => {
   await setSetting('assets_view_mode', mode, 'ui')
 }
 
-const loadAssets = async () => {
+async function loadAssets() {
   try {
     const rawAssets = await getAllAssets() || []
     console.log(`[loadAssets] 从数据库查询到 ${rawAssets.length} 条资源`)
@@ -313,10 +360,11 @@ onMounted(async () => {
   // 1. Load local data immediately
   await loadCurrentTabData(true)
 
-  // 2. Sync in background (non-blocking) - 仅移动端
-  if (!isDesktop.value) {
+  // 2. Sync in background (non-blocking) - 仅移动端且自动模式
+  if (!isDesktop.value && syncMode.value === 'auto') {
     const tableName = tabToTableMap[activeTab.value]
     if (tableName) {
+      console.log(`[初始化同步] 自动模式，触发 ${tableName} 表同步`)
       syncTable(tableName, true).then((result) => {
         console.log(`[初始化同步] ${tableName}: 拉取 ${result?.pulled || 0} 条, 推送 ${result?.pushed || 0} 条`)
         // 无论是否拉取到新数据，都重新加载以确保显示最新状态
@@ -344,11 +392,11 @@ watch(activeTab, async (newTab) => {
   // 1. Load local data immediately
   await loadCurrentTabData(true)
 
-  // 2. Sync in background - 仅移动端
-  if (!isDesktop.value) {
+  // 2. Sync in background - 仅移动端且自动模式
+  if (!isDesktop.value && syncMode.value === 'auto') {
     const tableName = tabToTableMap[newTab]
     if (tableName) {
-      console.log(`[Tab切换] 移动端触发 ${tableName} 表同步`)
+      console.log(`[Tab切换] 自动模式，触发 ${tableName} 表同步`)
       syncTable(tableName, true).then((result) => {
         console.log(`[Tab同步] ${tableName}: 拉取 ${result?.pulled || 0} 条, 推送 ${result?.pushed || 0} 条`)
         // 无论是否拉取到新数据，都重新加载以确保显示最新状态
@@ -359,6 +407,9 @@ watch(activeTab, async (newTab) => {
         loadCurrentTabData(false)
       })
     }
+  }
+  else if (!isDesktop.value && syncMode.value === 'manual') {
+    console.log(`[Tab切换] 手动模式，不自动同步`)
   }
 })
 
@@ -711,16 +762,39 @@ async function handleRunWorkflow(workflow: Workflow) {
           </div>
         </button>
       </div>
-      <!-- Create Button -->
-      <Button
-        v-if="activeTab === 'articles'"
-        size="sm"
-        class="rounded-full shadow-sm hover:shadow-md transition-all"
-        @click="handleCreateNote"
-      >
-        <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
-        新建笔记
-      </Button>
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          class="rounded-full shadow-sm hover:shadow-md transition-all"
+          :disabled="isLoading"
+          @click="handleSync"
+        >
+          <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-1" :class="{ 'animate-spin': isLoading }" />
+          同步
+        </Button>
+        <Button
+          v-if="activeTab === 'articles'"
+          size="sm"
+          class="rounded-full shadow-sm hover:shadow-md transition-all"
+          @click="handleCreateNote"
+        >
+          <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
+          新建笔记
+        </Button>
+        <Button
+          v-else-if="activeTab === 'assets'"
+          size="sm"
+          class="rounded-full shadow-sm hover:shadow-md transition-all"
+          :disabled="assetIsUploading"
+          @click="triggerAssetUpload"
+        >
+          <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
+          <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+          上传图片
+        </Button>
+      </div>
     </div>
 
     <!-- Mobile Header with Sticky Tabs -->
@@ -745,11 +819,33 @@ async function handleRunWorkflow(workflow: Workflow) {
             />
           </button>
         </div>
-        <!-- Create Button -->
-        <Button v-if="activeTab === 'articles'" size="sm" class="rounded-full h-8 px-3" @click="handleCreateNote">
-          <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
-          新建
-        </Button>
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            class="h-8 w-8 p-0"
+            :disabled="isLoading"
+            @click="handleSync"
+          >
+            <Icon name="lucide:refresh-cw" class="w-4 h-4" :class="{ 'animate-spin': isLoading }" />
+          </Button>
+          <Button v-if="activeTab === 'articles'" size="sm" class="rounded-full h-8 px-3" @click="handleCreateNote">
+            <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
+            新建
+          </Button>
+          <Button
+            v-else-if="activeTab === 'assets'"
+            size="sm"
+            class="rounded-full h-8 px-3"
+            :disabled="assetIsUploading"
+            @click="triggerAssetUpload"
+          >
+            <Icon v-if="assetIsUploading" name="lucide:loader-2" class="w-4 h-4 mr-1 animate-spin" />
+            <Icon v-else name="lucide:upload" class="w-4 h-4 mr-1" />
+            上传
+          </Button>
+        </div>
       </div>
     </div>
 
@@ -769,6 +865,7 @@ async function handleRunWorkflow(workflow: Workflow) {
           </p>
         </header>
 
+        <!-- Empty State -->
         <div v-if="notes.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6 animate-in fade-in zoom-in duration-500">
           <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4 shadow-inner">
             <Icon name="lucide:file-plus" class="w-8 h-8 opacity-40" />
@@ -786,7 +883,7 @@ async function handleRunWorkflow(workflow: Workflow) {
           </Button>
         </div>
 
-        <!-- iOS Style List -->
+        <!-- Notes List -->
         <div v-else class="flex flex-col pb-20 max-w-5xl mx-auto">
           <div class="bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 shadow-sm overflow-hidden">
             <TransitionGroup
@@ -904,66 +1001,80 @@ async function handleRunWorkflow(workflow: Workflow) {
           </div>
         </div>
         <input ref="assetFileInput" type="file" accept="image/*" class="hidden" @change="handleAssetUpload">
-
-        <div class="flex-1 overflow-y-auto">
-          <div v-if="assets.length === 0" class="h-[40vh] flex flex-col items-center justify-center text-muted-foreground">
-            <Icon name="lucide:image" class="w-12 h-12 opacity-20 mb-3" />
-            <p>暂无图片</p>
+        <!-- Empty State -->
+        <div v-if="assets.length === 0" class="h-[50vh] flex flex-col items-center justify-center text-muted-foreground space-y-6 animate-in fade-in zoom-in duration-500">
+          <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <Icon name="lucide:image" class="w-8 h-8 opacity-40" />
           </div>
+          <div class="text-center space-y-1">
+            <h3 class="text-lg font-semibold text-foreground">
+              暂无资源
+            </h3>
+            <p class="max-w-xs mx-auto text-sm text-balance">
+              上传您的第一张图片以开始管理资源。
+            </p>
+          </div>
+          <Button variant="outline" size="default" class="mt-4 rounded-full shadow-sm hover:shadow-md transition-all" @click="triggerAssetUpload">
+            上传图片
+          </Button>
+        </div>
 
-          <div v-else-if="assetViewMode === 'grid'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div v-for="asset in assets" :key="asset.id" class="group relative aspect-square bg-card rounded-lg overflow-hidden border shadow-sm">
-              <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy">
+        <!-- Assets Grid View -->
+        <div
+          v-else-if="assetViewMode === 'grid'" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20"
+        >
+          <div v-for="asset in assets" :key="asset.id" class="group relative aspect-square bg-card rounded-lg overflow-hidden border shadow-sm">
+            <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy">
 
-              <div class="absolute top-1 right-1 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                <Button variant="secondary" size="icon" class="h-7 w-7 bg-background/80 backdrop-blur-sm" title="复制链接" @click="copyAssetUrl(asset.url)">
-                  <Icon name="lucide:copy" class="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="destructive" size="icon" class="h-7 w-7 opacity-90" title="删除" @click="handleAssetDelete(asset.id)">
-                  <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
-                </Button>
-              </div>
+            <div class="absolute top-1 right-1 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+              <Button variant="secondary" size="icon" class="h-7 w-7 bg-background/80 backdrop-blur-sm" title="复制链接" @click="copyAssetUrl(asset.url)">
+                <!-- Assets List View -->
+                <Icon name="lucide:copy" class="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="destructive" size="icon" class="h-7 w-7 opacity-90" title="删除" @click="handleAssetDelete(asset.id)">
+                <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+              </Button>
+            </div>
 
-              <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
-                {{ asset.filename }}
-              </div>
+            <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
+              {{ asset.filename }}
             </div>
           </div>
+        </div>
 
-          <div v-else class="flex flex-col pb-20 max-w-5xl mx-auto">
-            <div class="bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 shadow-sm overflow-hidden">
-              <TransitionGroup
-                name="list"
-                tag="div"
-                class="divide-y divide-border/30"
+        <div v-else class="flex flex-col pb-20 max-w-5xl mx-auto">
+          <div class="bg-card/50 backdrop-blur-sm rounded-xl border border-border/40 shadow-sm overflow-hidden">
+            <TransitionGroup
+              name="list"
+              tag="div"
+              class="divide-y divide-border/30"
+            >
+              <div
+                v-for="asset in assets"
+                :key="asset.id"
+                class="group flex items-center gap-4 p-3 hover:bg-muted/50 transition-colors"
               >
-                <div
-                  v-for="asset in assets"
-                  :key="asset.id"
-                  class="group flex items-center gap-4 p-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
-                    <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="font-medium text-sm truncate">
-                      {{ asset.filename }}
-                    </p>
-                    <p class="text-xs text-muted-foreground mt-0.5">
-                      {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
-                    </p>
-                  </div>
-                  <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyAssetUrl(asset.url)">
-                      <Icon name="lucide:copy" class="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleAssetDelete(asset.id)">
-                      <Icon name="lucide:trash-2" class="w-4 h-4" />
-                    </Button>
-                  </div>
+                <div class="w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
+                  <img :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" loading="lazy">
                 </div>
-              </TransitionGroup>
-            </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-sm truncate">
+                    {{ asset.filename }}
+                  </p>
+                  <p class="text-xs text-muted-foreground mt-0.5">
+                    {{ asset.mime_type }} · {{ formatFileSize(asset.size) }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" class="h-8 w-8" title="复制链接" @click="copyAssetUrl(asset.url)">
+                    <Icon name="lucide:copy" class="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" class="h-8 w-8 hover:text-destructive" title="删除" @click="handleAssetDelete(asset.id)">
+                    <Icon name="lucide:trash-2" class="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </TransitionGroup>
           </div>
         </div>
       </div>
@@ -1038,8 +1149,19 @@ async function handleRunWorkflow(workflow: Workflow) {
 
         <!-- Moments List -->
         <div class="pb-20 max-w-4xl mx-auto space-y-6">
-          <div v-if="moments.length === 0 && !isLoading" class="text-center text-muted-foreground py-10">
-            暂无动态，发一条试试？
+          <!-- Empty State -->
+          <div v-if="moments.length === 0 && !isLoading" class="h-[40vh] flex flex-col items-center justify-center text-muted-foreground space-y-6 animate-in fade-in zoom-in duration-500">
+            <div class="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mb-4 shadow-inner">
+              <Icon name="lucide:camera" class="w-8 h-8 opacity-40" />
+            </div>
+            <div class="text-center space-y-1">
+              <h3 class="text-lg font-semibold text-foreground">
+                暂无动态
+              </h3>
+              <p class="max-w-xs mx-auto text-sm text-balance">
+                发布您的第一条动态以分享生活。
+              </p>
+            </div>
           </div>
 
           <TransitionGroup
@@ -1134,7 +1256,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             v-for="wf in workflows"
             :key="wf.id"
             variant="outline"
-            class="w-full justify-start h-auto py-3 px-4"
+            Dialog class="w-full justify-start h-auto py-3 px-4"
             @click="handleRunWorkflow(wf)"
           >
             <div class="flex flex-col items-start text-left">

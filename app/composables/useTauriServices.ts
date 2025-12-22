@@ -31,6 +31,18 @@ export function useTauriServices() {
       await initDatabase()
       initProgress.value = 50
 
+      // 修复缺失的 UUID（为老数据补充 UUID）
+      try {
+        console.log('[TauriServices] 开始修复缺失的 UUID...')
+        const { useDataFixer } = await import('~/composables/sync/useDataFixer')
+        const { fixMissingUUIDs } = useDataFixer()
+        await fixMissingUUIDs()
+        console.log('[TauriServices] UUID 修复完成')
+      }
+      catch (err) {
+        console.error('[TauriServices] 修复 UUID 失败:', err)
+      }
+
       // 成就系统表由 Tauri Migration (version 8) 自动创建
       // 无需手动初始化
       initProgress.value = 75

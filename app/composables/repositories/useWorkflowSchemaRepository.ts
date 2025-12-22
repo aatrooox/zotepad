@@ -1,17 +1,19 @@
 import type { WorkflowSchema } from '~/types/workflow'
 import { useAsyncState } from '~/utils/async'
 import { useTauriSQL } from '../useTauriSQL'
+import { generateUUID } from '~/utils/uuid'
 
 export function useWorkflowSchemaRepository() {
   const { execute, select } = useTauriSQL()
   const { isLoading, error, runAsync } = useAsyncState()
 
-  const createSchema = (name: string, description: string, fields: any[]) =>
+  const createSchema = (name: string, description: string, fields: any[] = []) =>
     runAsync(async () => {
       const now = new Date().toISOString()
+      const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO workflow_schemas (name, description, fields, version, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [name, description, JSON.stringify(fields), -Date.now(), now],
+        'INSERT INTO workflow_schemas (uuid, name, description, fields, version, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuid, name, description, JSON.stringify(fields), -Date.now(), now],
       )
       return result.lastInsertId as number
     }, 'Failed to create workflow schema')

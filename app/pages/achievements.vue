@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import { useAchievementSystem } from '~/composables/useAchievementSystem'
 import { useCurrentUser } from '~/composables/useCurrentUser'
+import { usePointsRewards } from '~/composables/usePointsRewards'
 import { usePointsSystem } from '~/composables/usePointsSystem'
 
 definePageMeta({
@@ -14,8 +16,11 @@ const userId = computed(() => getCurrentUserId())
 const activeCategory = ref('all')
 
 // 获取用户档案
-const { getProfile, getLevelProgress } = usePointsSystem()
+const { getProfile, getLevelProgress, getPointsLog } = usePointsSystem()
+const { recalculateAllPoints } = usePointsRewards()
 const profile = ref<any>(null)
+const pointsLog = ref<any[]>([])
+const isRecalculating = ref(false)
 const levelProgress = computed(() => {
   if (!profile.value)
     return { current: 0, max: 100, percentage: 0 }
@@ -41,6 +46,11 @@ async function loadData() {
     const uid = userId.value
     profile.value = await getProfile(uid)
     achievements.value = await getAllAchievementsWithStatus(uid)
+
+    // 加载积分日志
+    const logData = await getPointsLog(uid, 20)
+    pointsLog.value = logData || []
+    console.log('[成就页面] 加载积分日志:', pointsLog.value.length, '条记录')
   }
   catch (error) {
     console.error('加载成就数据失败:', error)
@@ -78,6 +88,81 @@ function formatUnlockTime(timestamp: number): string {
     return `${Math.floor(days / 7)}周前`
 
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+// 格式化积分日志时间
+function formatLogTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const logDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  if (logDate.getTime() === today.getTime()) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  else {
+    return `${date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })} ${
+      date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+  }
+}
+
+// 获取积分来源图标
+function getSourceIcon(sourceType: string): string {
+  switch (sourceType) {
+    case 'note': return '📝'
+    case 'moment': return '💭'
+    case 'asset': return '📷'
+    case 'workflow': return '⚡'
+    case 'achievement': return '🏆'
+    default: return '✨'
+  }
+}
+
+// 获取积分来源名称
+function getSourceName(sourceType: string): string {
+  switch (sourceType) {
+    case 'note': return '笔记'
+    case 'moment': return '动态'
+    case 'asset': return '资源'
+    case 'workflow': return '工作流'
+    case 'achievement': return '成就'
+    default: return '其他'
+  }
+}
+
+// 重新计算所有积分
+function handleRecalculate() {
+  if (isRecalculating.value)
+    return
+
+  toast('确定要重新计算所有内容的积分吗？', {
+    description: '这将为所有未记录积分的笔记、动态和资源补全积分。此操作可能需要一些时间。',
+    action: {
+      label: '确认',
+      onClick: async () => {
+        isRecalculating.value = true
+        try {
+          const uid = userId.value
+          const result = await recalculateAllPoints(uid)
+
+          toast.success(`重新计算完成！\n笔记: ${result.notes} 篇\n动态: ${result.moments} 条\n资源: ${result.assets} 个`)
+
+          // 重新加载数据
+          await loadData()
+        }
+        catch (error: any) {
+          console.error('重新计算失败:', error)
+          toast.error(`重新计算失败: ${error.message || '未知错误'}`)
+        }
+        finally {
+          isRecalculating.value = false
+        }
+      },
+    },
+    cancel: {
+      label: '取消',
+    },
+  })
 }
 
 onMounted(() => {
@@ -317,6 +402,116 @@ onMounted(() => {
           </p>
         </div>
       </Tabs>
+
+      <!-- 积分变动记录 -->
+      <div class="bg-card/50 backdrop-blur-sm border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b bg-muted/20">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-lg bg-primary/10 text-primary">
+                <Icon name="lucide:activity" class="w-5 h-5" />
+              </div>
+              <div>
+                <h3 class="font-bold text-lg">
+                  积分变动记录
+                </h3>
+                <p class="text-sm text-muted-foreground">
+                  最近的积分和经验值获取记录
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" @click="loadData">
+              <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-1" />
+              刷新
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              :disabled="isRecalculating"
+              @click="handleRecalculate"
+            >
+              <Icon
+                :name="isRecalculating ? 'lucide:loader-2' : 'lucide:calculator'"
+                class="w-4 h-4 mr-1"
+                :class="{ 'animate-spin': isRecalculating }"
+              />
+              {{ isRecalculating ? '计算中...' : '重新计算' }}
+            </Button>
+          </div>
+        </div>
+
+        <div class="max-h-96 overflow-y-auto">
+          <!-- 积分日志列表 -->
+          <div v-if="pointsLog.length > 0" class="divide-y divide-border/30">
+            <div
+              v-for="log in pointsLog"
+              :key="log.id"
+              class="group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors"
+            >
+              <!-- 来源图标 -->
+              <div class="w-10 h-10 rounded-lg bg-background border flex items-center justify-center text-lg shrink-0 shadow-sm">
+                {{ getSourceIcon(log.source_type) }}
+              </div>
+
+              <!-- 主要信息 -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-medium text-sm">
+                    {{ getSourceName(log.source_type) }}
+                  </span>
+                  <span class="text-xs text-muted-foreground">
+                    #{{ log.source_id }}
+                  </span>
+                  <div v-if="log.achievement_key" class="flex items-center gap-1">
+                    <Icon name="lucide:trophy" class="w-3 h-3 text-yellow-500" />
+                    <span class="text-xs text-yellow-600 font-medium">成就</span>
+                  </div>
+                </div>
+
+                <p v-if="log.reason" class="text-xs text-muted-foreground line-clamp-1 mb-1">
+                  {{ log.reason }}
+                </p>
+
+                <div class="text-xs text-muted-foreground font-mono">
+                  {{ formatLogTime(log.created_at) }}
+                </div>
+              </div>
+
+              <!-- 积分显示 -->
+              <div class="flex flex-col items-end gap-0.5 shrink-0">
+                <div class="flex items-center gap-1">
+                  <span class="text-sm font-bold text-primary">
+                    +{{ log.points }}
+                  </span>
+                  <span class="text-xs text-muted-foreground">积分</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-sm font-bold text-blue-600">
+                    +{{ log.exp }}
+                  </span>
+                  <span class="text-xs text-muted-foreground">EXP</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <div class="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4">
+              <Icon name="lucide:activity" class="w-8 h-8 opacity-40" />
+            </div>
+            <p class="font-medium mb-1">
+              暂无积分记录
+            </p>
+            <p class="text-sm opacity-60 mb-2">
+              开始创建内容来获取积分吧
+            </p>
+            <p class="text-xs text-muted-foreground/50">
+              用户ID: {{ userId }} | 日志条数: {{ pointsLog.length }}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

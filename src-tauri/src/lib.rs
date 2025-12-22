@@ -186,7 +186,7 @@ fn open_db(app_handle: &AppHandle) -> Result<Connection, StatusCode> {
             log::error!("resolve app_data_dir failed: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    path.push("app_v4.db");
+    path.push("app_v5.db");
     let conn = Connection::open(&path).map_err(|e| {
         log::error!("open_db failed: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
@@ -393,6 +393,35 @@ async fn sync_pull(
     }))
 }
 
+// /metadata: 获取指定表的元数据列表（用于智能合并）
+#[cfg(not(mobile))]
+async fn sync_metadata(
+    State(state): State<Arc<Mutex<HttpServerState>>>,
+    headers: axum::http::HeaderMap,
+    Query(query): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, StatusCode> {
+    let state_guard = state.lock().await;
+    check_auth(&headers, &state_guard.token)?;
+    let app_handle = state_guard.app_handle.clone();
+    drop(state_guard);
+
+    let table_name = query.get("table").map(|s| s.as_str()).unwrap_or("notes");
+
+    let conn = open_db(&app_handle)?;
+    
+    let metadata = sync_engine::load_table_metadata(&conn, table_name)
+        .map_err(|e| {
+            log::error!("sync_metadata error for {}: {}", table_name, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(metadata),
+        message: None,
+    }))
+}
+
 // /push: 接受增量，分配新版本号并应用
 #[cfg(not(mobile))]
 async fn sync_push(
@@ -408,22 +437,12 @@ async fn sync_push(
     let conn = open_db(&app_handle)?;
     
     // 获取当前服务器版本号（所有表）
-    let server_version_before = sync_engine::max_version_all_tables(&conn);
-    let client_version = body.client_version.unwrap_or(0);
+    let _server_version_before = sync_engine::max_version_all_tables(&conn);
+    let _client_version = body.client_version.unwrap_or(0);
     
-    // 冲突检测：客户端版本落后于服务器
-    if client_version < server_version_before {
-        let resp = PushResponse {
-            applied: 0,
-            server_version: server_version_before,
-            conflict: true,
-        };
-        return Ok(Json(ApiResponse { 
-            success: true, 
-            data: Some(resp), 
-            message: Some("conflict: please pull first".to_string()) 
-        }));
-    }
+    // 移除全局版本检查，改用记录级冲突检测
+    // 因为客户端可能只同步了部分表，或者 client_version 传递不准确
+    // 我们信任客户端的 push 决策（客户端已完成 diff 和冲突解决）
 
     let mut applied = 0usize;
     let table_name = body.table.as_deref(); // 可选的表名过滤
@@ -522,6 +541,7 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
         .route("/", get(health_check))
         .route("/health", get(health_check))
         .route("/state", get(sync_state))
+        .route("/metadata", get(sync_metadata))
         .route("/pull", get(sync_pull))
         .route("/push", post(sync_push))
         // .route("/api/notification", post(send_notification))
@@ -623,7 +643,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
-                    "sqlite:app_v4.db",
+                    "sqlite:app_v5.db",
                     vec![
                         // Migration 1: Init minimal tables (users, settings)
                         Migration {
@@ -654,6 +674,7 @@ pub fn run() {
                             sql: "\
                 CREATE TABLE IF NOT EXISTS notes (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  uuid TEXT UNIQUE NOT NULL,
                   title TEXT,
                   content TEXT,
                   tags TEXT DEFAULT '[]',
@@ -663,6 +684,7 @@ pub fn run() {
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_notes_version ON notes(version);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_uuid ON notes(uuid);
               ",
                             kind: MigrationKind::Up,
                         },
@@ -672,6 +694,7 @@ pub fn run() {
                             sql: "\
                 CREATE TABLE IF NOT EXISTS workflow_schemas (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  uuid TEXT UNIQUE NOT NULL,
                   name TEXT NOT NULL,
                   description TEXT,
                   fields TEXT DEFAULT '[]',
@@ -681,6 +704,7 @@ pub fn run() {
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_workflow_schemas_version ON workflow_schemas(version);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_schemas_uuid ON workflow_schemas(uuid);
 
                 CREATE TABLE IF NOT EXISTS workflow_envs (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -692,6 +716,7 @@ pub fn run() {
 
                 CREATE TABLE IF NOT EXISTS workflows (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  uuid TEXT UNIQUE NOT NULL,
                   name TEXT NOT NULL,
                   description TEXT,
                   steps TEXT NOT NULL DEFAULT '[]',
@@ -703,6 +728,7 @@ pub fn run() {
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_workflows_version ON workflows(version);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_workflows_uuid ON workflows(uuid);
               ",
                             kind: MigrationKind::Up,
                         },
@@ -712,6 +738,7 @@ pub fn run() {
                             sql: "\
                 CREATE TABLE IF NOT EXISTS moments (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  uuid TEXT UNIQUE NOT NULL,
                   content TEXT,
                   images TEXT DEFAULT '[]',
                   tags TEXT DEFAULT '[]',
@@ -721,6 +748,7 @@ pub fn run() {
                   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_moments_version ON moments(version);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_moments_uuid ON moments(uuid);
               ",
                             kind: MigrationKind::Up,
                         },
@@ -730,6 +758,7 @@ pub fn run() {
                             sql: "
                                 CREATE TABLE IF NOT EXISTS assets (
                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    uuid TEXT UNIQUE NOT NULL,
                                     url TEXT NOT NULL,
                                     path TEXT NOT NULL,
                                     filename TEXT NOT NULL,
@@ -742,6 +771,7 @@ pub fn run() {
                                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                                 );
                                 CREATE INDEX IF NOT EXISTS idx_assets_version ON assets(version);
+                                CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_uuid ON assets(uuid);
                             ",
                             kind: MigrationKind::Up,
                         },

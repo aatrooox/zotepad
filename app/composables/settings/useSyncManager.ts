@@ -1,3 +1,5 @@
+import type { ConflictDecision, SyncMode } from '../sync/useSyncConflict'
+import type { RecordMetadata } from '../sync/useSyncMetadata'
 import { toast } from 'vue-sonner'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
@@ -37,6 +39,7 @@ const globalSyncStatus = () => useState('sync_status', () => '未同步')
 const globalSyncInfo = () => useState<SyncInfoState>('sync_info', () => ({ status: 'idle', message: '', version: null, paired: false }))
 const globalSyncWorkflowId = () => useState<number | null>('sync_workflow_id', () => null)
 const globalLastFailedAt = () => useState<number | null>('sync_last_failed_at', () => null) // 上次失败时间戳
+const globalSyncMode = () => useState<SyncMode>('sync_mode', () => 'manual') // 同步模式，默认手动
 
 // 常量配置
 const FETCH_TIMEOUT_MS = 3000 // fetchSyncState 超时时间 3秒
@@ -47,6 +50,8 @@ export function useSyncManager() {
   const { createWorkflow, getAllWorkflows, deleteWorkflow } = useWorkflowRepository()
   const syncEngine = useSyncEngine()
   const { isDesktop } = useEnvironment()
+  const router = useRouter()
+  const syncMode = globalSyncMode()
 
   // 使用全局状态
   const serverUrl = globalServerUrl()
@@ -163,9 +168,152 @@ export function useSyncManager() {
    * 同步所有表的本地变更和远程变更
    */
   /**
-   * 同步单个表
-   * @param tableName 表名 (notes | moments | assets | workflows)
-   * @param silent 是否静默同步（不显示 Toast）
+   * 智能同步单个表（基于元数据）
+   * @param tableName 表名
+   * @param mode 同步模式（覆盖全局设置）
+   * @param silent 是否静默同步
+   */
+  async function syncTableSmart(tableName: string, mode?: SyncMode, silent = false) {
+    const base = getSyncBaseUrl()
+    if (!base) {
+      console.warn('[Sync] 同步终止: 未配置服务器地址')
+      if (!silent) {
+        toast.error('请先配置服务器地址')
+      }
+      return { pulled: 0, pushed: 0 }
+    }
+
+    // 检查是否在冷却期内
+    if (isInCooldown()) {
+      const remainingMinutes = getRemainingCooldownMinutes()
+      logger.info(`[Sync] 单表同步跳过: 在冷却期内，${remainingMinutes} 分钟后重试`)
+      if (!silent) {
+        toast.warning(`服务器暂时无法连接，${remainingMinutes} 分钟后自动重试`, { duration: 3000 })
+      }
+      return { pulled: 0, pushed: 0 }
+    }
+
+    const table = SYNC_TABLES[tableName]
+    if (!table) {
+      console.error(`[Sync] 表 ${tableName} 不存在`)
+      return { pulled: 0, pushed: 0 }
+    }
+
+    const effectiveMode = mode || syncMode.value
+    const headers = buildSyncHeaders()
+
+    logger.info(`[Sync] 开始智能同步: ${tableName}, mode=${effectiveMode}`)
+
+    activity.setSyncState(true)
+
+    try {
+      const result = await syncEngine.syncTableSmart(
+        table,
+        base,
+        headers,
+        effectiveMode,
+        async (conflicts) => {
+          // 跳转到合并页面，等待用户决策
+          return await navigateToMerge(tableName, conflicts)
+        },
+      )
+
+      // 更新统计
+      if (result.pulled > 0 || result.pushed > 0) {
+        lastSyncSummary.value = { pulled: result.pulled, pushed: result.pushed, at: Date.now() }
+        await setSetting('sync_last_summary', JSON.stringify(lastSyncSummary.value), 'sync')
+        bumpTotalSyncCounts(result.pulled, result.pushed)
+      }
+
+      activity.setSyncCounts(result.pushed, result.pulled)
+
+      return { pulled: result.pulled, pushed: result.pushed }
+    }
+    catch (e: any) {
+      console.error(`[Sync] ${tableName} 同步失败:`, e)
+      throw e
+    }
+    finally {
+      activity.setSyncState(false)
+    }
+  }
+
+  /**
+   * 跳转到合并页面并等待用户决策
+   */
+  async function navigateToMerge(
+    tableName: string,
+    conflicts: Array<{ local: RecordMetadata, remote: RecordMetadata }>,
+  ): Promise<ConflictDecision[]> {
+    // 将冲突数据存储到全局状态
+    const pendingConflicts = useState<Array<{ local: RecordMetadata, remote: RecordMetadata }>>('sync_pending_conflicts')
+    const pendingTableName = useState<string>('sync_pending_table')
+    const conflictResolved = useState<ConflictDecision[] | null>('sync_conflict_resolved')
+
+    pendingConflicts.value = conflicts
+    pendingTableName.value = tableName
+    conflictResolved.value = null
+
+    // 跳转到合并页面
+    await router.push('/sync/merge')
+
+    // 等待用户完成合并（通过轮询检查 conflictResolved 状态）
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (conflictResolved.value) {
+          clearInterval(checkInterval)
+          resolve(conflictResolved.value)
+        }
+      }, 100)
+
+      // 超时保护（30 分钟）
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        console.warn('[Sync] 合并超时，默认保留本地')
+        resolve(conflicts.map(c => ({ uuid: c.local.uuid, action: 'keep_local' })))
+      }, 30 * 60 * 1000)
+    })
+  }
+
+  /**
+   * 强制推送单条记录
+   */
+  async function forcePushRecord(tableName: string, recordId: number) {
+    const base = getSyncBaseUrl()
+    if (!base) {
+      toast.error('请先配置服务器地址')
+      return
+    }
+
+    const table = SYNC_TABLES[tableName]
+    if (!table) {
+      toast.error(`表 ${tableName} 不存在`)
+      return
+    }
+
+    const headers = buildSyncHeaders()
+
+    try {
+      // 先查询出 UUID
+      const { select } = useTauriSQL()
+      const rows = await select<Array<{ uuid: string }>>(`SELECT uuid FROM ${tableName} WHERE id = ?`, [recordId])
+      if (!rows[0] || !rows[0].uuid) {
+        toast.error('记录不存在或缺少 UUID')
+        return
+      }
+
+      await syncEngine.forcePushRecord(table, rows[0].uuid, base, headers)
+      toast.success('已同步到远程端')
+    }
+    catch (e: any) {
+      console.error('[Sync] 强制推送失败:', e)
+      toast.error(`同步失败: ${e.message}`)
+    }
+  }
+
+  /**
+   * 同步单个表（旧方法，保持兼容）
+   * @deprecated 使用 syncTableSmart 替代
    */
   async function syncTable(tableName: string, silent = false) {
     const base = getSyncBaseUrl()
@@ -585,6 +733,12 @@ export function useSyncManager() {
       }
     }
 
+    // 加载同步模式
+    const savedMode = await getSetting('sync_mode')
+    if (savedMode && (savedMode === 'auto' || savedMode === 'manual')) {
+      syncMode.value = savedMode as SyncMode
+    }
+
     const workflows = await getAllWorkflows()
     const syncWorkflow = workflows?.find(w => w.name === SYNC_WORKFLOW_NAME)
     if (syncWorkflow)
@@ -645,6 +799,15 @@ export function useSyncManager() {
     finally {
       isSavingSyncConfig.value = false
     }
+  }
+
+  /**
+   * 保存同步模式
+   */
+  async function saveSyncMode(mode: SyncMode) {
+    syncMode.value = mode
+    await setSetting('sync_mode', mode, 'sync')
+    logger.info(`[Sync] 同步模式已更改为: ${mode}`)
   }
 
   async function resetSyncState() {
@@ -776,15 +939,19 @@ export function useSyncManager() {
     isSyncing,
     syncStatus,
     syncInfo,
+    syncMode, // 新增：同步模式
     lastSyncText,
     lastSyncCountText,
     totalSyncCountText,
     syncSummaryText,
     loadSyncConfig,
     saveSyncConfig,
+    saveSyncMode, // 新增：保存同步模式
     resetSyncState,
     deleteSyncConfig,
     syncTable,
+    syncTableSmart, // 新增：智能同步
+    forcePushRecord, // 新增：强制推送单条记录
     syncOnce,
     refreshSyncStateCard,
   }

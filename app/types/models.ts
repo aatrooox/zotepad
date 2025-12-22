@@ -15,6 +15,7 @@ export interface AppSetting {
 
 export interface Asset {
   id: number
+  uuid?: string
   url: string
   path: string
   filename: string
@@ -26,6 +27,7 @@ export interface Asset {
 
 export interface Note {
   id: number
+  uuid?: string
   title: string
   content: string
   tags?: string // JSON string of string[]
@@ -36,6 +38,7 @@ export interface Note {
 
 export interface Moment {
   id: number
+  uuid?: string
   content: string
   images?: string // JSON string of string[]
   tags?: string // JSON string of string[]

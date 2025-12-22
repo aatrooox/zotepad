@@ -1,9 +1,13 @@
 /**
  * 泛型同步引擎
- * 提供多表同步的通用逻辑，避免代码重复
+ * 提供多表同步的通用逻辑，支持智能合并
  */
 
+import type { ConflictDecision, SyncMode } from './useSyncConflict'
+import type { RecordMetadata } from './useSyncMetadata'
 import type { SyncableTable } from '~/config/sync-tables'
+import { useSyncConflict } from '~/composables/sync/useSyncConflict'
+import { useSyncMetadata } from '~/composables/sync/useSyncMetadata'
 import { useTauriSQL } from '~/composables/useTauriSQL'
 
 export interface SyncChange {
@@ -18,7 +22,7 @@ export interface SyncChange {
 export interface SyncResult {
   pulled: number
   pushed: number
-  lastServerVersion: number
+  conflicts?: Array<{ local: RecordMetadata, remote: RecordMetadata }>
 }
 
 export interface PullResult {
@@ -38,12 +42,250 @@ export interface PushResult {
  */
 export function useSyncEngine() {
   const { select: syncSelect, execute: syncExecute } = useTauriSQL()
+  const { getLocalMetadata, getRemoteMetadata, compareMetadata } = useSyncMetadata()
+  const { detectConflicts } = useSyncConflict()
+
+  /**
+   * 智能同步单个表（基于元数据）
+   * @param table 表配置
+   * @param baseUrl 服务器地址
+   * @param headers 请求头
+   * @param mode 同步模式（auto | manual）
+   * @param onConflict 冲突回调（手动模式时需要用户决策）
+   */
+  async function syncTableSmart(
+    table: SyncableTable,
+    baseUrl: string,
+    headers: Record<string, string>,
+    mode: SyncMode,
+    onConflict?: (conflicts: Array<{ local: RecordMetadata, remote: RecordMetadata }>) => Promise<ConflictDecision[]>,
+  ): Promise<SyncResult> {
+    console.log(`[SyncEngine] 开始智能同步: ${table.name}, mode=${mode}`)
+
+    // 1. 获取元数据
+    const [localMetadata, remoteMetadata] = await Promise.all([
+      getLocalMetadata(table),
+      getRemoteMetadata(baseUrl, table.name, headers),
+    ])
+
+    console.log(`[SyncEngine] ${table.name} 元数据:`, {
+      local: localMetadata.length,
+      remote: remoteMetadata.length,
+    })
+
+    // 2. 对比差异
+    const diff = compareMetadata(localMetadata, remoteMetadata)
+
+    console.log(`[SyncEngine] ${table.name} 差异:`, {
+      localOnly: diff.localOnly.length,
+      remoteOnly: diff.remoteOnly.length,
+      conflicts: diff.conflicts.length,
+      identical: diff.identical.length,
+    })
+
+    // 3. 处理冲突
+    const { needManual, autoResolved } = detectConflicts(diff.conflicts, mode)
+
+    let userDecisions: ConflictDecision[] = []
+    if (needManual.length > 0) {
+      if (mode === 'manual' && onConflict) {
+        // 手动模式：等待用户决策
+        userDecisions = await onConflict(needManual)
+      }
+      else {
+        // 自动模式但存在无法自动解决的冲突（时间相同）
+        // 这种情况下仍需进入手动合并
+        console.warn(`[SyncEngine] ${table.name} 存在 ${needManual.length} 条需要手动解决的冲突`)
+        if (onConflict) {
+          userDecisions = await onConflict(needManual)
+        }
+        else {
+          // 无回调则默认保留本地
+          userDecisions = needManual.map(c => ({ uuid: c.local.uuid, action: 'keep_local' as const }))
+        }
+      }
+    }
+
+    const allDecisions = [...autoResolved, ...userDecisions]
+
+    // 4. 执行同步操作
+    let pulled = 0
+    let pushed = 0
+
+    // 推送：本地独有 + 决定保留本地的冲突
+    const toPushIds = [
+      ...diff.localOnly.map(m => m.uuid),
+      ...allDecisions.filter(d => d.action === 'keep_local').map(d => d.uuid),
+    ]
+
+    if (toPushIds.length > 0) {
+      const pushResult = await pushRecordsByIds(table, toPushIds, baseUrl, headers)
+      pushed = pushResult.applied
+    }
+
+    // 拉取：远程独有 + 决定保留远程的冲突
+    const toPullIds = [
+      ...diff.remoteOnly.map(m => m.uuid),
+      ...allDecisions.filter(d => d.action === 'keep_remote').map(d => d.uuid),
+    ]
+
+    if (toPullIds.length > 0) {
+      const pullResult = await pullRecordsByIds(table, toPullIds, baseUrl, headers)
+      pulled = pullResult.pulled
+    }
+
+    console.log(`[SyncEngine] ${table.name} 同步完成:`, { pulled, pushed })
+
+    return {
+      pulled,
+      pushed,
+      conflicts: needManual.length > 0 ? needManual : undefined,
+    }
+  }
+
+  /**
+   * 按 UUID 推送指定记录
+   */
+  async function pushRecordsByIds(
+    table: SyncableTable,
+    uuids: string[],
+    baseUrl: string,
+    headers: Record<string, string>,
+  ): Promise<PushResult> {
+    if (uuids.length === 0) {
+      return { server_version: 0, applied: 0, conflict: false }
+    }
+
+    // 查询完整数据（根据 uuid）
+    const fieldList = table.fields.join(', ')
+    const placeholders = uuids.map(() => '?').join(', ')
+    const rows = await syncSelect<any[]>(
+      `SELECT ${fieldList} FROM ${table.name} WHERE uuid IN (${placeholders})`,
+      uuids,
+    )
+
+    const changes: SyncChange[] = rows
+      .filter((row) => {
+        // 必须有 uuid 才能同步（过滤 null、undefined、空字符串）
+        if (!row.uuid || row.uuid.trim() === '') {
+          console.warn(`[SyncEngine] 跳过没有 UUID 的记录: ${table.name} id=${row.id}, uuid='${row.uuid}'`)
+          return false
+        }
+        return true
+      })
+      .map((row) => {
+        const updatedAt = row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString()
+        const deletedAt = row.deleted_at ? new Date(row.deleted_at).toISOString() : null
+
+        const data: Record<string, any> = {}
+        table.fields.forEach((field) => {
+          // 跳过这些由系统管理的字段（会在 SyncChange 的其他字段中传递）
+          if (field === 'updated_at' || field === 'deleted_at' || field === 'version') {
+            return
+          }
+          // 包含所有其他字段，包括 uuid 和 id
+          data[field] = row[field] ?? (table.jsonFields?.includes(field) ? '[]' : '')
+        })
+
+        return {
+          table: table.name,
+          op: deletedAt ? 'delete' : 'upsert',
+          data: {
+            ...data,
+            updated_at: updatedAt,
+            deleted_at: deletedAt,
+          },
+          version: row.version || 0,
+          updated_at: updatedAt,
+          deleted_at: deletedAt,
+        }
+      })
+
+    // 发送推送请求
+    const res = await fetch(`${baseUrl}/push`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table: table.name, changes, client_version: 0 }),
+    })
+
+    if (!res.ok)
+      throw new Error(`推送失败: ${res.status}`)
+
+    const body = await res.json()
+    return body.data as PushResult
+  }
+
+  /**
+   * 按 UUID 拉取指定记录
+   */
+  async function pullRecordsByIds(
+    table: SyncableTable,
+    uuids: string[],
+    baseUrl: string,
+    headers: Record<string, string>,
+  ): Promise<{ pulled: number }> {
+    if (uuids.length === 0) {
+      return { pulled: 0 }
+    }
+
+    // 批量拉取（分批，每批 50 条）
+    const batchSize = 50
+    let totalPulled = 0
+
+    for (let i = 0; i < uuids.length; i += batchSize) {
+      const batchUuids = uuids.slice(i, i + batchSize)
+
+      // 拉取该批次的数据
+      const url = `${baseUrl}/pull?table=${table.name}&since_version=0&limit=1000`
+      const res = await fetch(url, { headers })
+
+      if (!res.ok)
+        throw new Error(`拉取失败: ${res.status}`)
+
+      const body = await res.json()
+      const payload = body.data as { changes: any[] }
+
+      // 过滤出目标 UUID 的记录
+      const targetChanges = payload.changes.filter(change =>
+        batchUuids.includes(change.data.uuid),
+      )
+
+      // 应用变更
+      const applied = await applyRemoteChanges(table, targetChanges)
+      totalPulled += applied
+    }
+
+    return { pulled: totalPulled }
+  }
+
+  /**
+   * 强制推送单条记录（用于单篇文章同步）
+   */
+  async function forcePushRecord(
+    table: SyncableTable,
+    recordUuid: string,
+    baseUrl: string,
+    headers: Record<string, string>,
+  ): Promise<void> {
+    console.log(`[SyncEngine] 强制推送: ${table.name} uuid=${recordUuid}`)
+
+    // 强制更新本地版本号为负数（表示待推送）
+    await syncExecute(
+      `UPDATE ${table.name} SET version = ?, updated_at = ? WHERE uuid = ?`,
+      [-Date.now(), new Date().toISOString(), recordUuid],
+    )
+
+    // 推送
+    await pushRecordsByIds(table, [recordUuid], baseUrl, headers)
+
+    console.log(`[SyncEngine] 强制推送完成`)
+  }
+
+  // ===== 保留旧方法以兼容现有代码 =====
 
   /**
    * 从本地数据库收集指定表的变更
-   * @param table 表配置
-   * @param sinceVersion 上次同步的版本号
-   * @returns 变更列表
+   * @deprecated 使用 syncTableSmart 替代
    */
   async function collectLocalChanges(table: SyncableTable, sinceVersion: number): Promise<SyncChange[]> {
     // 使用 2100000000 作为上限，可以兼容时间戳版本号（当前约1733900000），同时防止真正的异常值
@@ -139,7 +381,7 @@ export function useSyncEngine() {
 
       // 检查本地是否已有更新的版本
       const existing = await syncSelect<any[]>(
-        `SELECT version, ${table.fields.filter(f => f !== 'version' && f !== 'created_at').join(', ')} 
+        `SELECT updated_at, ${table.fields.filter(f => f !== 'version' && f !== 'created_at').join(', ')} 
          FROM ${table.name} WHERE ${table.primaryKey} = ?`,
         [pkValue],
       )
@@ -147,11 +389,12 @@ export function useSyncEngine() {
       let isContentSame = false
       if (existing.length > 0) {
         const local = existing[0]
-        const localVersion = local.version || 0
+        const localUpdatedAt = local.updated_at || ''
+        const remoteUpdatedAt = change.updated_at || ''
 
-        // 本地版本更新，跳过
-        if (localVersion >= incomingVersion) {
-          console.log(`[SyncEngine] 跳过较旧的远程变更: ${table.name} ${pkValue}, local=${localVersion}, remote=${incomingVersion}`)
+        // 本地时间 >= 远程时间，跳过
+        if (localUpdatedAt >= remoteUpdatedAt) {
+          console.log(`[SyncEngine] 跳过较旧的远程变更: ${table.name} ${pkValue}, local=${localUpdatedAt}, remote=${remoteUpdatedAt}`)
           continue
         }
 
@@ -372,6 +615,10 @@ export function useSyncEngine() {
   }
 
   return {
+    // 新方法（推荐使用）
+    syncTableSmart,
+    forcePushRecord,
+    // 旧方法（兼容）
     collectLocalChanges,
     applyRemoteChanges,
     pullTableChanges,

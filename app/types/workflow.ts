@@ -25,6 +25,7 @@ export interface WorkflowStep {
 
 export interface WorkflowSchema {
   id: number
+  uuid?: string
   name: string
   description?: string
   fields: string // JSON string of WorkflowSchemaField[]
@@ -43,6 +44,7 @@ export type WorkflowType = typeof WORKFLOW_TYPES[keyof typeof WORKFLOW_TYPES] | 
 
 export interface Workflow {
   id: number
+  uuid?: string
   name: string
   description?: string
   steps: string // JSON string of WorkflowStep[]

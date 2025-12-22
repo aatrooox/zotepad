@@ -1,5 +1,6 @@
 import type { Moment } from '~/types/models'
 import { useAsyncState } from '~/utils/async'
+import { generateUUID } from '~/utils/uuid'
 import { useTauriSQL } from '../useTauriSQL'
 
 export function useMomentRepository() {
@@ -9,35 +10,49 @@ export function useMomentRepository() {
   const createMoment = (content: string, images: string[] = [], tags: string[] = []) =>
     runAsync(async () => {
       const now = new Date().toISOString()
+      const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO moments (content, images, tags, version, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [content, JSON.stringify(images), JSON.stringify(tags), -Date.now(), now],
+        'INSERT INTO moments (uuid, content, images, tags, version, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuid, content, JSON.stringify(images), JSON.stringify(tags), -Date.now(), now],
       )
       const momentId = result.lastInsertId as number
 
       // 成就系统集成（Phase 1）
       try {
+        console.log('[动态创建] 开始成就系统集成, momentId:', momentId)
+
         // 获取当前用户 ID
         const { useCurrentUser } = await import('../useCurrentUser')
         const { getCurrentUserId } = useCurrentUser()
         const userId = getCurrentUserId()
+        console.log('[动态创建] 用户ID:', userId)
 
         // 动态导入避免循环依赖
         const { useStatsCollector } = await import('../useStatsCollector')
         const { useAchievementSystem } = await import('../useAchievementSystem')
+        const { usePointsRewards } = await import('../usePointsRewards')
 
         const { collectMomentCreated } = useStatsCollector()
         const { checkAchievements } = useAchievementSystem()
+        const { rewardMomentCreated } = usePointsRewards()
 
         // 收集统计数据
+        console.log('[动态创建] 收集统计数据...')
         await collectMomentCreated(userId)
 
+        // 添加积分奖励
+        console.log('[动态创建] 添加积分奖励...')
+        await rewardMomentCreated(userId, momentId, images)
+
         // 检查相关成就
+        console.log('[动态创建] 检查成就...')
         await checkAchievements(userId, 'content.moments_total')
+
+        console.log('[动态创建] ✅ 成就系统集成完成')
       }
       catch (err) {
         // 成就系统失败不影响主流程
-        console.warn('成就系统处理失败:', err)
+        console.error('[动态创建] ❌ 成就系统处理失败:', err)
       }
 
       return momentId

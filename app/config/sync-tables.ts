@@ -27,8 +27,8 @@ export interface SyncableTable {
 export const SYNC_TABLES: Record<string, SyncableTable> = {
   notes: {
     name: 'notes',
-    primaryKey: 'id',
-    fields: ['id', 'title', 'content', 'tags', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    primaryKey: 'uuid',
+    fields: ['uuid', 'title', 'content', 'tags', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: ['tags'],
     hasVersion: true,
     hasSoftDelete: true,
@@ -36,8 +36,8 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   },
   moments: {
     name: 'moments',
-    primaryKey: 'id',
-    fields: ['id', 'content', 'images', 'tags', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    primaryKey: 'uuid',
+    fields: ['uuid', 'content', 'images', 'tags', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: ['images', 'tags'],
     hasVersion: true,
     hasSoftDelete: true,
@@ -45,8 +45,8 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   },
   assets: {
     name: 'assets',
-    primaryKey: 'id',
-    fields: ['id', 'url', 'path', 'filename', 'size', 'mime_type', 'storage_type', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    primaryKey: 'uuid',
+    fields: ['uuid', 'url', 'path', 'filename', 'size', 'mime_type', 'storage_type', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: [],
     hasVersion: true,
     hasSoftDelete: true,
@@ -54,8 +54,8 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   },
   workflows: {
     name: 'workflows',
-    primaryKey: 'id',
-    fields: ['id', 'name', 'description', 'steps', 'schema_id', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    primaryKey: 'uuid',
+    fields: ['uuid', 'name', 'description', 'steps', 'schema_id', 'type', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: ['steps'],
     hasVersion: true,
     hasSoftDelete: true,
@@ -63,8 +63,8 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   },
   workflow_schemas: {
     name: 'workflow_schemas',
-    primaryKey: 'id',
-    fields: ['id', 'name', 'description', 'fields', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    primaryKey: 'uuid',
+    fields: ['uuid', 'name', 'description', 'fields', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: ['fields'],
     hasVersion: true,
     hasSoftDelete: true,

@@ -1,5 +1,6 @@
 import type { Note } from '~/types/models'
 import { useAsyncState } from '~/utils/async'
+import { generateUUID } from '~/utils/uuid'
 import { useTauriSQL } from '../useTauriSQL'
 
 export function useNoteRepository() {
@@ -9,37 +10,51 @@ export function useNoteRepository() {
   const createNote = (title: string, content: string, tags: string[] = []) =>
     runAsync(async () => {
       const now = new Date().toISOString()
+      const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO notes (title, content, tags, version, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [title, content, JSON.stringify(tags), -Date.now(), now],
+        'INSERT INTO notes (uuid, title, content, tags, version, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuid, title, content, JSON.stringify(tags), -Date.now(), now],
       )
       const noteId = result.lastInsertId as number
 
       // 成就系统集成（Phase 1）
       try {
+        console.log('[笔记创建] 开始成就系统集成, noteId:', noteId)
+
         // 获取当前用户 ID
         const { useCurrentUser } = await import('../useCurrentUser')
         const { getCurrentUserId } = useCurrentUser()
         const userId = getCurrentUserId()
         const wordCount = content.length
+        console.log('[笔记创建] 用户ID:', userId, '字数:', wordCount)
 
         // 动态导入避免循环依赖
         const { useStatsCollector } = await import('../useStatsCollector')
         const { useAchievementSystem } = await import('../useAchievementSystem')
+        const { usePointsRewards } = await import('../usePointsRewards')
 
         const { collectNoteCreated } = useStatsCollector()
         const { checkAchievements } = useAchievementSystem()
+        const { rewardNoteCreated } = usePointsRewards()
 
         // 收集统计数据
+        console.log('[笔记创建] 收集统计数据...')
         await collectNoteCreated(userId, wordCount)
 
+        // 添加积分奖励
+        console.log('[笔记创建] 添加积分奖励...')
+        await rewardNoteCreated(userId, noteId, content)
+
         // 检查相关成就
+        console.log('[笔记创建] 检查成就...')
         await checkAchievements(userId, 'content.notes_total')
         await checkAchievements(userId, 'content.words_total')
+
+        console.log('[笔记创建] ✅ 成就系统集成完成')
       }
       catch (err) {
         // 成就系统失败不影响主流程
-        console.warn('成就系统处理失败:', err)
+        console.error('[笔记创建] ❌ 成就系统处理失败:', err)
       }
 
       return noteId

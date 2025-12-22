@@ -65,8 +65,9 @@ const { setContext } = useSidebar()
 // const { celebrateAchievement } = useMascotController()
 
 // 同步管理
-const { syncTable } = useSyncManager()
+const { syncTable, forcePushRecord } = useSyncManager()
 const { isDesktop } = useEnvironment()
+const isForceSyncing = ref(false)
 
 // 添加调试日志
 // console.log('[Notes] syncOnce 函数:', syncOnce)
@@ -258,9 +259,12 @@ const saveNote = async () => {
         saveStatus.value = 'idle'
     }, 2000)
 
-    // 保存成功后触发同步(不等待完成,避免阻塞) - 仅移动端
+    // 保存成功后触发同步(不等待完成,避免阻塞) - 仅移动端且自动模式
     if (!isDesktop.value) {
-      syncTable('notes', true).catch((e: any) => console.error('[Notes] 同步失败:', e))
+      const { syncMode } = useSyncManager()
+      if (syncMode.value === 'auto') {
+        syncTable('notes', true).catch((e: any) => console.error('[Notes] 保存后自动同步失败:', e))
+      }
     }
   }
   catch (e) {
@@ -272,6 +276,29 @@ const saveNote = async () => {
 
 const debouncedSave = useDebounceFn(saveNote, 1000)
 const currentToolbars = computed(() => isMobile.value ? mobileToolbars : toolbars)
+
+/**
+ * 强制同步当前笔记
+ */
+const handleForceSync = async () => {
+  if (!noteId.value) {
+    toast.error('请先保存笔记')
+    return
+  }
+
+  isForceSyncing.value = true
+  try {
+    await forcePushRecord('notes', noteId.value)
+    toast.success('已同步到远程端')
+  }
+  catch (e: any) {
+    console.error('[ForceSync] 失败:', e)
+    toast.error(`同步失败: ${e.message || '未知错误'}`)
+  }
+  finally {
+    isForceSyncing.value = false
+  }
+}
 
 // Tag management
 const addTag = () => {
@@ -583,6 +610,17 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         </div>
       </div>
       <div class="flex items-center gap-1 md:gap-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
+          title="强制同步此文章"
+          :disabled="!noteId || isForceSyncing"
+          @click="handleForceSync"
+        >
+          <Icon name="lucide:cloud-upload" class="w-4 h-4" :class="{ 'animate-pulse': isForceSyncing }" />
+        </Button>
+
         <Button
           variant="ghost"
           size="icon"

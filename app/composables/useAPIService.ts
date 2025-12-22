@@ -95,9 +95,14 @@ export class APIService {
   private async getServerToken(serverUrl: string): Promise<string | null> {
     try {
       // 优先从 SQL 的设置表读取（存在该 API）
-      const fromSql = await this.sqlService.getSetting?.(`token:${serverUrl}`)
-      if (fromSql)
-        return fromSql
+      try {
+        const sqlResult = await this.sqlService.select<{ value: string }[]>('SELECT value FROM settings WHERE key = $1', [`token:${serverUrl}`])
+        if (sqlResult.length > 0)
+          return sqlResult[0]!.value
+      }
+      catch {
+        // 忽略 SQL 读取错误（如表不存在），继续尝试 Store
+      }
 
       // 回退到 Store
       await this.storeService.initStore?.()

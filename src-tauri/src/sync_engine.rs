@@ -34,32 +34,32 @@ pub struct TableConfig {
 pub const SYNC_TABLES: &[TableConfig] = &[
     TableConfig {
         name: "notes",
-        primary_key: "id",
-        fields: &["id", "title", "content", "tags", "created_at", "updated_at", "deleted_at", "version"],
+        primary_key: "uuid",
+        fields: &["uuid", "title", "content", "tags", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &["tags"],
     },
     TableConfig {
         name: "moments",
-        primary_key: "id",
-        fields: &["id", "content", "images", "tags", "created_at", "updated_at", "deleted_at", "version"],
+        primary_key: "uuid",
+        fields: &["uuid", "content", "images", "tags", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &["images", "tags"],
     },
     TableConfig {
         name: "assets",
-        primary_key: "id",
-        fields: &["id", "url", "path", "filename", "size", "mime_type", "storage_type", "created_at", "updated_at", "deleted_at", "version"],
+        primary_key: "uuid",
+        fields: &["uuid", "url", "path", "filename", "size", "mime_type", "storage_type", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &[],
     },
     TableConfig {
         name: "workflows",
-        primary_key: "id",
-        fields: &["id", "name", "description", "steps", "schema_id", "type", "created_at", "updated_at", "deleted_at", "version"],
+        primary_key: "uuid",
+        fields: &["uuid", "name", "description", "steps", "schema_id", "type", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &["steps"],
     },
     TableConfig {
         name: "workflow_schemas",
-        primary_key: "id",
-        fields: &["id", "name", "description", "fields", "created_at", "updated_at", "deleted_at", "version"],
+        primary_key: "uuid",
+        fields: &["uuid", "name", "description", "fields", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &["fields"],
     },
 ];
@@ -122,7 +122,7 @@ fn upgrade_zero_versions(conn: &Connection, table_name: &str, config: &TableConf
     let mut stmt = conn.prepare(&query)?;
     let mut rows = stmt.query([])?;
     
-    let mut ids_to_upgrade: Vec<i64> = Vec::new();
+    let mut ids_to_upgrade: Vec<String> = Vec::new();
     while let Some(row) = rows.next()? {
         ids_to_upgrade.push(row.get(0)?);
     }
@@ -231,6 +231,24 @@ pub fn load_table_changes(
             data_map.insert(field_name.to_string(), value);
         }
 
+        // 检查 uuid 是否有效
+        if let Some(uuid_val) = data_map.get("uuid") {
+            if uuid_val.is_null() {
+                log::warn!("[SyncEngine] Skip record with null uuid in table {}", table_name);
+                continue;
+            }
+            if let Some(s) = uuid_val.as_str() {
+                if s.trim().is_empty() {
+                    log::warn!("[SyncEngine] Skip record with empty uuid in table {}", table_name);
+                    continue;
+                }
+            }
+        } else {
+             // 如果没有 uuid 字段（不应该发生，因为 config.fields 包含它），也跳过
+             log::warn!("[SyncEngine] Skip record missing uuid field in table {}", table_name);
+             continue;
+        }
+
         changes.push(SyncChange {
             table: table_name.to_string(),
             op,
@@ -260,35 +278,44 @@ pub fn apply_table_change(
     let pk_value = change
         .data
         .get(config.primary_key)
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
-    // 检查本地是否已有更高版本
+    if pk_value.is_empty() {
+        log::warn!("Skip applying change for {} with empty primary key", table_name);
+        return Ok(false);
+    }
+
+    // 检查本地是否已有更新的记录（基于 updated_at）
     let check_query = format!(
-        "SELECT version FROM {} WHERE {} = ?1",
+        "SELECT updated_at FROM {} WHERE {} = ?1",
         table_name, config.primary_key
     );
     let mut stmt = conn.prepare(&check_query)?;
-    let existing: Option<i64> = stmt.query_row(params![pk_value], |row| row.get(0)).optional()?;
+    let existing: Option<String> = stmt.query_row(params![pk_value], |row| row.get(0)).optional()?;
     
-    if let Some(existing_version) = existing {
-        if existing_version >= new_version {
+    if let Some(local_updated_at) = existing {
+        // 如果本地时间 >= 远程时间，跳过
+        // 注意：这里假设时间格式一致（ISO 8601），可以直接字符串比较
+        if local_updated_at >= change.updated_at {
             log::debug!(
-                "Skip applying change for {} {}: existing version {} >= new version {}",
+                "Skip applying change for {} {}: local updated_at {} >= remote updated_at {}",
                 table_name,
                 pk_value,
-                existing_version,
-                new_version
+                local_updated_at,
+                change.updated_at
             );
             return Ok(false); // 跳过旧版本
         }
     }
 
-    let updated_at = now_iso();
+    // 使用客户端提供的 updated_at，如果没有则使用当前时间
+    let updated_at = change.updated_at.clone();
 
     match change.op {
         SyncOp::Delete => {
-            let deleted_at = now_iso();
+            // 使用客户端提供的 deleted_at，如果没有则使用当前时间
+            let deleted_at = change.deleted_at.clone().unwrap_or_else(|| now_iso());
             
             // 动态构建 DELETE 的 UPSERT 语句
             let fields_except_created = config
@@ -400,6 +427,11 @@ pub fn apply_table_change(
                         }
                     } else {
                         // 字段不存在，使用默认值
+                        // uuid 字段必须存在且非空
+                        if *field == "uuid" {
+                            return Err(rusqlite::Error::InvalidQuery);
+                        }
+                        
                         if config.json_fields.contains(field) {
                             params_vec.push(Box::new("[]".to_string()));
                         } else {
@@ -415,4 +447,46 @@ pub fn apply_table_change(
     }
 
     Ok(true)
+}
+
+/// 获取指定表的所有记录元数据（用于智能合并）
+pub fn load_table_metadata(
+    conn: &Connection,
+    table_name: &str,
+) -> rusqlite::Result<Vec<serde_json::Value>> {
+    let _config = match get_table_config(table_name) {
+        Some(c) => c,
+        None => return Ok(Vec::new()),
+    };
+
+    // 查询元数据字段：uuid, version, updated_at, deleted_at
+    let query = format!(
+        "SELECT uuid, version, updated_at, deleted_at FROM {} WHERE deleted_at IS NULL ORDER BY updated_at DESC",
+        table_name
+    );
+
+    let mut stmt = conn.prepare(&query)?;
+    let mut rows = stmt.query([])?;
+    let mut metadata_list = Vec::new();
+
+    while let Some(row) = rows.next()? {
+        let uuid: Option<String> = row.get(0).ok().flatten();
+        let version: i64 = row.get(1)?;
+        let updated_at: String = row.get(2).unwrap_or_else(|_| now_iso());
+        let deleted_at: Option<String> = row.get(3).ok().flatten();
+
+        // 跳过没有 uuid 的记录（旧数据）
+        if let Some(uuid_value) = uuid {
+            let metadata = serde_json::json!({
+                "uuid": uuid_value,
+                "version": version,
+                "updated_at": updated_at,
+                "deleted_at": deleted_at,
+            });
+
+            metadata_list.push(metadata);
+        }
+    }
+
+    Ok(metadata_list)
 }

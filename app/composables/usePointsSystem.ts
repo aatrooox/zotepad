@@ -164,9 +164,19 @@ export function usePointsSystem() {
     runAsync(async () => {
       const now = Date.now()
 
-      // Phase 1: operation_id 留空
-      // Phase 3: 在这里生成 operation_id
-      const operationId = '' // TODO Phase 3: 生成唯一 ID
+      console.log('[积分系统] 准备添加积分:', {
+        userId,
+        sourceType,
+        sourceId,
+        points,
+        exp,
+        reason,
+        achievementKey,
+      })
+
+      // Phase 1: 生成临时唯一 ID（使用时间戳+随机数）
+      // Phase 3: 改为 `${deviceId}_${timestamp}_${counter}`
+      const operationId = `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
       // 插入积分日志
       await execute(
@@ -176,8 +186,12 @@ export function usePointsSystem() {
         [userId, operationId, sourceType, sourceId, achievementKey, points, exp, reason, now],
       )
 
+      console.log('[积分系统] 积分已记录到数据库')
+
       // 更新用户档案
       await updateProfile(userId)
+
+      console.log('[积分系统] 用户档案已更新')
 
       return { points, exp }
     }, '添加积分失败')

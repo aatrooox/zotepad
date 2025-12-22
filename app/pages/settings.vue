@@ -188,8 +188,10 @@ const {
   isSyncing,
   // syncStatus,
   syncInfo,
+  syncMode, // 新增：同步模式
   syncSummaryText,
   saveSyncConfig,
+  saveSyncMode, // 新增：保存同步模式
   // resetSyncState,
   // deleteSyncConfig,
   syncOnce,
@@ -707,6 +709,34 @@ onMounted(async () => {
                     </Button>
                   </div>
 
+                  <!-- 同步模式选择（桌面端） -->
+                  <div class="grid gap-2">
+                    <Label>同步模式</Label>
+                    <div class="flex gap-2">
+                      <Button
+                        :variant="syncMode === 'manual' ? 'default' : 'outline'"
+                        class="flex-1"
+                        size="sm"
+                        @click="saveSyncMode('manual')"
+                      >
+                        <Icon name="lucide:hand" class="w-4 h-4 mr-2" />
+                        手动合并
+                      </Button>
+                      <Button
+                        :variant="syncMode === 'auto' ? 'default' : 'outline'"
+                        class="flex-1"
+                        size="sm"
+                        @click="saveSyncMode('auto')"
+                      >
+                        <Icon name="lucide:zap" class="w-4 h-4 mr-2" />
+                        自动合并
+                      </Button>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      {{ syncMode === 'manual' ? '所有冲突需手动选择，适合重要内容' : '按更新时间自动合并，时间相同时仍需手动选择' }}
+                    </p>
+                  </div>
+
                   <div class="p-3 rounded-lg border" :class="syncInfo.status === 'error' ? 'bg-destructive/5 border-destructive/40' : 'bg-muted/50'">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2 text-sm font-medium">
@@ -739,6 +769,32 @@ onMounted(async () => {
                       class="flex-1 font-mono text-sm"
                     />
                   </div>
+                </div>
+
+                <!-- 同步模式选择 -->
+                <div class="grid gap-2">
+                  <Label>同步模式</Label>
+                  <div class="flex gap-2">
+                    <Button
+                      :variant="syncMode === 'manual' ? 'default' : 'outline'"
+                      class="flex-1"
+                      @click="saveSyncMode('manual')"
+                    >
+                      <Icon name="lucide:hand" class="w-4 h-4 mr-2" />
+                      手动合并
+                    </Button>
+                    <Button
+                      :variant="syncMode === 'auto' ? 'default' : 'outline'"
+                      class="flex-1"
+                      @click="saveSyncMode('auto')"
+                    >
+                      <Icon name="lucide:zap" class="w-4 h-4 mr-2" />
+                      自动合并
+                    </Button>
+                  </div>
+                  <p class="text-xs text-muted-foreground">
+                    {{ syncMode === 'manual' ? '所有冲突需手动选择，适合重要内容' : '按更新时间自动合并，时间相同时仍需手动选择' }}
+                  </p>
                 </div>
 
                 <div class="p-3 rounded-lg border" :class="syncInfo.status === 'error' ? 'bg-destructive/5 border-destructive/40' : 'bg-muted/50'">

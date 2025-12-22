@@ -1,6 +1,7 @@
 import type { Workflow, WorkflowSchema, WorkflowType } from '~/types/workflow'
 import { useAsyncState } from '~/utils/async'
 import { useTauriSQL } from '../useTauriSQL'
+import { generateUUID } from '~/utils/uuid'
 
 export function useWorkflowRepository() {
   const { execute, select } = useTauriSQL()
@@ -9,9 +10,10 @@ export function useWorkflowRepository() {
   const createWorkflow = (name: string, description: string, steps: any[], schemaId?: number, type: WorkflowType = 'user') =>
     runAsync(async () => {
       const now = new Date().toISOString()
+      const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO workflows (name, description, steps, schema_id, type, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [name, description, JSON.stringify(steps), schemaId || null, type, -Date.now(), now],
+        'INSERT INTO workflows (uuid, name, description, steps, schema_id, type, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuid, name, description, JSON.stringify(steps), schemaId || null, type, -Date.now(), now],
       )
       return result.lastInsertId as number
     }, 'Failed to create workflow')
@@ -148,9 +150,10 @@ export function useWorkflowRepository() {
       }
 
       // 创建新的
+      const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO workflows (name, description, steps, schema_id, type, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [name, description, JSON.stringify(steps), schemaId || null, type, -Date.now(), now],
+        'INSERT INTO workflows (uuid, name, description, steps, schema_id, type, version, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuid, name, description, JSON.stringify(steps), schemaId || null, type, -Date.now(), now],
       )
       return result.lastInsertId as number
     }, 'Failed to upsert system workflow')
