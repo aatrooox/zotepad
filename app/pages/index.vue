@@ -465,6 +465,30 @@ const formatDate = (dateStr?: string) => {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+const formatMomentTime = (timestamp?: number | string) => {
+  if (!timestamp)
+    return ''
+
+  // 处理 SQLite 默认的 UTC 时间字符串 (YYYY-MM-DD HH:MM:SS)
+  // 如果没有时区标识，且看起来像标准日期时间，默认视为 UTC
+  let dateVal = timestamp
+  if (typeof timestamp === 'string' && !timestamp.includes('Z') && !timestamp.includes('+') && timestamp.includes(' ')) {
+    dateVal = `${timestamp.replace(' ', 'T')}Z`
+  }
+
+  const date = new Date(dateVal)
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
 const getTags = (tagsStr?: string) => {
   if (!tagsStr)
     return []
@@ -1176,7 +1200,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             >
               <div class="flex justify-between items-start mb-3">
                 <div class="text-sm text-muted-foreground">
-                  {{ new Date(moment.created_at!).toLocaleString() }}
+                  {{ formatMomentTime(moment.created_at) }}
                 </div>
                 <div class="flex gap-2">
                   <Button

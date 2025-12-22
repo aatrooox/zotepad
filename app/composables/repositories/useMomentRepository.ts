@@ -12,8 +12,8 @@ export function useMomentRepository() {
       const now = new Date().toISOString()
       const uuid = generateUUID()
       const result = await execute(
-        'INSERT INTO moments (uuid, content, images, tags, version, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuid, content, JSON.stringify(images), JSON.stringify(tags), -Date.now(), now],
+        'INSERT INTO moments (uuid, content, images, tags, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [uuid, content, JSON.stringify(images), JSON.stringify(tags), -Date.now(), now, now],
       )
       const momentId = result.lastInsertId as number
 
