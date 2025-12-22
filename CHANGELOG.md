@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.24.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.0...v0.24.1)
+
+### 🩹 Fixes
+
+- 动态创建时间处理 ([6f1c34e](https://github.com/aatrooox/zotepad/commit/6f1c34e))
+
+### 🏡 Chore
+
+- **build:** Release v0.24.0 ([0ea8de2](https://github.com/aatrooox/zotepad/commit/0ea8de2))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.23.0...v0.24.0)
