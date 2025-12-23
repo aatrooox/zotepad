@@ -11,6 +11,7 @@ import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
+import { useNoteStore } from '~/composables/stores/useNoteStore'
 import { useSidebar } from '~/composables/useSidebar'
 import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
@@ -19,6 +20,7 @@ import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
+const { fetchNotes } = useNoteStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -253,7 +255,7 @@ const saveNote = async () => {
         router.replace({ params: { id: id.toString() } })
       }
     }
-
+    fetchNotes(true)
     // Ensure loading state shows for at least 500ms for visual smoothness
     const elapsed = Date.now() - startTime
     if (elapsed < 500) {
@@ -793,9 +795,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
   --md-border-color: hsl(var(--border));
 }
 
-/* 强制编辑器输入区域使用系统无衬线字体，覆盖默认的等宽字体 */
+/* 强制编辑器输入区域使用新字体，覆盖默认的等宽字体 */
 .md-editor-input .cm-editor {
   font-family:
+    'SweiCurveLeg',
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -808,6 +811,20 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     sans-serif !important;
 }
 
+.md-editor .ͼ1 .cm-scroller {
+  font-family:
+    'SweiCurveLeg',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    'Noto Sans',
+    sans-serif !important;
+}
 .md-editor-toolbar-wrapper {
   border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
 }

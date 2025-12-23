@@ -1,6 +1,31 @@
 @import 'tailwindcss';
 
+/* @font-face {
+  font-family: 'LXGWFasmartGothic';
+  src: url('/fonts/LXGWFasmartGothic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DeyiHei';
+  src: url('/fonts/DeyiHei.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+} */
+
+@font-face {
+  font-family: 'SweiCurveLeg';
+  src: url('/fonts/SweiCurveLegCJKsc-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
+  --font-sans: 'SweiCurveLeg', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -134,7 +159,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
   
   html, body, #__nuxt {
