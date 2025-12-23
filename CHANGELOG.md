@@ -1,6 +1,20 @@
 # Changelog
 
 
+## v0.24.3
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.2...v0.24.3)
+
+### 🏡 Chore
+
+- **release:** V0.24.2 ([7296142](https://github.com/aatrooox/zotepad/commit/7296142))
+- **build:** Release v0.24.2 ([c9aab3a](https://github.com/aatrooox/zotepad/commit/c9aab3a))
+- 写文章增加纯净模式 ([6e0b4d3](https://github.com/aatrooox/zotepad/commit/6e0b4d3))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.2
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.1...v0.24.2)
