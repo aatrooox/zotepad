@@ -70,8 +70,21 @@ const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFiles } = useStorageService()
-const { setContext } = useSidebar()
+const { setContext, isVisible: sidebarVisible } = useSidebar()
 // const { celebrateAchievement } = useMascotController()
+
+const isPureMode = ref(false)
+
+const togglePureMode = () => {
+  isPureMode.value = !isPureMode.value
+  sidebarVisible.value = !isPureMode.value
+}
+
+onUnmounted(() => {
+  if (isPureMode.value) {
+    sidebarVisible.value = true
+  }
+})
 
 // 同步管理
 const { syncTable, forcePushRecord } = useSyncManager()
@@ -571,10 +584,14 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 <template>
   <div
     class="relative min-h-[100dvh] flex flex-col bg-background pt-safe-offset-4 md:pt-0 overflow-auto md:overflow-hidden"
+    :class="{ 'pt-0': isPureMode }"
     :style="keyboardSafeStyle"
   >
     <!-- Header / Toolbar Area -->
-    <header class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0 gap-2">
+    <header
+      v-if="!isPureMode"
+      class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0 gap-2"
+    >
       <div class="flex flex-col flex-1 gap-2 md:gap-3 min-w-0">
         <!-- 移动端返回按钮 -->
         <div class="flex items-center gap-2 md:hidden">
@@ -692,6 +709,16 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           </DialogContent>
         </Dialog>
 
+        <Button
+          variant="ghost"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
+          title="纯净模式"
+          @click="togglePureMode"
+        >
+          <Icon name="lucide:maximize-2" class="w-4 h-4" />
+        </Button>
+
         <NuxtLink to="/settings">
           <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9">
             <Icon name="lucide:settings" class="w-4 h-4 md:w-5 md:h-5" />
@@ -721,6 +748,27 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
       <!-- Save Status Indicator -->
       <AppActionStatusIndicator :status="saveStatus" class="bottom-8 right-4" />
+
+      <!-- Exit Pure Mode Button -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0 -translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-4"
+      >
+        <Button
+          v-if="isPureMode"
+          variant="outline"
+          size="icon"
+          class="fixed top-4 right-4 z-50 rounded-full shadow-md bg-background/60 backdrop-blur-md border-primary/10 hover:border-primary/30 hover:bg-background/80 group w-8 h-8"
+          title="退出纯净模式"
+          @click="togglePureMode"
+        >
+          <Icon name="lucide:minimize-2" class="w-4 h-4 group-hover:scale-110 transition-transform" />
+        </Button>
+      </Transition>
     </div>
 
     <!-- WeChat Preview Drawer -->
