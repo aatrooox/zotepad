@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useColorMode } from '@vueuse/core'
 import GlobalActivityIndicator from '@/components/app/GlobalActivityIndicator.vue'
 import StorageProviderSelector from '@/components/app/StorageProviderSelector.vue'
 import Toaster from '@/components/ui/sonner.vue'
@@ -10,6 +11,11 @@ useHead({
     // Simplify viewport to avoid IME/resize quirks on some Android WebViews
     { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
   ],
+})
+
+// 主题管理: 默认跟随系统
+const colorMode = useColorMode({
+  emitAuto: true,
 })
 
 // 全局初始化:加载同步配置等
@@ -50,7 +56,7 @@ onMounted(async () => {
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    <Toaster class="pointer-events-auto" rich-colors theme="light" :duration="2500" />
+    <Toaster class="pointer-events-auto" rich-colors :theme="colorMode === 'auto' ? 'system' : colorMode" :duration="2500" />
     <StorageProviderSelector />
   </div>
 </template>

@@ -2,7 +2,7 @@
 import type { ToolbarNames } from 'md-editor-v3'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
-import { useClipboard, useDebounceFn, useEventListener, useWindowSize } from '@vueuse/core'
+import { useClipboard, useColorMode, useDebounceFn, useEventListener, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
@@ -26,7 +26,17 @@ const route = useRoute()
 const router = useRouter()
 const { width } = useWindowSize()
 const { copy } = useClipboard()
+const colorMode = useColorMode({
+  emitAuto: true,
+})
 const isMobile = computed(() => width.value < 768)
+
+// 获取实际生效的主题 (用于 MdEditor 等不支持 'auto' 的组件)
+const resolvedTheme = computed(() => {
+  if (colorMode.value !== 'auto')
+    return colorMode.value
+  return (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
+})
 
 const content = ref('')
 const title = ref('')
@@ -235,9 +245,11 @@ const toolbars: ToolbarNames[] = [
 
 // Mobile specific toolbar (simplified)
 const mobileToolbars: ToolbarNames[] = [
+  'title',
   'bold',
   'underline',
   'italic',
+  'strikeThrough',
   'codeRow',
   'image',
   'link',
@@ -600,7 +612,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           </Button>
           <input
             v-model="title"
-            class="bg-transparent font-bold text-lg focus:outline-none text-foreground placeholder:text-muted-foreground/50 w-full tracking-tight"
+            class="bg-transparent font-bold text-base focus:outline-none text-foreground placeholder:text-muted-foreground/50 w-full tracking-tight"
             placeholder="无标题笔记"
             @input="debouncedSave"
           >
@@ -732,7 +744,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
       <ClientOnly>
         <MdEditor
           v-model="content"
-          theme="light"
+          :theme="resolvedTheme"
           class="!h-full w-full"
           :toolbars="currentToolbars"
           :preview="false"
@@ -795,6 +807,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
                 <ClientOnly>
                   <MdPreview
                     :model-value="content"
+                    theme="light"
                     preview-theme="github"
                     :code-foldable="false"
                     class="wechat-preview-content"
@@ -883,6 +896,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    font-size: 15px !important;
   }
 
   .md-editor-toolbar-wrapper {

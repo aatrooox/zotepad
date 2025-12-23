@@ -2,6 +2,7 @@
 import { save } from '@tauri-apps/plugin-dialog'
 import { create, writeFile } from '@tauri-apps/plugin-fs'
 import { info, warn } from '@tauri-apps/plugin-log'
+import { useColorMode } from '@vueuse/core'
 import { onMounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useCOSManager } from '~/composables/settings/useCOSManager'
@@ -19,6 +20,9 @@ const version = config.public.version
 const store = useTauriStore()
 const { isDesktop } = useEnvironment()
 const { setNavigation } = useSidebar()
+const colorMode = useColorMode({
+  emitAuto: true,
+})
 const {
   enableCompression,
   enableFormatConversion,
@@ -141,6 +145,7 @@ const handleFileSelect = async (event: Event) => {
 // Tabs configuration
 const tabs = [
   { id: 'editor', label: '编辑器', icon: 'lucide:pencil' },
+  { id: 'appearance', label: '外观', icon: 'lucide:palette' },
   { id: 'storage', label: '图床', icon: 'lucide:image' },
   { id: 'workflows', label: '系统流', icon: 'lucide:blocks' },
   { id: 'advanced', label: '高级', icon: 'lucide:settings-2' },
@@ -385,6 +390,53 @@ onMounted(async () => {
             </CardHeader>
             <CardContent class="px-0 pb-2">
               <Textarea v-model="customCss" placeholder="/* 输入 CSS 代码 */" class="font-mono h-64 bg-card/50" />
+            </CardContent>
+          </Card>
+        </div>
+
+        <!-- Appearance Tab -->
+        <div v-if="activeTab === 'appearance'" class="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+          <Card class="border border-border/50 shadow-sm">
+            <CardHeader>
+              <div class="flex items-center gap-2">
+                <Icon name="lucide:sun-moon" class="w-5 h-5 text-primary" />
+                <CardTitle>主题模式</CardTitle>
+              </div>
+              <CardDescription>选择应用的外观主题，支持深色模式。</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div class="grid gap-3">
+                <Label>显示模式</Label>
+                <div class="grid grid-cols-3 gap-2">
+                  <Button
+                    variant="outline"
+                    class="flex flex-col items-center gap-2 h-auto py-3 px-2"
+                    :class="{ 'border-primary bg-primary/5': colorMode === 'light' }"
+                    @click="colorMode = 'light'"
+                  >
+                    <Icon name="lucide:sun" class="w-5 h-5" />
+                    <span class="text-xs">浅色</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    class="flex flex-col items-center gap-2 h-auto py-3 px-2"
+                    :class="{ 'border-primary bg-primary/5': colorMode === 'dark' }"
+                    @click="colorMode = 'dark'"
+                  >
+                    <Icon name="lucide:moon" class="w-5 h-5" />
+                    <span class="text-xs">深色</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    class="flex flex-col items-center gap-2 h-auto py-3 px-2"
+                    :class="{ 'border-primary bg-primary/5': colorMode === 'auto' }"
+                    @click="colorMode = 'auto'"
+                  >
+                    <Icon name="lucide:monitor" class="w-5 h-5" />
+                    <span class="text-xs">跟随系统</span>
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

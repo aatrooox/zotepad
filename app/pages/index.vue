@@ -3,7 +3,7 @@ import type { ToolbarNames } from 'md-editor-v3'
 import type { Asset, Moment, Note } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { useFileDialog } from '@vueuse/core'
+import { useColorMode, useFileDialog } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
@@ -49,7 +49,17 @@ const tabToTableMap: Record<TabId, string> = {
 const { getSetting, setSetting } = useSettingRepository()
 const { syncTable, syncMode } = useSyncManager()
 const { isDesktop } = useEnvironment()
+const colorMode = useColorMode({
+  emitAuto: true,
+})
 const isLoading = ref(false)
+
+// 获取实际生效的主题
+const resolvedTheme = computed(() => {
+  if (colorMode.value !== 'auto')
+    return colorMode.value
+  return (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
+})
 
 // ==================== Articles (Notes) Logic ====================
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
@@ -895,7 +905,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <Icon name="lucide:file-plus" class="w-8 h-8 opacity-40" />
           </div>
           <div class="text-center space-y-1">
-            <h3 class="text-lg font-semibold text-foreground">
+            <h3 class="text-base md:text-lg font-semibold text-foreground">
               暂无笔记
             </h3>
             <p class="max-w-xs mx-auto text-sm text-balance">
@@ -925,7 +935,7 @@ async function handleRunWorkflow(workflow: Workflow) {
                 <!-- Main Content -->
                 <div class="flex-1 min-w-0 py-0.5">
                   <div class="flex items-center justify-between mb-1.5">
-                    <h3 class="font-semibold text-base text-foreground truncate pr-4">
+                    <h3 class="font-semibold text-sm md:text-base text-foreground truncate pr-4">
                       {{ note.title || '无标题' }}
                     </h3>
                     <!-- Date (Desktop: visible) -->
@@ -1031,7 +1041,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <Icon name="lucide:image" class="w-8 h-8 opacity-40" />
           </div>
           <div class="text-center space-y-1">
-            <h3 class="text-lg font-semibold text-foreground">
+            <h3 class="text-base md:text-lg font-semibold text-foreground">
               暂无资源
             </h3>
             <p class="max-w-xs mx-auto text-sm text-balance">
@@ -1111,7 +1121,7 @@ async function handleRunWorkflow(workflow: Workflow) {
             <ClientOnly>
               <MdEditor
                 v-model="momentContent"
-                theme="light"
+                :theme="resolvedTheme"
                 preview-theme="github"
                 class="!h-full w-full"
                 :toolbars="momentToolbars"
@@ -1223,7 +1233,7 @@ async function handleRunWorkflow(workflow: Workflow) {
               </div>
 
               <div class="prose prose-sm dark:prose-invert max-w-none mb-3">
-                <MdPreview :model-value="moment.content" preview-theme="github" :code-foldable="false" />
+                <MdPreview :model-value="moment.content" :theme="resolvedTheme" preview-theme="github" :code-foldable="false" />
               </div>
 
               <!-- Moment Images -->
@@ -1299,6 +1309,12 @@ async function handleRunWorkflow(workflow: Workflow) {
   --md-bk-color: hsl(var(--background));
   --md-color: hsl(var(--foreground));
   --md-border-color: transparent;
+}
+
+@media (max-width: 767px) {
+  .md-editor {
+    font-size: 15px !important;
+  }
 }
 
 /* List Transitions */

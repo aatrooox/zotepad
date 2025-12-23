@@ -60,6 +60,11 @@ export default defineNuxtConfig({
       standalone: false,
     },
   },
+  icon: {
+    clientBundle: {
+      scan: true,
+    },
+  },
   shadcn: {
     /**
      * Prefix for all the imported component
