@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.24.4
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.3...v0.24.4)
+
+### 🏡 Chore
+
+- **release:** V0.24.3 ([4f5fbb8](https://github.com/aatrooox/zotepad/commit/4f5fbb8))
+- **build:** Release v0.24.3 ([ed49376](https://github.com/aatrooox/zotepad/commit/ed49376))
+
+### 🎨 Styles
+
+- 增加暗色模式; 优化字号大小; nuxt/icon 优化 ([434c616](https://github.com/aatrooox/zotepad/commit/434c616))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.3
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.2...v0.24.3)
