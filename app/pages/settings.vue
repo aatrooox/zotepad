@@ -356,7 +356,7 @@ onMounted(async () => {
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="relative py-2 text-base font-medium transition-colors"
+            class="relative py-2 text-xs md:text-sm font-medium transition-colors"
             :class="activeTab === tab.id
               ? 'text-foreground'
               : 'text-muted-foreground'"

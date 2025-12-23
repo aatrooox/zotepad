@@ -784,7 +784,7 @@ async function handleRunWorkflow(workflow: Workflow) {
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          class="relative px-4 py-1.5 text-sm font-medium transition-all rounded-full"
+          class="relative px-4 py-1.5 text-xs md:text-sm font-medium transition-all rounded-full"
           :class="activeTab === tab.id
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground hover:bg-background/50'"
