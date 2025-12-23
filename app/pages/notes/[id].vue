@@ -2,7 +2,7 @@
 import type { ToolbarNames } from 'md-editor-v3'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
-import { useClipboard, useDebounceFn, useWindowSize } from '@vueuse/core'
+import { useClipboard, useDebounceFn, useEventListener, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
@@ -39,17 +39,24 @@ const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 // Keyboard safe area padding (mobile)
 const keyboardPadding = ref(0)
 const keyboardSafeStyle = computed(() => ({
-  paddingBottom: `calc(${keyboardPadding.value}px + env(safe-area-inset-bottom, 0px))`,
+  '--keyboard-padding': `${keyboardPadding.value}px`,
+  'paddingBottom': `calc(${keyboardPadding.value}px + env(safe-area-inset-bottom, 0px))`,
 }))
 
-// const updateKeyboardInset = () => {
-//   if (typeof window === 'undefined' || !window.visualViewport)
-//     return
+const updateKeyboardInset = () => {
+  if (typeof window === 'undefined')
+    return
 
-//   const vv = window.visualViewport
-//   const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
-//   keyboardPadding.value = inset
-// }
+  // visualViewport is the most reliable signal for on-screen keyboard size on mobile.
+  const vv = window.visualViewport
+  if (!vv) {
+    keyboardPadding.value = 0
+    return
+  }
+
+  const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
+  keyboardPadding.value = inset
+}
 
 // WeChat preview drawer state
 const isWeChatPreviewOpen = ref(false)
@@ -355,12 +362,19 @@ onMounted(async () => {
     })
   }
 
-  // Keyboard inset listener for Android 15+ / mobile
-  // if (typeof window !== 'undefined' && window.visualViewport) {
-  //   window.visualViewport.addEventListener('resize', updateKeyboardInset)
-  //   window.visualViewport.addEventListener('scroll', updateKeyboardInset)
-  //   updateKeyboardInset()
-  // }
+  // Keyboard inset listener for mobile (keeps bottom toolbar above the IME)
+  if (typeof window !== 'undefined') {
+    updateKeyboardInset()
+
+    if (window.visualViewport) {
+      useEventListener(window.visualViewport, 'resize', updateKeyboardInset)
+      useEventListener(window.visualViewport, 'scroll', updateKeyboardInset)
+    }
+
+    // Some IME/ROM combinations don't trigger visualViewport immediately.
+    useEventListener(window, 'focusin', updateKeyboardInset)
+    useEventListener(window, 'focusout', () => setTimeout(updateKeyboardInset, 50))
+  }
 
   try {
     // 检查微信草稿箱工作流
@@ -404,13 +418,6 @@ onMounted(async () => {
   catch (e) {
     console.error('Failed to load note', e)
     toast.error('加载笔记失败')
-  }
-})
-
-onBeforeUnmount(() => {
-  if (typeof window !== 'undefined' && window.visualViewport) {
-    // window.visualViewport.removeEventListener('resize', updateKeyboardInset)
-    // window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
   }
 })
 
@@ -818,7 +825,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     border-top: 1px solid hsl(var(--border) / 0.5) !important;
     border-bottom: 0 !important;
     position: sticky;
-    bottom: 0;
+    bottom: calc(var(--keyboard-padding, 0px) + env(safe-area-inset-bottom, 0px));
     z-index: 10;
     background: hsl(var(--background));
   }
@@ -826,6 +833,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
   .md-editor-content {
     order: 1;
     min-height: 0;
+    padding-bottom: calc(var(--keyboard-padding, 0px) + env(safe-area-inset-bottom, 0px));
   }
 }
 
