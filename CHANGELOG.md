@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.24.2
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.1...v0.24.2)
+
+### 🩹 Fixes
+
+- 动态创建时间处理 ([6f1c34e](https://github.com/aatrooox/zotepad/commit/6f1c34e))
+- 解决移动端键盘不呼出的问题 ([0e410e8](https://github.com/aatrooox/zotepad/commit/0e410e8))
+
+### 🏡 Chore
+
+- **release:** V0.24.1 ([e8e8b9e](https://github.com/aatrooox/zotepad/commit/e8e8b9e))
+- **build:** Release v0.24.1 ([a073103](https://github.com/aatrooox/zotepad/commit/a073103))
+
+### 🎨 Styles
+
+- 新增字体[师尾弯腿黑体]; 优化侧边栏显示 ([75ab856](https://github.com/aatrooox/zotepad/commit/75ab856))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.0...v0.24.1)
