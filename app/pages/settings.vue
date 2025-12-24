@@ -308,7 +308,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background/50 overflow-hidden">
+  <div class="absolute inset-0 flex flex-col bg-background/50 overflow-hidden">
     <!-- Desktop Header -->
     <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/60">
       <div class="flex items-center gap-4">
@@ -356,7 +356,7 @@ onMounted(async () => {
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="relative py-2 text-xs md:text-sm font-medium transition-colors"
+            class="relative py-2 text-base font-medium transition-colors"
             :class="activeTab === tab.id
               ? 'text-foreground'
               : 'text-muted-foreground'"
@@ -402,15 +402,15 @@ onMounted(async () => {
                 <Icon name="lucide:sun-moon" class="w-5 h-5 text-primary" />
                 <CardTitle>主题模式</CardTitle>
               </div>
-              <CardDescription>选择应用的外观主题，支持深色模式。</CardDescription>
+              <!-- <CardDescription>选择应用的外观主题，支持深色模式。</CardDescription> -->
             </CardHeader>
             <CardContent class="space-y-4">
               <div class="grid gap-3">
-                <Label>显示模式</Label>
+                <!-- <Label>显示模式</Label> -->
                 <div class="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
-                    class="flex flex-col items-center gap-2 h-auto py-3 px-2"
+                    class="flex flex-col items-center gap-2 h-auto py-1 px-2"
                     :class="{ 'border-primary bg-primary/5': colorMode === 'light' }"
                     @click="colorMode = 'light'"
                   >
@@ -718,6 +718,7 @@ onMounted(async () => {
 
         <!-- Advanced Tab -->
         <div v-if="activeTab === 'advanced'" class="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+          <span class="md:hidden text-sm font-normal text-muted-foreground ml-2">v{{ version }}</span>
           <!-- Sync Section -->
           <Card class="border border-border/50 shadow-sm">
             <CardHeader>

@@ -2,7 +2,7 @@
 import type { ToolbarNames } from 'md-editor-v3'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
-import { useClipboard, useColorMode, useDebounceFn, useEventListener, useWindowSize } from '@vueuse/core'
+import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
@@ -12,6 +12,7 @@ import { useSettingRepository } from '~/composables/repositories/useSettingRepos
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useNoteStore } from '~/composables/stores/useNoteStore'
+import { useKeyboardInset } from '~/composables/useKeyboardInset'
 import { useSidebar } from '~/composables/useSidebar'
 import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
@@ -21,6 +22,7 @@ import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
 const { fetchNotes } = useNoteStore()
+const { keyboardHeight } = useKeyboardInset()
 
 const route = useRoute()
 const router = useRouter()
@@ -47,28 +49,6 @@ const htmlContent = ref('')
 const customCss = ref('')
 const editorContainerRef = ref(null)
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
-
-// Keyboard safe area padding (mobile)
-const keyboardPadding = ref(0)
-const keyboardSafeStyle = computed(() => ({
-  '--keyboard-padding': `${keyboardPadding.value}px`,
-  'paddingBottom': `calc(${keyboardPadding.value}px + env(safe-area-inset-bottom, 0px))`,
-}))
-
-const updateKeyboardInset = () => {
-  if (typeof window === 'undefined')
-    return
-
-  // visualViewport is the most reliable signal for on-screen keyboard size on mobile.
-  const vv = window.visualViewport
-  if (!vv) {
-    keyboardPadding.value = 0
-    return
-  }
-
-  const inset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop))
-  keyboardPadding.value = inset
-}
 
 // WeChat preview drawer state
 const isWeChatPreviewOpen = ref(false)
@@ -105,9 +85,9 @@ const isForceSyncing = ref(false)
 // console.log('[Notes] syncOnce 函数:', syncOnce)
 
 // Workflow state
-const isWorkflowDialogOpen = ref(false)
-const workflows = ref<Workflow[]>([])
-const isRunningWorkflow = ref(false)
+// const isWorkflowDialogOpen = ref(false)
+// const workflows = ref<Workflow[]>([])
+// const isRunningWorkflow = ref(false)
 
 // 微信草稿箱系统工作流状态
 const wxDraftWorkflow = ref<Workflow | null>(null)
@@ -140,69 +120,69 @@ const checkWxDraftWorkflow = async () => {
   }
 }
 
-const loadWorkflows = async () => {
-  try {
-    workflows.value = await getAllWorkflows() || []
-  }
-  catch (e) {
-    console.error(e)
-    toast.error('加载流配置失败')
-  }
-}
+// const loadWorkflows = async () => {
+//   try {
+//     workflows.value = await getAllWorkflows() || []
+//   }
+//   catch (e) {
+//     console.error(e)
+//     toast.error('加载流配置失败')
+//   }
+// }
 
-const handleRunWorkflow = async (workflow: Workflow) => {
-  isRunningWorkflow.value = true
-  isWorkflowDialogOpen.value = false
+// const handleRunWorkflow = async (workflow: Workflow) => {
+//   isRunningWorkflow.value = true
+//   isWorkflowDialogOpen.value = false
 
-  try {
-    let steps = []
-    try {
-      steps = JSON.parse(workflow.steps)
-    }
-    catch {
-      toast.error('无效的流步骤')
-      return
-    }
+//   try {
+//     let steps = []
+//     try {
+//       steps = JSON.parse(workflow.steps)
+//     }
+//     catch {
+//       toast.error('无效的流步骤')
+//       return
+//     }
 
-    const ctx = {
-      title: title.value,
-      content: content.value,
-      html: htmlContent.value,
-      tags: tags.value,
-      noteId: noteId.value,
-    }
+//     const ctx = {
+//       title: title.value,
+//       content: content.value,
+//       html: htmlContent.value,
+//       tags: tags.value,
+//       noteId: noteId.value,
+//     }
 
-    let schemaFields = []
-    if (workflow.schema && workflow.schema.fields) {
-      try {
-        schemaFields = JSON.parse(workflow.schema.fields)
-      }
-      catch (e) {
-        console.error('Failed to parse schema fields', e)
-        toast.error('Schema 解析失败，将使用完整上下文')
-      }
-    }
+//     let schemaFields = []
+//     if (workflow.schema && workflow.schema.fields) {
+//       try {
+//         schemaFields = JSON.parse(workflow.schema.fields)
+//       }
+//       catch (e) {
+//         console.error('Failed to parse schema fields', e)
+//         toast.error('Schema 解析失败，将使用完整上下文')
+//       }
+//     }
 
-    toast.info(`正在执行流: ${workflow.name}`)
-    const result = await runWorkflow(steps, ctx, schemaFields)
+//     toast.info(`正在执行流: ${workflow.name}`)
+//     const result = await runWorkflow(steps, ctx, schemaFields)
 
-    // Check for errors in logs
-    const errors = result.logs.filter(l => l.status === 'error')
-    if (errors.length > 0 && errors[0]) {
-      toast.error(`流失败: ${errors[0].error}`)
-    }
-    else {
-      toast.success('流执行成功')
-    }
-  }
-  catch (e: any) {
-    console.error(e)
-    toast.error(`流执行失败: ${e.message}`)
-  }
-  finally {
-    isRunningWorkflow.value = false
-  }
-}
+//     // Check for errors in logs
+//     const errors = result.logs.filter(l => l.status === 'error')
+//     if (errors.length > 0 && errors[0]) {
+//       toast.error(`流失败: ${errors[0].error}`)
+//     }
+//     else {
+//       toast.success('流执行成功')
+//     }
+//   }
+//   catch (e: any) {
+//     console.error(e)
+//     toast.error(`流执行失败: ${e.message}`)
+//   }
+//   finally {
+//     isRunningWorkflow.value = false
+//   }
+// }
 
 // Inject Custom CSS
 useHead({
@@ -323,7 +303,7 @@ const handleForceSync = async () => {
   isForceSyncing.value = true
   try {
     await forcePushRecord('notes', noteId.value)
-    toast.success('已同步到远程端')
+    // toast.success('已同步到远程端')
   }
   catch (e: any) {
     console.error('[ForceSync] 失败:', e)
@@ -387,20 +367,6 @@ onMounted(async () => {
       ease: 'power2.out',
       delay: 0.1,
     })
-  }
-
-  // Keyboard inset listener for mobile (keeps bottom toolbar above the IME)
-  if (typeof window !== 'undefined') {
-    updateKeyboardInset()
-
-    if (window.visualViewport) {
-      useEventListener(window.visualViewport, 'resize', updateKeyboardInset)
-      useEventListener(window.visualViewport, 'scroll', updateKeyboardInset)
-    }
-
-    // Some IME/ROM combinations don't trigger visualViewport immediately.
-    useEventListener(window, 'focusin', updateKeyboardInset)
-    useEventListener(window, 'focusout', () => setTimeout(updateKeyboardInset, 50))
   }
 
   try {
@@ -595,9 +561,9 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 <template>
   <div
-    class="relative min-h-[100dvh] flex flex-col bg-background pt-safe-offset-4 md:pt-0 overflow-auto md:overflow-hidden"
-    :class="{ 'pt-0': isPureMode }"
-    :style="keyboardSafeStyle"
+    class="relative h-full flex flex-col bg-background pt-safe-offset-4 md:pt-0 overflow-hidden"
+    :class="{ 'pt-8': isPureMode }"
+    :style="{ '--keyboard-height': `${keyboardHeight}px` }"
   >
     <!-- Header / Toolbar Area -->
     <header
@@ -649,6 +615,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
       </div>
       <div class="flex items-center gap-1 md:gap-2 shrink-0">
         <Button
+          v-if="isMobile"
           variant="ghost"
           size="icon"
           class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
@@ -679,7 +646,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           <Icon name="ri:wechat-fill" class="w-4 h-4" />
         </Button>
 
-        <Dialog v-model:open="isWorkflowDialogOpen">
+        <!-- <Dialog v-model:open="isWorkflowDialogOpen">
           <DialogTrigger as-child>
             <Button
               variant="ghost"
@@ -719,7 +686,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+        </Dialog> -->
 
         <Button
           variant="ghost"
@@ -731,16 +698,16 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           <Icon name="lucide:maximize-2" class="w-4 h-4" />
         </Button>
 
-        <NuxtLink to="/settings">
+        <!-- <NuxtLink to="/settings">
           <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9">
             <Icon name="lucide:settings" class="w-4 h-4 md:w-5 md:h-5" />
           </Button>
-        </NuxtLink>
+        </NuxtLink> -->
       </div>
     </header>
 
     <!-- Editor Area -->
-    <div ref="editorContainerRef" class="flex-1 bg-background relative pb-safe overflow-auto md:overflow-hidden">
+    <div ref="editorContainerRef" class="flex-1 bg-background relative pb-safe overflow-hidden min-h-0">
       <ClientOnly>
         <MdEditor
           v-model="content"
@@ -895,24 +862,32 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
   .md-editor {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    height: 100% !important;
     font-size: 15px !important;
   }
 
   .md-editor-toolbar-wrapper {
     order: 2;
+    flex-shrink: 0;
     border-top: 1px solid hsl(var(--border) / 0.5) !important;
     border-bottom: 0 !important;
-    position: sticky;
-    bottom: calc(var(--keyboard-padding, 0px) + env(safe-area-inset-bottom, 0px));
-    z-index: 10;
+    position: fixed !important;
+    bottom: var(--keyboard-height) !important;
+    left: 0;
+    right: 0;
+    z-index: 50;
     background: hsl(var(--background));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transition: bottom 0.1s ease-out;
   }
 
   .md-editor-content {
     order: 1;
+    flex: 1;
     min-height: 0;
-    padding-bottom: calc(var(--keyboard-padding, 0px) + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    /* 40px is approx toolbar height, plus safe area, plus keyboard height */
+    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px) + var(--keyboard-height)) !important;
   }
 }
 
