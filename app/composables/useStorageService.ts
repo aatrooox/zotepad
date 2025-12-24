@@ -75,7 +75,7 @@ export function useStorageService() {
       return defaultProvider
     }
     else if (available.length === 1) {
-      return available[0]
+      return available[0]!
     }
     else {
       // 多个可用且无有效默认值 -> 弹出选择器

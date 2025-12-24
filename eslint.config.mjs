@@ -38,6 +38,7 @@ export default withNuxt(
       'vue-a11y/form-control-has-label': 'off',
       'vue-a11y/label-has-for': 'off',
       'antfu/top-level-function': 'off',
+      'vue/custom-event-name-casing': 'off',
     },
   }),
 )

@@ -64,6 +64,26 @@
     "clipboard-manager:allow-write-image",
     "clipboard-manager:allow-write-html",
     "dialog:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "W:\\**"
+        },
+        {
+          "path": "Z:\\**"
+        },
+        {
+          "path": "C:\\**"
+        },
+        {
+          "path": "D:\\**"
+        },
+        {
+          "path": "E:\\**"
+        }
+      ]
+    },
     "fs:default",
     "fs:allow-write-file",
     "fs:allow-download-write-recursive",

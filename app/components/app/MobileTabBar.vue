@@ -8,6 +8,7 @@ const tabs = [
   { name: '记录', icon: 'lucide:file-text', path: '/' },
   { name: '流', icon: 'lucide:workflow', path: '/workflows' },
   { name: '成就', icon: 'lucide:trophy', path: '/achievements' },
+  { name: '画布', icon: 'lucide:image', path: '/canvas-editor' },
   { name: '设置', icon: 'lucide:settings', path: '/settings' },
 ]
 
@@ -25,7 +26,7 @@ const isActive = (path: string) => {
     class="fixed bottom-0 left-0 right-0 z-50 transition-[transform] duration-200 ease-out"
     :class="{ 'translate-y-full': keyboardHeight > 0 }"
   >
-    <div class="bg-background/80 backdrop-blur-xl shadow-[0_-1px_3px_rgba(0,0,0,0.1)] grid grid-cols-4 p-2 pb-safe-offset-2">
+    <div class="bg-background/80 backdrop-blur-xl shadow-[0_-1px_3px_rgba(0,0,0,0.1)] grid grid-cols-5 p-2 pb-safe-offset-2">
       <NuxtLink
         v-for="tab in tabs"
         :key="tab.path"

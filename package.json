@@ -31,6 +31,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@leafer-in/editor": "^1.12.1",
+    "@leafer-in/export": "^1.12.1",
+    "@leafer-in/view": "^1.12.1",
     "@nuxt/eslint": "1.7.0",
     "@nuxt/icon": "1.15.0",
     "@tailwindcss/vite": "^4.1.11",
@@ -41,6 +44,7 @@
     "@tauri-apps/plugin-http": "~2.5.1",
     "@tauri-apps/plugin-log": "^2.6.0",
     "@tauri-apps/plugin-notification": "^2.3.0",
+    "@tauri-apps/plugin-opener": "^2.5.2",
     "@tauri-apps/plugin-sql": "^2.3.0",
     "@tauri-apps/plugin-store": "^2.3.0",
     "@types/highlight.js": "^10.1.0",
@@ -52,6 +56,7 @@
     "eslint": "^9.31.0",
     "gsap": "^3.13.0",
     "highlight.js": "^11.11.1",
+    "leafer-ui": "^1.12.1",
     "lucide-vue-next": "^0.525.0",
     "markdown-it": "^14.1.0",
     "md-editor-v3": "^6.2.0",

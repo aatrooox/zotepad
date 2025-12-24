@@ -76,6 +76,18 @@ const version = config.public.version
         <span class="font-medium transition-opacity duration-200" :class="isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 hidden'">成就</span>
       </NuxtLink>
       <NuxtLink
+        to="/canvas-editor"
+        class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group overflow-hidden whitespace-nowrap"
+        active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
+        :class="[
+          $route.path === '/canvas-editor' ? '' : 'hover:bg-accent hover:text-accent-foreground',
+          isSidebarOpen ? 'justify-start' : 'justify-center px-0',
+        ]"
+      >
+        <Icon name="lucide:table" class="w-5 h-5 shrink-0" />
+        <span class="font-medium transition-opacity duration-200" :class="isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 hidden'">画布</span>
+      </NuxtLink>
+      <NuxtLink
         to="/settings"
         class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group overflow-hidden whitespace-nowrap"
         active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"

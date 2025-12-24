@@ -633,14 +633,18 @@ fn get_http_server_port() -> u16 {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(
+        .plugin(tauri_plugin_fs::init());
+
+    #[cfg(not(mobile))]
+    let builder = builder.plugin(tauri_plugin_opener::init());
+
+    builder.plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
                     "sqlite:app_v5.db",

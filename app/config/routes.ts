@@ -33,6 +33,11 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     name: 'tauri-demo',
     type: PAGE_TYPES.TAURI_DEPENDENT,
   },
+  {
+    path: '/canvas-editor',
+    name: 'Canvas 编辑器',
+    type: PAGE_TYPES.STATIC,
+  },
 ]
 
 /**
