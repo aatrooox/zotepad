@@ -1,6 +1,24 @@
 # Changelog
 
 
+## v0.24.5
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.4...v0.24.5)
+
+### 🏡 Chore
+
+- **release:** V0.24.4 ([5480da4](https://github.com/aatrooox/zotepad/commit/5480da4))
+- **build:** Release v0.24.4 ([9582e58](https://github.com/aatrooox/zotepad/commit/9582e58))
+
+### 🎨 Styles
+
+- 优化文字大小 ([ab29dad](https://github.com/aatrooox/zotepad/commit/ab29dad))
+- 优化样式/字号等 ([88bcb40](https://github.com/aatrooox/zotepad/commit/88bcb40))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.4
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.3...v0.24.4)
