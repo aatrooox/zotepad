@@ -3,7 +3,7 @@ import type { ImageItem } from '~/composables/useLeaferCanvas'
 
 useHead({ title: '图片工具' })
 
-const router = useRouter()
+// const router = useRouter()
 const route = useRoute()
 
 // 从路由获取初始图片（支持通过 URL 传递图片）
@@ -69,25 +69,7 @@ onMounted(() => {
 <template>
   <div class="h-full flex flex-col bg-background" style="touch-action: none; -webkit-user-select: none; user-select: none;">
     <!-- 顶部导航栏 -->
-    <div class="border-b border-border px-2 md:px-1 py-1 md:py-1 bg-background/80 backdrop-blur-md shrink-0">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <Button variant="ghost" size="icon" @click="router.back()">
-            <Icon name="lucide:arrow-left" class="w-3 h-3" />
-          </Button>
-          <div>
-            <h1 class="text-lg md:text-xl font-bold">
-              图片工具
-            </h1>
-          </div>
-        </div>
-
-        <!-- 快速操作按钮（桌面端） -->
-        <div class="hidden md:flex items-center gap-2">
-          <!-- 预留：后续可以在这里加更多编辑快捷操作 -->
-        </div>
-      </div>
-    </div>
+    <AppPageHeader title="图片工具" class="bg-background/80 backdrop-blur-md sticky top-0 z-20 border-b" />
 
     <!-- 编辑器主体 -->
     <div class="flex-1 overflow-hidden p-4 md:p-2" style="touch-action: none;">

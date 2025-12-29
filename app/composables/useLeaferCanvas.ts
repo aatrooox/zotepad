@@ -607,7 +607,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
           preventDefault: true,
         },
         zoom: {
-          min: 0.1,
+          min: 0.01,
           max: 10,
         },
         sky: {},
@@ -1301,7 +1301,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     let finalScale = Math.min(scaleX, scaleY)
 
     // 限制缩放范围在 0.1 到 2 之间
-    finalScale = Math.max(0.1, Math.min(2, finalScale))
+    finalScale = Math.max(0.01, Math.min(2, finalScale))
 
     // 应用缩放并居中 Box
     const tree = app.value.tree as any
