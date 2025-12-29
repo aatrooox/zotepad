@@ -433,21 +433,21 @@ defineExpose({
   <div class="relative w-full h-full overflow-hidden">
     <!-- 悬浮工具栏 -->
     <div
-      class="absolute inset-x-0 z-30 flex justify-center px-2 md:px-4"
+      class="absolute inset-x-0 z-30 flex justify-center px-1.5 md:px-4"
       :style="{
-        top: 'calc(0.5rem + env(safe-area-inset-top))',
+        top: 'calc(0.25rem + env(safe-area-inset-top))',
       }"
     >
-      <div class="flex flex-wrap items-center gap-1.5 md:gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-2 py-1.5 md:px-3 md:py-2 w-full max-w-[min(640px,100%)]">
-        <Button size="icon" variant="ghost" title="导入图片" @click="triggerFileInput">
-          <Icon name="lucide:image-plus" class="w-5 h-5" />
+      <div class="flex flex-wrap items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-1.5 py-1 md:px-3 md:py-2 w-full max-w-[min(640px,100%)]">
+        <Button size="icon" variant="ghost" title="导入图片" class="h-8 w-8 md:h-10 md:w-10" @click="triggerFileInput">
+          <Icon name="lucide:image-plus" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
-        <div class="w-px h-6 bg-border" />
+        <div class="w-px h-5 md:h-6 bg-border" />
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button size="icon" variant="ghost" title="选择布局">
-              <Icon name="lucide:layout-grid" class="w-5 h-5" />
+            <Button size="icon" variant="ghost" title="选择布局" class="h-8 w-8 md:h-10 md:w-10">
+              <Icon name="lucide:layout-grid" class="w-4 h-4 md:w-5 md:h-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -478,25 +478,26 @@ defineExpose({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="导出图片" @click="handleExport">
-          <Icon name="lucide:download" class="w-5 h-5" />
+        <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="导出图片" class="h-8 w-8 md:h-10 md:w-10" @click="handleExport">
+          <Icon name="lucide:download" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
-        <div class="w-px h-6 bg-border" />
+        <div class="w-px h-5 md:h-6 bg-border" />
         <Button
           size="icon"
           variant="ghost"
           :disabled="imageCount === 0"
           :title="editingImageId ? '退出编辑' : '编辑图片'"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="editingImageId ? exitEditMode() : enterEditMode()"
         >
-          <Icon :name="editingImageId ? 'lucide:check' : 'lucide:edit'" class="w-5 h-5" :class="editingImageId ? 'text-green-500' : ''" />
+          <Icon :name="editingImageId ? 'lucide:check' : 'lucide:edit'" class="w-4 h-4 md:w-5 md:h-5" :class="editingImageId ? 'text-green-500' : ''" />
         </Button>
-        <div class="w-px h-6 bg-border" />
-        <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="清空画布" @click="handleClear">
-          <Icon name="lucide:trash-2" class="w-5 h-5 text-destructive" />
+        <div class="w-px h-5 md:h-6 bg-border" />
+        <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="清空画布" class="h-8 w-8 md:h-10 md:w-10" @click="handleClear">
+          <Icon name="lucide:trash-2" class="w-4 h-4 md:w-5 md:h-5 text-destructive" />
         </Button>
-        <div v-if="imageCount > 0" class="ml-2 text-xs text-muted-foreground">
-          {{ imageCount }} 张
+        <div v-if="imageCount > 0" class="ml-1 md:ml-2 text-[10px] md:text-xs text-muted-foreground">
+          {{ imageCount }}
         </div>
       </div>
     </div>
@@ -504,7 +505,7 @@ defineExpose({
     <!-- 模板操作栏（基础布局 & 模板布局通用） -->
     <div
       v-if="imageCount > 0"
-      class="absolute bottom-2 inset-x-0 z-30 flex flex-col items-center px-2 md:px-4 gap-2"
+      class="absolute bottom-1.5 md:bottom-2 inset-x-0 z-30 flex flex-col items-center px-1.5 md:px-4 gap-1.5 md:gap-2"
     >
       <!-- 上方操作面板（根据激活项显示） -->
       <Transition
@@ -517,24 +518,24 @@ defineExpose({
       >
         <div
           v-if="activeControl"
-          class="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-4 py-3 w-full max-w-[min(400px,100%)]"
+          class="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-3 py-2 md:px-4 md:py-3 w-full max-w-[min(400px,100%)]"
         >
           <!-- 背景颜色 -->
           <div v-if="activeControl === 'background'" class="flex items-center justify-between">
-            <span class="text-sm font-medium">背景颜色</span>
+            <span class="text-xs md:text-sm font-medium">背景颜色</span>
             <input
               v-model="templateBgColor"
               type="color"
-              class="h-10 w-20 rounded-md border border-border bg-transparent cursor-pointer"
+              class="h-8 w-16 md:h-10 md:w-20 rounded-md border border-border bg-transparent cursor-pointer"
               @change="applyTemplateStyle"
             >
           </div>
 
           <!-- 图片间距 -->
-          <div v-if="activeControl === 'gap'" class="space-y-2">
+          <div v-if="activeControl === 'gap'" class="space-y-1.5 md:space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">图片间距</span>
-              <span class="text-sm text-muted-foreground font-mono">{{ templateGap }}px</span>
+              <span class="text-xs md:text-sm font-medium">图片间距</span>
+              <span class="text-xs md:text-sm text-muted-foreground font-mono">{{ templateGap }}px</span>
             </div>
             <input
               v-model.number="templateGap"
@@ -548,10 +549,10 @@ defineExpose({
           </div>
 
           <!-- 内间距 -->
-          <div v-if="activeControl === 'padding'" class="space-y-2">
+          <div v-if="activeControl === 'padding'" class="space-y-1.5 md:space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">内间距</span>
-              <span class="text-sm text-muted-foreground font-mono">{{ templatePadding }}px</span>
+              <span class="text-xs md:text-sm font-medium">内间距</span>
+              <span class="text-xs md:text-sm text-muted-foreground font-mono">{{ templatePadding }}px</span>
             </div>
             <input
               v-model.number="templatePadding"
@@ -565,10 +566,10 @@ defineExpose({
           </div>
 
           <!-- 外部圆角 -->
-          <div v-if="activeControl === 'radius'" class="space-y-2">
+          <div v-if="activeControl === 'radius'" class="space-y-1.5 md:space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">外部圆角</span>
-              <span class="text-sm text-muted-foreground font-mono">{{ templateRadius }}px</span>
+              <span class="text-xs md:text-sm font-medium">外部圆角</span>
+              <span class="text-xs md:text-sm text-muted-foreground font-mono">{{ templateRadius }}px</span>
             </div>
             <input
               v-model.number="templateRadius"
@@ -582,10 +583,10 @@ defineExpose({
           </div>
 
           <!-- 图片圆角 -->
-          <div v-if="activeControl === 'imageRadius'" class="space-y-2">
+          <div v-if="activeControl === 'imageRadius'" class="space-y-1.5 md:space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium">图片圆角</span>
-              <span class="text-sm text-muted-foreground font-mono">{{ templateImageRadius }}px</span>
+              <span class="text-xs md:text-sm font-medium">图片圆角</span>
+              <span class="text-xs md:text-sm text-muted-foreground font-mono">{{ templateImageRadius }}px</span>
             </div>
             <input
               v-model.number="templateImageRadius"
@@ -601,54 +602,59 @@ defineExpose({
       </Transition>
 
       <!-- 下方图标按钮栏 -->
-      <div class="flex items-center gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-3 py-2">
+      <div class="flex items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-2 py-1.5 md:px-3 md:py-2">
         <Button
           size="icon"
           :variant="activeControl === 'background' ? 'default' : 'ghost'"
           title="背景颜色"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="toggleControl('background')"
         >
-          <Icon name="lucide:palette" class="w-5 h-5" />
+          <Icon name="lucide:palette" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
 
-        <div class="w-px h-6 bg-border" />
+        <div class="w-px h-5 md:h-6 bg-border" />
 
         <Button
           size="icon"
           :variant="activeControl === 'gap' ? 'default' : 'ghost'"
           title="图片间距"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="toggleControl('gap')"
         >
-          <Icon name="lucide:between-horizontal-start" class="w-5 h-5" />
+          <Icon name="lucide:between-horizontal-start" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
 
         <Button
           size="icon"
           :variant="activeControl === 'padding' ? 'default' : 'ghost'"
           title="内间距"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="toggleControl('padding')"
         >
-          <Icon name="lucide:box-select" class="w-5 h-5" />
+          <Icon name="lucide:box-select" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
 
-        <div class="w-px h-6 bg-border" />
+        <div class="w-px h-5 md:h-6 bg-border" />
 
         <Button
           size="icon"
           :variant="activeControl === 'radius' ? 'default' : 'ghost'"
           title="外部圆角"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="toggleControl('radius')"
         >
-          <Icon name="lucide:square-dashed-bottom" class="w-5 h-5" />
+          <Icon name="lucide:square-dashed-bottom" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
 
         <Button
           size="icon"
           :variant="activeControl === 'imageRadius' ? 'default' : 'ghost'"
           title="图片圆角"
+          class="h-8 w-8 md:h-10 md:w-10"
           @click="toggleControl('imageRadius')"
         >
-          <Icon name="lucide:image" class="w-5 h-5" />
+          <Icon name="lucide:image" class="w-4 h-4 md:w-5 md:h-5" />
         </Button>
       </div>
     </div>

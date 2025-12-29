@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ImageItem } from '~/composables/useLeaferCanvas'
 
-useHead({ title: 'Canvas 编辑器' })
+useHead({ title: '图片工具' })
 
 const router = useRouter()
 const route = useRoute()
@@ -77,11 +77,8 @@ onMounted(() => {
           </Button>
           <div>
             <h1 class="text-lg md:text-xl font-bold">
-              Canvas 编辑器
+              图片工具
             </h1>
-            <p class="text-xs text-muted-foreground hidden md:block">
-              图片导入、布局编辑与导出
-            </p>
           </div>
         </div>
 
