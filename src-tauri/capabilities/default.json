@@ -92,7 +92,13 @@
     "fs:allow-picture-write-recursive",
     {
       "identifier": "fs:scope",
-      "allow": ["$DOWNLOAD/**", "$DESKTOP/**", "$DOCUMENT/**", "$PICTURE/**"]
-    }
+      "allow": [
+        "$DOWNLOAD/**",
+        "$DESKTOP/**",
+        "$DOCUMENT/**",
+        "$PICTURE/**"
+      ]
+    },
+    "opener:default"
   ]
 }

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ImageItem } from '~/composables/useLeaferCanvas'
-import { toast } from 'vue-sonner'
 
 useHead({ title: 'Canvas 编辑器' })
 
@@ -39,37 +38,42 @@ const handleImagesLoaded = (images: ImageItem[]) => {
   console.log('图片已加载', images)
 }
 
-// 快速添加测试图片
-const addTestImages = async () => {
-  if (!canvasEditorRef.value)
-    return
-
-  const testUrls = [
-    'https://picsum.photos/200/300',
-    'https://picsum.photos/300/200',
-    'https://picsum.photos/250/250',
-  ]
-
-  const toastId = toast.loading('正在加载测试图片...')
-
-  try {
-    await canvasEditorRef.value.addImages(testUrls)
-    toast.success('测试图片已加载', { id: toastId })
+// 禁用页面缩放和滚动
+onMounted(() => {
+  // 阻止双指缩放和默认触摸行为
+  const preventZoom = (e: TouchEvent) => {
+    if (e.touches.length > 1) {
+      e.preventDefault()
+    }
   }
-  catch {
-    toast.error('加载失败', { id: toastId })
+
+  const preventDefaultTouch = (e: TouchEvent) => {
+    if (e.touches.length > 1) {
+      e.preventDefault()
+    }
   }
-}
+
+  document.addEventListener('touchstart', preventZoom, { passive: false })
+  document.addEventListener('touchmove', preventDefaultTouch, { passive: false })
+  document.addEventListener('gesturestart', e => e.preventDefault())
+  document.addEventListener('gesturechange', e => e.preventDefault())
+  document.addEventListener('gestureend', e => e.preventDefault())
+
+  onUnmounted(() => {
+    document.removeEventListener('touchstart', preventZoom)
+    document.removeEventListener('touchmove', preventDefaultTouch)
+  })
+})
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background">
+  <div class="h-full flex flex-col bg-background" style="touch-action: none; -webkit-user-select: none; user-select: none;">
     <!-- 顶部导航栏 -->
-    <div class="border-b border-border px-4 md:px-6 py-3 md:py-4 bg-background/80 backdrop-blur-md shrink-0">
+    <div class="border-b border-border px-2 md:px-1 py-1 md:py-1 bg-background/80 backdrop-blur-md shrink-0">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <Button variant="ghost" size="icon" @click="router.back()">
-            <Icon name="lucide:arrow-left" class="w-5 h-5" />
+            <Icon name="lucide:arrow-left" class="w-3 h-3" />
           </Button>
           <div>
             <h1 class="text-lg md:text-xl font-bold">
@@ -83,16 +87,13 @@ const addTestImages = async () => {
 
         <!-- 快速操作按钮（桌面端） -->
         <div class="hidden md:flex items-center gap-2">
-          <Button variant="outline" size="sm" @click="addTestImages">
-            <Icon name="lucide:sparkles" class="w-4 h-4 mr-2" />
-            加载测试图片
-          </Button>
+          <!-- 预留：后续可以在这里加更多编辑快捷操作 -->
         </div>
       </div>
     </div>
 
     <!-- 编辑器主体 -->
-    <div class="flex-1 overflow-hidden p-4 md:p-6">
+    <div class="flex-1 overflow-hidden p-4 md:p-2" style="touch-action: none;">
       <AppCanvasEditor
         ref="canvasEditorRef"
         :initial-images="initialImages"
@@ -100,13 +101,6 @@ const addTestImages = async () => {
         @export-error="handleExportError"
         @images-loaded="handleImagesLoaded"
       />
-    </div>
-
-    <!-- 移动端快速操作（悬浮按钮） -->
-    <div class="md:hidden fixed bottom-20 right-4 z-10">
-      <Button size="icon" class="w-12 h-12 rounded-full shadow-lg" @click="addTestImages">
-        <Icon name="lucide:sparkles" class="w-5 h-5" />
-      </Button>
     </div>
   </div>
 </template>

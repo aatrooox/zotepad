@@ -8,7 +8,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
-import { Input } from '~/components/ui/input'
 import { useEnvironment } from '~/composables/useEnvironment'
 import { useLeaferCanvas } from '~/composables/useLeaferCanvas'
 
@@ -21,7 +20,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   initialImages: () => [],
-  defaultLayout: () => ({ type: 'grid', columns: 2, gap: 10, padding: 20 }),
+  defaultLayout: () => ({ type: 'grid', columns: 2, gap: 10, padding: 10 }),
   canvasWidth: 800,
   canvasHeight: 600,
 })
@@ -52,6 +51,10 @@ const {
   clientToWorldPoint,
   templateStyle,
   setTemplateStyle,
+  clearTemplate,
+  editingImageId,
+  enterEditMode,
+  exitEditMode,
 } = useLeaferCanvas(canvasContainer)
 
 // 当前布局配置
@@ -70,10 +73,26 @@ const slotFileInput = ref<HTMLInputElement | null>(null)
 const pendingSlotId = ref<string | null>(null)
 
 const templateBgColor = ref('#fafafa')
-const templateGap = ref(20)
-const templateRadius = ref(12)
+const templateGap = ref(0)
+const templateRadius = ref(0)
+const templatePadding = ref(0)
+const templateImageRadius = ref(0)
 
 const isApplyingTemplate = ref(false)
+
+// 当前激活的控制项
+type ControlType = 'background' | 'gap' | 'padding' | 'radius' | 'imageRadius' | null
+const activeControl = ref<ControlType>(null)
+
+// 切换控制项
+const toggleControl = (type: ControlType) => {
+  if (activeControl.value === type) {
+    activeControl.value = null
+  }
+  else {
+    activeControl.value = type
+  }
+}
 
 watch(
   templateStyle,
@@ -83,16 +102,54 @@ watch(
     templateBgColor.value = v.backgroundColor
     templateGap.value = v.gap
     templateRadius.value = v.radius
+    templatePadding.value = v.padding
+    templateImageRadius.value = v.imageRadius
   },
   { immediate: true, deep: true },
 )
 
+// 防抖计时器
+let applyStyleTimer: ReturnType<typeof setTimeout> | null = null
+
 const applyTemplateStyle = async () => {
+  // 使用 ?? 而不是 ||，以支持 0 值
+  const gap = Number(templateGap.value) ?? 0
+  const outerRadius = Number(templateRadius.value) ?? 0
+  const padding = Number(templatePadding.value) ?? 0
+  const imageRadius = Number(templateImageRadius.value) ?? 0
+
+  // 检查是否是间距变化（gap 或 padding）
+  const oldGap = templateStyle.value?.gap ?? 0
+  const oldPadding = templateStyle.value?.padding ?? 0
+  const isSpacingChanged = gap !== oldGap || padding !== oldPadding
+
   await setTemplateStyle({
     backgroundColor: templateBgColor.value,
-    gap: Number(templateGap.value) || 0,
-    radius: Number(templateRadius.value) || 0,
+    gap,
+    radius: outerRadius,
+    padding,
+    imageRadius,
   })
+
+  // 仅在间距变化时重新应用布局，背景色和圆角不影响图片位置
+  if (isSpacingChanged && !activeTemplate.value && images.value.length > 0) {
+    currentLayout.value = {
+      ...currentLayout.value,
+      gap,
+      padding,
+    }
+    applyLayout(currentLayout.value)
+  }
+}
+
+// 带防抖的应用样式（用于滑块实时输入）
+const applyTemplateStyleDebounced = () => {
+  if (applyStyleTimer) {
+    clearTimeout(applyStyleTimer)
+  }
+  applyStyleTimer = setTimeout(() => {
+    applyTemplateStyle()
+  }, 100) // 100ms 防抖
 }
 
 // 等待画布就绪
@@ -229,20 +286,40 @@ const handleFileSelect = async (event: Event) => {
   }
 }
 
-// 模板布局选择：先渲染格子，再允许按顺序填充/右键替换
-const handleSelectTemplate = async (template: CanvasTemplate) => {
-  if (isApplyingTemplate.value)
-    return
+// 基础布局选择：网格 / 横向 / 纵向
+const handleSelectLayout = async (type: CanvasLayout['type']) => {
   const ready = await waitForReady()
   if (!ready) {
     toast.error('画布未就绪，请稍后再试')
     return
   }
 
+  currentLayout.value = {
+    ...currentLayout.value,
+    type,
+  }
+
+  // 切换到基础布局时，清除模板占位与映射
+  clearTemplate()
+
+  if (images.value.length > 0)
+    applyLayout(currentLayout.value)
+}
+
+// 模板布局选择：先渲染格子，再允许按顺序填充/右键替换
+const handleSelectTemplate = async (template: CanvasTemplate) => {
+  if (isApplyingTemplate.value)
+    return
+  const ready = await waitForReady()
+  if (!ready) {
+    // toast.error('画布未就绪，请稍后再试')
+    return
+  }
+
   isApplyingTemplate.value = true
   try {
     await applyTemplate(template, { reflowExisting: true, removeOverflow: true })
-    toast.success('已应用模板布局')
+    // toast.success('已应用模板布局')
   }
   finally {
     isApplyingTemplate.value = false
@@ -263,7 +340,7 @@ const handleSlotFileSelect = async (event: Event) => {
   if (!slotId)
     return
 
-  const toastId = toast.loading('正在替换图片...')
+  // const toastId = toast.loading('正在替换图片...')
 
   try {
     const url = await new Promise<string>((resolve) => {
@@ -274,14 +351,14 @@ const handleSlotFileSelect = async (event: Event) => {
 
     const loaded = await fillTemplateWithUrls([url], { targetSlotId: slotId })
     if (!loaded.length) {
-      toast.error('图片加载失败', { id: toastId })
+      // toast.error('图片加载失败', { id: toastId })
       return
     }
-    toast.success('图片已替换', { id: toastId })
+    // toast.success('图片已替换', { id: toastId })
     emit('images-loaded', images.value)
   }
   catch {
-    toast.error('替换失败', { id: toastId })
+    // toast.error('替换失败', { id: toastId })
   }
 }
 
@@ -355,8 +432,13 @@ defineExpose({
 <template>
   <div class="relative w-full h-full overflow-hidden">
     <!-- 悬浮工具栏 -->
-    <div class="absolute top-4 inset-x-0 z-30 flex justify-center">
-      <div class="flex items-center gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg p-2">
+    <div
+      class="absolute inset-x-0 z-30 flex justify-center px-2 md:px-4"
+      :style="{
+        top: 'calc(0.5rem + env(safe-area-inset-top))',
+      }"
+    >
+      <div class="flex flex-wrap items-center gap-1.5 md:gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-2 py-1.5 md:px-3 md:py-2 w-full max-w-[min(640px,100%)]">
         <Button size="icon" variant="ghost" title="导入图片" @click="triggerFileInput">
           <Icon name="lucide:image-plus" class="w-5 h-5" />
         </Button>
@@ -364,16 +446,22 @@ defineExpose({
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button size="icon" variant="ghost" title="选择布局模板">
-              <Icon name="lucide:layout-template" class="w-5 h-5" />
+            <Button size="icon" variant="ghost" title="选择布局">
+              <Icon name="lucide:layout-grid" class="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <DropdownMenuItem
-              @select="handleSelectTemplate('wechat-cover-235')"
-              @click="handleSelectTemplate('wechat-cover-235')"
+              @select="handleSelectLayout('horizontal')"
+              @click="handleSelectLayout('horizontal')"
             >
-              2.35:1 公众号封面（2 张）
+              横向拼图
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              @select="handleSelectLayout('vertical')"
+              @click="handleSelectLayout('vertical')"
+            >
+              纵向拼图
             </DropdownMenuItem>
             <DropdownMenuItem
               @select="handleSelectTemplate('nine-grid')"
@@ -381,11 +469,27 @@ defineExpose({
             >
               九宫格（9 张）
             </DropdownMenuItem>
+            <DropdownMenuItem
+              @select="handleSelectTemplate('wechat-cover-235')"
+              @click="handleSelectTemplate('wechat-cover-235')"
+            >
+              2.35:1 公众号封面（2 张）
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="导出图片" @click="handleExport">
           <Icon name="lucide:download" class="w-5 h-5" />
+        </Button>
+        <div class="w-px h-6 bg-border" />
+        <Button
+          size="icon"
+          variant="ghost"
+          :disabled="imageCount === 0"
+          :title="editingImageId ? '退出编辑' : '编辑图片'"
+          @click="editingImageId ? exitEditMode() : enterEditMode()"
+        >
+          <Icon :name="editingImageId ? 'lucide:check' : 'lucide:edit'" class="w-5 h-5" :class="editingImageId ? 'text-green-500' : ''" />
         </Button>
         <div class="w-px h-6 bg-border" />
         <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="清空画布" @click="handleClear">
@@ -397,55 +501,155 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 模板操作栏（仅在选择模板后显示） -->
+    <!-- 模板操作栏（基础布局 & 模板布局通用） -->
     <div
-      v-if="activeTemplate"
-      class="absolute bottom-4 inset-x-0 z-30 flex justify-center"
+      v-if="imageCount > 0"
+      class="absolute bottom-2 inset-x-0 z-30 flex flex-col items-center px-2 md:px-4 gap-2"
     >
-      <div class="flex items-center gap-3 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-3 py-2">
-        <div class="text-xs text-muted-foreground">
-          模板设置
-        </div>
-
-        <div class="flex items-center gap-2">
-          <div class="text-xs text-muted-foreground">
-            背景
+      <!-- 上方操作面板（根据激活项显示） -->
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-2"
+      >
+        <div
+          v-if="activeControl"
+          class="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-4 py-3 w-full max-w-[min(400px,100%)]"
+        >
+          <!-- 背景颜色 -->
+          <div v-if="activeControl === 'background'" class="flex items-center justify-between">
+            <span class="text-sm font-medium">背景颜色</span>
+            <input
+              v-model="templateBgColor"
+              type="color"
+              class="h-10 w-20 rounded-md border border-border bg-transparent cursor-pointer"
+              @change="applyTemplateStyle"
+            >
           </div>
-          <input
-            v-model="templateBgColor"
-            type="color"
-            class="h-8 w-8 rounded-md border border-border bg-transparent"
-            @change="applyTemplateStyle"
-          >
-        </div>
 
-        <div class="flex items-center gap-2">
-          <div class="text-xs text-muted-foreground">
-            间距
+          <!-- 图片间距 -->
+          <div v-if="activeControl === 'gap'" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">图片间距</span>
+              <span class="text-sm text-muted-foreground font-mono">{{ templateGap }}px</span>
+            </div>
+            <input
+              v-model.number="templateGap"
+              type="range"
+              min="0"
+              max="80"
+              step="1"
+              class="w-full"
+              @input="applyTemplateStyleDebounced"
+            >
           </div>
-          <Input
-            v-model.number="templateGap"
-            type="number"
-            class="w-20"
-            min="0"
-            step="1"
-            @change="applyTemplateStyle"
-          />
-        </div>
 
-        <div class="flex items-center gap-2">
-          <div class="text-xs text-muted-foreground">
-            圆角
+          <!-- 内间距 -->
+          <div v-if="activeControl === 'padding'" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">内间距</span>
+              <span class="text-sm text-muted-foreground font-mono">{{ templatePadding }}px</span>
+            </div>
+            <input
+              v-model.number="templatePadding"
+              type="range"
+              min="0"
+              max="80"
+              step="1"
+              class="w-full"
+              @input="applyTemplateStyleDebounced"
+            >
           </div>
-          <Input
-            v-model.number="templateRadius"
-            type="number"
-            class="w-20"
-            min="0"
-            step="1"
-            @change="applyTemplateStyle"
-          />
+
+          <!-- 外部圆角 -->
+          <div v-if="activeControl === 'radius'" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">外部圆角</span>
+              <span class="text-sm text-muted-foreground font-mono">{{ templateRadius }}px</span>
+            </div>
+            <input
+              v-model.number="templateRadius"
+              type="range"
+              min="0"
+              max="64"
+              step="1"
+              class="w-full"
+              @input="applyTemplateStyleDebounced"
+            >
+          </div>
+
+          <!-- 图片圆角 -->
+          <div v-if="activeControl === 'imageRadius'" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium">图片圆角</span>
+              <span class="text-sm text-muted-foreground font-mono">{{ templateImageRadius }}px</span>
+            </div>
+            <input
+              v-model.number="templateImageRadius"
+              type="range"
+              min="0"
+              max="64"
+              step="1"
+              class="w-full"
+              @input="applyTemplateStyleDebounced"
+            >
+          </div>
         </div>
+      </Transition>
+
+      <!-- 下方图标按钮栏 -->
+      <div class="flex items-center gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-3 py-2">
+        <Button
+          size="icon"
+          :variant="activeControl === 'background' ? 'default' : 'ghost'"
+          title="背景颜色"
+          @click="toggleControl('background')"
+        >
+          <Icon name="lucide:palette" class="w-5 h-5" />
+        </Button>
+
+        <div class="w-px h-6 bg-border" />
+
+        <Button
+          size="icon"
+          :variant="activeControl === 'gap' ? 'default' : 'ghost'"
+          title="图片间距"
+          @click="toggleControl('gap')"
+        >
+          <Icon name="lucide:between-horizontal-start" class="w-5 h-5" />
+        </Button>
+
+        <Button
+          size="icon"
+          :variant="activeControl === 'padding' ? 'default' : 'ghost'"
+          title="内间距"
+          @click="toggleControl('padding')"
+        >
+          <Icon name="lucide:box-select" class="w-5 h-5" />
+        </Button>
+
+        <div class="w-px h-6 bg-border" />
+
+        <Button
+          size="icon"
+          :variant="activeControl === 'radius' ? 'default' : 'ghost'"
+          title="外部圆角"
+          @click="toggleControl('radius')"
+        >
+          <Icon name="lucide:square-dashed-bottom" class="w-5 h-5" />
+        </Button>
+
+        <Button
+          size="icon"
+          :variant="activeControl === 'imageRadius' ? 'default' : 'ghost'"
+          title="图片圆角"
+          @click="toggleControl('imageRadius')"
+        >
+          <Icon name="lucide:image" class="w-5 h-5" />
+        </Button>
       </div>
     </div>
 

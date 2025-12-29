@@ -2,6 +2,7 @@ import type { Editor } from '@leafer-in/editor'
 import type { App, Box, Group, Image as LeaferImage } from 'leafer-ui'
 import type { Ref } from 'vue'
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useEnvironment } from '~/composables/useEnvironment'
 
 export interface ImageItem {
   id: string
@@ -27,6 +28,7 @@ export interface TemplateStyle {
   gap: number
   radius: number
   padding: number
+  imageRadius: number
 }
 
 interface TemplateSlot {
@@ -51,21 +53,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
   const logError = (msg: string, data?: any) => console.error(`[LeaferCanvas] ${msg}`, data || '')
   const logWarning = (msg: string, data?: any) => console.warn(`[LeaferCanvas] ${msg}`, data || '')
 
-  const isTauriRuntime = async () => {
-    if (!import.meta.client)
-      return false
-
-    try {
-      const core: any = await import('@tauri-apps/api/core')
-      if (typeof core?.isTauri === 'function')
-        return await core.isTauri()
-    }
-    catch {
-      // ignore
-    }
-
-    return Boolean((window as any).__TAURI__ || (window as any).__TAURI_INTERNALS__)
-  }
+  const { isTauriEnvironment } = useEnvironment()
 
   const app = ref<App | null>(null)
   const editor = ref<Editor | null>(null)
@@ -83,30 +71,22 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
   const templateStyle = ref<TemplateStyle>({
     backgroundColor: '#fafafa',
-    gap: 20,
-    radius: 12,
-    padding: 0,
+    gap: 10,
+    radius: 0,
+    padding: 10,
+    imageRadius: 0,
   })
 
   const images = ref<ImageItem[]>([])
   const isReady = ref(false)
   const isLoading = ref(false)
+  const editingImageId = ref<string | null>(null) // 当前正在编辑的图片ID
 
   let resizeObserver: ResizeObserver | null = null
-  let wheelHandler: ((e: WheelEvent) => void) | null = null
-  let pointerDownHandler: ((e: PointerEvent) => void) | null = null
-  let pointerMoveHandler: ((e: PointerEvent) => void) | null = null
-  let pointerUpHandler: ((e: PointerEvent) => void) | null = null
   let keyDownHandler: ((e: KeyboardEvent) => void) | null = null
   let keyUpHandler: ((e: KeyboardEvent) => void) | null = null
 
-  let isSpacePressed = false
-  let isPanning = false
-  let panPointerId: number | null = null
-  let panStartClientX = 0
-  let panStartClientY = 0
-  let panStartViewX = 0
-  let panStartViewY = 0
+  let _isSpacePressed = false
 
   const clearTemplate = () => {
     activeTemplate.value = null
@@ -175,23 +155,10 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       exportFrame.value.set(next as any)
   }
 
-  const centerExportFrameInView = () => {
-    if (!exportFrame.value)
-      return
-    const { width: viewW, height: viewH } = getContainerSize()
-    const w = exportFrameRect.value.width
-    const h = exportFrameRect.value.height
-    if (viewW <= 0 || viewH <= 0 || w <= 0 || h <= 0)
-      return
-
-    const x = Math.floor((viewW - w) / 2)
-    const y = Math.floor((viewH - h) / 2)
-    setExportFrameRect({ x, y })
-  }
-
   const computeTemplateLayout = (template: CanvasTemplate): { width: number, height: number, slots: TemplateSlot[] } => {
-    const padding = Math.max(0, templateStyle.value.padding)
-    const gap = Math.max(0, templateStyle.value.gap)
+    // 使用实际值，允许为 0
+    const padding = templateStyle.value.padding
+    const gap = templateStyle.value.gap
 
     if (template === 'wechat-cover-235') {
       const h = 300
@@ -234,7 +201,6 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
     const { width: frameW, height: frameH, slots: nextSlots } = computeTemplateLayout(activeTemplate.value)
     setExportFrameRect({ width: frameW, height: frameH })
-    centerExportFrameInView()
 
     // 保留旧占位实例，更新几何参数
     const prevById = new Map(templateSlots.value.map(s => [s.id, s]))
@@ -254,11 +220,101 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       if (imageId)
         snapImageToSlot(imageId, slot.id)
     }
+
+    // 模板布局后也需要自适应缩放
+    fitToViewport()
+  }
+
+  /**
+   * 进入编辑模式：启用所有图片编辑
+   */
+  const enterEditMode = async () => {
+    if (!app.value || !editor.value)
+      return
+
+    // 启用所有图片的编辑和拖拽
+    for (const item of images.value) {
+      if (!item.element)
+        continue
+
+      const el: any = item.element
+      el.editable = true
+      el.draggable = true
+    }
+
+    // 禁用画布平移（除非按住空格键）
+    if (app.value.config?.move) {
+      app.value.config.move.drag = false
+    }
+
+    editingImageId.value = 'editing' // 标记为编辑模式
+
+    logInfo('进入编辑模式，所有图片可编辑', { imageCount: images.value.length })
+  }
+
+  /**
+   * 退出编辑模式：禁用所有图片编辑
+   */
+  const exitEditMode = () => {
+    if (!editingImageId.value)
+      return
+
+    // 禁用所有图片的编辑和拖拽
+    for (const item of images.value) {
+      if (!item.element)
+        continue
+
+      const el: any = item.element
+      el.draggable = false
+      el.editable = false
+
+      // 更新图片位置到响应式状态
+      item.x = Number(el.x) || item.x
+      item.y = Number(el.y) || item.y
+    }
+
+    // 清除 Editor 的选中状态
+    if (editor.value) {
+      ;(editor.value as any).target = null
+    }
+
+    // 恢复画布平移
+    if (app.value?.config?.move) {
+      app.value.config.move.drag = true
+    }
+
+    logInfo('退出编辑模式')
+    editingImageId.value = null
+  }
+
+  /**
+   * 更新画布平移状态（根据空格键和编辑模式）
+   */
+  const updateCanvasDragState = () => {
+    if (!app.value?.config?.move)
+      return
+
+    // 按住空格键时，总是启用画布平移
+    if (_isSpacePressed) {
+      app.value.config.move.drag = true
+      logInfo('空格键按下，启用画布平移')
+    }
+    // 空格键抬起时，根据编辑模式决定是否禁用
+    else {
+      // 如果在编辑模式，禁用画布平移
+      if (editingImageId.value) {
+        app.value.config.move.drag = false
+        logInfo('空格键抬起，编辑模式下禁用画布平移')
+      }
+      // 否则启用画布平移
+      else {
+        app.value.config.move.drag = true
+        logInfo('空格键抬起，非编辑模式下启用画布平移')
+      }
+    }
   }
 
   const bindTemplateDragHandlers = async (item: ImageItem) => {
-    if (!activeTemplate.value || !templateSlots.value.length)
-      return
     if (!item.element)
       return
 
@@ -363,9 +419,11 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
     try {
       isLoading.value = true
+
       const { App, Group } = await import('leafer-ui')
       const { Editor } = await import('@leafer-in/editor')
       await import('@leafer-in/view')
+      await import('@leafer-in/viewport') // 导入视口插件，必须！
       await import('@leafer-in/export')
 
       // 创建 App 应用（分层架构）
@@ -373,10 +431,24 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         view: containerRef.value,
         fill: 'transparent',
         tree: {
-          type: 'design', // 设计模式
-          fill: 'transparent', // 透明填充，显示底层网格
+          type: 'viewport', // 必须使用 viewport 类型才能启用移动端手势
+          fill: 'transparent',
         },
-        sky: {}, // sky 层：编辑器层
+        move: {
+          drag: true, // 启用拖拽平移视图
+          dragOut: false,
+          scroll: false,
+        },
+        wheel: {
+          zoomMode: true, // 滚轮缩放模式
+          zoomSpeed: 0.1,
+          preventDefault: true,
+        },
+        zoom: {
+          min: 0.1,
+          max: 10,
+        },
+        sky: {},
       })
 
       // 初始化尺寸（确保导出背景有正确宽高）
@@ -388,127 +460,22 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         }
       }
 
-      // 画布内缩放/拖拽（pan/zoom）
-      // - 缩放：滚轮缩放（以鼠标点为中心，依赖 @leafer-in/view 的 zoomLayer）
-      // - 平移：Space + 左键拖拽 或 中键拖拽
       keyDownHandler = (e: KeyboardEvent) => {
-        if (e.code === 'Space')
-          isSpacePressed = true
+        if (e.code === 'Space' && !_isSpacePressed) {
+          _isSpacePressed = true
+          updateCanvasDragState()
+        }
       }
       keyUpHandler = (e: KeyboardEvent) => {
-        if (e.code === 'Space')
-          isSpacePressed = false
+        if (e.code === 'Space' && _isSpacePressed) {
+          _isSpacePressed = false
+          updateCanvasDragState()
+        }
       }
       window.addEventListener('keydown', keyDownHandler)
       window.addEventListener('keyup', keyUpHandler)
 
-      wheelHandler = (e: WheelEvent) => {
-        if (!app.value || !containerRef.value)
-          return
-
-        // 防止页面滚动，保证在画布内缩放
-        e.preventDefault()
-
-        const zoomLayer: any = (app.value as any).zoomLayer
-        if (!zoomLayer)
-          return
-
-        const rect = containerRef.value.getBoundingClientRect()
-        const point = {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        }
-
-        // deltaY > 0 缩小，deltaY < 0 放大
-        const baseFactor = e.deltaY < 0 ? 1.1 : 0.9
-        const factor = (app.value as any).getValidScale?.(baseFactor) ?? baseFactor
-
-        try {
-          zoomLayer.scaleOfWorld(point, factor, factor, false)
-        }
-        catch {
-          // ignore
-        }
-      }
-      containerRef.value.addEventListener('wheel', wheelHandler, { passive: false, capture: true })
-
-      pointerDownHandler = (e: PointerEvent) => {
-        if (!app.value || !containerRef.value)
-          return
-
-        const isMiddleButton = e.button === 1
-        const isSpaceLeft = e.button === 0 && isSpacePressed
-        if (!isMiddleButton && !isSpaceLeft)
-          return
-
-        const zoomLayer: any = (app.value as any).zoomLayer
-        if (!zoomLayer)
-          return
-
-        e.preventDefault()
-        e.stopPropagation()
-        ;(e as any).stopImmediatePropagation?.()
-        isPanning = true
-        panPointerId = e.pointerId
-        panStartClientX = e.clientX
-        panStartClientY = e.clientY
-        panStartViewX = Number(zoomLayer.__?.x) || 0
-        panStartViewY = Number(zoomLayer.__?.y) || 0
-
-        try {
-          containerRef.value.setPointerCapture(e.pointerId)
-        }
-        catch {
-          // ignore
-        }
-      }
-
-      pointerMoveHandler = (e: PointerEvent) => {
-        if (!isPanning || panPointerId !== e.pointerId)
-          return
-        if (!app.value)
-          return
-
-        const zoomLayer: any = (app.value as any).zoomLayer
-        if (!zoomLayer)
-          return
-
-        e.preventDefault()
-        e.stopPropagation()
-        ;(e as any).stopImmediatePropagation?.()
-
-        const dx = e.clientX - panStartClientX
-        const dy = e.clientY - panStartClientY
-        const nextX = panStartViewX + dx
-        const nextY = panStartViewY + dy
-
-        const scaleX = Number(zoomLayer.__?.scaleX) || 1
-        const scaleY = Number(zoomLayer.__?.scaleY) || 1
-        zoomLayer.set({ x: nextX, y: nextY, scaleX, scaleY })
-      }
-
-      pointerUpHandler = (e: PointerEvent) => {
-        if (panPointerId !== e.pointerId)
-          return
-        e.preventDefault()
-        e.stopPropagation()
-        ;(e as any).stopImmediatePropagation?.()
-        isPanning = false
-        panPointerId = null
-        try {
-          containerRef.value?.releasePointerCapture(e.pointerId)
-        }
-        catch {
-          // ignore
-        }
-      }
-
-      containerRef.value.addEventListener('pointerdown', pointerDownHandler, { capture: true })
-      containerRef.value.addEventListener('pointermove', pointerMoveHandler, { capture: true })
-      containerRef.value.addEventListener('pointerup', pointerUpHandler, { capture: true })
-      containerRef.value.addEventListener('pointercancel', pointerUpHandler, { capture: true })
-
-      // 自适应容器变化：更新画布尺寸，并在模板布局下重算格子
+      // 自适应容器变化：更新画布尺寸
       resizeObserver = new ResizeObserver(() => {
         if (!app.value || !containerRef.value)
           return
@@ -518,7 +485,8 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
           app.value.width = width
           app.value.height = height
           ;(app.value as any).updateClientBounds?.()
-          if (!activeTemplate.value)
+          // 仅在没有模板且没有图片时，使用容器尺寸作为导出区域
+          if (!activeTemplate.value && images.value.length === 0)
             setExportFrameRect({ x: 0, y: 0, width, height })
         }
       })
@@ -632,8 +600,11 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         y,
         width: displayWidth,
         height: displayHeight,
-        editable: true,
-        draggable: true,
+        editable: false,
+        draggable: false,
+        cornerRadius: templateStyle.value.imageRadius,
+        cursor: 'pointer', // 提示可交互
+        hittable: true, // 确保可以响应事件
       } as any)
 
       // 4. 先加入画布和响应式状态（避免“暂无图片”闪烁；UI 更快反馈）
@@ -650,7 +621,8 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       images.value.push(item)
 
       // 绑定模板拖拽规则（若启用模板）
-      void bindTemplateDragHandlers(item)
+      // 已关闭图片拖拽能力，此处不再绑定拖拽事件
+      // void bindTemplateDragHandlers(item)
 
       // 5. 后台等待加载完成（不阻塞 UI）
       void (async () => {
@@ -822,7 +794,6 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
     const { width: frameW, height: frameH, slots } = computeTemplateLayout(template)
     setExportFrameRect({ width: frameW, height: frameH })
-    centerExportFrameInView()
 
     templateSlots.value = slots
 
@@ -858,6 +829,9 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         }
       }
     }
+
+    // 应用模板后自适应缩放以适配视口
+    fitToViewport()
   }
 
   const setTemplateStyle = async (partial: Partial<TemplateStyle>) => {
@@ -871,6 +845,13 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
     if (partial.radius !== undefined && exportFrame.value)
       exportFrame.value.set({ cornerRadius: templateStyle.value.radius } as any)
+
+    if (partial.imageRadius !== undefined) {
+      images.value.forEach((item) => {
+        if (item.element)
+          (item.element as any).cornerRadius = templateStyle.value.imageRadius
+      })
+    }
 
     await refreshTemplateLayout()
   }
@@ -928,7 +909,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
   /**
    * 布局：网格排列
    */
-  const layoutGrid = (columns = 2, gap = 10, padding = 20) => {
+  const layoutGrid = (columns = 2, gap = 0, padding = 0) => {
     if (!images.value.length)
       return
 
@@ -936,18 +917,20 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     let y = padding
     let maxHeightInRow = 0
     let currentColumn = 0
+    let maxWidth = 0
 
     images.value.forEach((item) => {
       if (!item.element)
         return
 
-      item.element.x = x
-      item.element.y = y
-
       const itemWidth = item.width || 100
       const itemHeight = item.height || 100
 
+      item.element.x = x
+      item.element.y = y
+
       maxHeightInRow = Math.max(maxHeightInRow, itemHeight)
+      maxWidth = Math.max(maxWidth, x + itemWidth)
       currentColumn++
 
       if (currentColumn >= columns) {
@@ -962,28 +945,45 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       }
     })
 
+    if (currentColumn > 0)
+      y += maxHeightInRow
+
+    const totalWidth = maxWidth + padding
+    const totalHeight = y + padding
+    setExportFrameRect({ width: totalWidth, height: totalHeight })
+
     logInfo('网格布局完成', { columns, gap })
   }
 
   /**
    * 布局：水平排列
    */
-  const layoutHorizontal = (gap = 10, padding = 20) => {
+  const layoutHorizontal = (gap = 0, padding = 0) => {
     if (!images.value.length)
       return
 
     let x = padding
     const y = padding
+    let maxHeight = 0
 
     images.value.forEach((item) => {
       if (!item.element)
         return
 
+      const itemWidth = item.width || 100
+      const itemHeight = item.height || 100
+
       item.element.x = x
       item.element.y = y
 
-      x += (item.width || 100) + gap
+      maxHeight = Math.max(maxHeight, itemHeight)
+      x += itemWidth + gap
     })
+
+    // 根据内容更新导出区域尺寸，支持“无限”横向排列
+    const totalWidth = (images.value.length > 0 ? x - gap : x) + padding
+    const totalHeight = maxHeight + padding * 2
+    setExportFrameRect({ width: totalWidth, height: totalHeight })
 
     logInfo('水平布局完成', { gap })
   }
@@ -991,43 +991,150 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
   /**
    * 布局：垂直排列
    */
-  const layoutVertical = (gap = 10, padding = 20) => {
+  const layoutVertical = (gap = 0, padding = 0) => {
     if (!images.value.length)
       return
 
     const x = padding
     let y = padding
+    let maxWidth = 0
 
     images.value.forEach((item) => {
       if (!item.element)
         return
 
+      const itemHeight = item.height || 100
+      const itemWidth = item.width || 100
+
       item.element.x = x
       item.element.y = y
 
-      y += (item.height || 100) + gap
+      maxWidth = Math.max(maxWidth, itemWidth)
+      y += itemHeight + gap
     })
 
+    // 根据内容更新导出区域尺寸，支持“无限”纵向排列
+    const totalHeight = (images.value.length > 0 ? y - gap : y) + padding
+    const totalWidth = maxWidth + padding * 2
+    setExportFrameRect({ width: totalWidth, height: totalHeight })
+
     logInfo('垂直布局完成', { gap })
+  }
+
+  /**
+   * 自适应缩放：使内容适配视口
+   * 根据内容尺寸和视口尺寸，自动调整缩放比例
+   */
+  function fitToViewport() {
+    if (!app.value || !exportFrame.value)
+      return
+
+    const { width: viewportWidth, height: viewportHeight } = getContainerSize()
+
+    // 从 exportFrameRect 读取当前内容尺寸
+    const contentWidth = exportFrameRect.value.width
+    const contentHeight = exportFrameRect.value.height
+
+    if (viewportWidth <= 0 || viewportHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+      logWarning('视口或内容尺寸无效，跳过自适应缩放', {
+        viewportWidth,
+        viewportHeight,
+        contentWidth,
+        contentHeight,
+        oldExportFrameRect: { ...exportFrameRect.value },
+      })
+      return
+    }
+
+    // 留一些边距，避免内容紧贴边缘
+    const padding = 40
+    const availableWidth = viewportWidth - padding * 2
+    const availableHeight = viewportHeight - padding * 2
+
+    // 计算宽度和高度的缩放比例
+    const scaleX = availableWidth / contentWidth
+    const scaleY = availableHeight / contentHeight
+
+    // 选择较小的比例，确保不会超出视口
+    let finalScale = Math.min(scaleX, scaleY)
+
+    // 限制缩放范围在 0.1 到 2 之间
+    finalScale = Math.max(0.1, Math.min(2, finalScale))
+
+    // 应用缩放并居中 Box
+    const tree = app.value.tree as any
+    if (tree && tree.scale !== undefined) {
+      // 重置 tree 的位置和缩放，避免累积计算错误
+      tree.scale = finalScale
+      tree.x = 0
+      tree.y = 0
+
+      // 在世界坐标系中计算 Box 的居中位置
+      // 视口坐标需要除以缩放比例转换为世界坐标
+      const worldViewportWidth = viewportWidth / finalScale
+      const worldViewportHeight = viewportHeight / finalScale
+
+      const boxX = Math.floor((worldViewportWidth - contentWidth) / 2)
+      const boxY = Math.floor((worldViewportHeight - contentHeight) / 2)
+
+      // 一次性设置完整的 Box 属性，避免新旧值混合
+      exportFrameRect.value = {
+        x: boxX,
+        y: boxY,
+        width: contentWidth,
+        height: contentHeight,
+      }
+
+      if (exportFrame.value) {
+        exportFrame.value.set({
+          x: boxX,
+          y: boxY,
+          width: contentWidth,
+          height: contentHeight,
+        } as any)
+      }
+
+      logInfo('自适应缩放完成', {
+        finalScale,
+        scaleX,
+        scaleY,
+        contentWidth,
+        contentHeight,
+        worldViewportWidth,
+        worldViewportHeight,
+        boxX,
+        boxY,
+      })
+    }
+    else {
+      logWarning('无法访问 tree.scale 属性')
+    }
   }
 
   /**
    * 应用布局
    */
   const applyLayout = (layout: CanvasLayout) => {
+    // 使用 ?? 而不是 || ，以支持 0 值
+    const gap = layout.gap ?? 0
+    const padding = layout.padding ?? 0
+
     switch (layout.type) {
       case 'grid':
-        layoutGrid(layout.columns || 2, layout.gap || 10, layout.padding || 20)
+        layoutGrid(layout.columns || 2, gap, padding)
         break
       case 'horizontal':
-        layoutHorizontal(layout.gap || 10, layout.padding || 20)
+        layoutHorizontal(gap, padding)
         break
       case 'vertical':
-        layoutVertical(layout.gap || 10, layout.padding || 20)
+        layoutVertical(gap, padding)
         break
       default:
         logWarning('未知布局类型', { type: layout.type })
     }
+
+    // 布局完成后，自适应缩放以适配视口
+    fitToViewport()
   }
 
   /**
@@ -1063,7 +1170,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       }
 
       // Tauri 环境：使用 fs 插件保存文件
-      if (await isTauriRuntime()) {
+      if (isTauriEnvironment.value) {
         const { save } = await import('@tauri-apps/plugin-dialog')
         const { writeFile } = await import('@tauri-apps/plugin-fs')
 
@@ -1245,23 +1352,6 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       resizeObserver.disconnect()
       resizeObserver = null
     }
-    if (wheelHandler && containerRef.value) {
-      containerRef.value.removeEventListener('wheel', wheelHandler, { capture: true } as any)
-      wheelHandler = null
-    }
-    if (pointerDownHandler && containerRef.value) {
-      containerRef.value.removeEventListener('pointerdown', pointerDownHandler, { capture: true } as any)
-      pointerDownHandler = null
-    }
-    if (pointerMoveHandler && containerRef.value) {
-      containerRef.value.removeEventListener('pointermove', pointerMoveHandler, { capture: true } as any)
-      pointerMoveHandler = null
-    }
-    if (pointerUpHandler && containerRef.value) {
-      containerRef.value.removeEventListener('pointerup', pointerUpHandler, { capture: true } as any)
-      containerRef.value.removeEventListener('pointercancel', pointerUpHandler, { capture: true } as any)
-      pointerUpHandler = null
-    }
     if (keyDownHandler) {
       window.removeEventListener('keydown', keyDownHandler)
       keyDownHandler = null
@@ -1297,6 +1387,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     images,
     isReady,
     isLoading,
+    editingImageId,
 
     // 模板布局
     activeTemplate,
@@ -1327,6 +1418,13 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     setTemplateStyle,
     setBackgroundColor,
     clientToWorldPoint,
+
+    // 编辑模式
+    enterEditMode,
+    exitEditMode,
+
+    // 缩放控制
+    fitToViewport,
 
     destroy,
   }
