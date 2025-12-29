@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.25.0
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.5...v0.25.0)
+
+### 🚀 Enhancements
+
+- 增加画布功能; 拼图功能 ([8a1330a](https://github.com/aatrooox/zotepad/commit/8a1330a))
+- 优化画布工具功能：横纵长图拼接/九宫格/微信公众号文章封面图 ([e8b106f](https://github.com/aatrooox/zotepad/commit/e8b106f))
+- 优化图片工具;支持原图拼接导出 ([89eb163](https://github.com/aatrooox/zotepad/commit/89eb163))
+
+### 🏡 Chore
+
+- **release:** V0.24.5 ([e3d2aae](https://github.com/aatrooox/zotepad/commit/e3d2aae))
+- **build:** Release v0.24.5 ([72fcfa9](https://github.com/aatrooox/zotepad/commit/72fcfa9))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.24.5
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.4...v0.24.5)
