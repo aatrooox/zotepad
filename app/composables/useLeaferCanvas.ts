@@ -4,6 +4,93 @@ import type { Ref } from 'vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useEnvironment } from '~/composables/useEnvironment'
 
+/**
+ * 图片尺寸判断辅助函数
+ */
+function shouldUseOriginalSize(
+  imageWidth: number,
+  imageHeight: number,
+  context: {
+    totalImages: number
+    layoutType: 'horizontal' | 'vertical' | 'grid' | 'template'
+  },
+): boolean {
+  const appConfig = useAppConfig()
+  const thresholds = appConfig.canvasEditor.imageSizeThresholds
+
+  // 根据场景选择阈值
+  const threshold = context.layoutType === 'template' || context.totalImages >= 4
+    ? thresholds.multiple
+    : thresholds.single
+
+  // 如果设置为 0，表示不限制
+  const maxDimension = threshold.maxDimension || Infinity
+  const maxPixels = threshold.maxPixels || Infinity
+
+  return imageWidth <= maxDimension
+    && imageHeight <= maxDimension
+    && (imageWidth * imageHeight) <= maxPixels
+}
+
+/**
+ * 获取模板尺寸（根据图片是否符合阈值返回高清或标准尺寸）
+ */
+function getTemplateSizeForImages(
+  template: CanvasTemplate,
+  images: ImageItem[],
+): { size: number, useOriginal: boolean } {
+  const appConfig = useAppConfig()
+  const templateSizes = appConfig.canvasEditor.templateSizes
+
+  // 检查是否所有图片都符合阈值
+  const allImagesQualify = images.every((img) => {
+    const width = img.width || 0
+    const height = img.height || 0
+    return shouldUseOriginalSize(width, height, {
+      totalImages: images.length,
+      layoutType: 'template',
+    })
+  })
+
+  if (allImagesQualify) {
+    // 使用高清尺寸
+    if (template === 'nine-grid') {
+      return { size: templateSizes.nineGrid, useOriginal: true }
+    }
+    else if (template === 'wechat-cover-235') {
+      return { size: templateSizes.wechatCoverHeight, useOriginal: true }
+    }
+  }
+
+  // 使用标准尺寸
+  if (template === 'nine-grid') {
+    return { size: 200, useOriginal: false }
+  }
+  else if (template === 'wechat-cover-235') {
+    return { size: 300, useOriginal: false }
+  }
+
+  return { size: 200, useOriginal: false }
+}
+
+/**
+ * 检查总尺寸是否超过限制
+ */
+function checkTotalSizeLimit(
+  width: number,
+  height: number,
+): { exceeded: boolean, maxDimension: number, maxPixels: number } {
+  const appConfig = useAppConfig()
+  const totalLimits = appConfig.canvasEditor.imageSizeThresholds.total
+
+  const maxDimension = totalLimits.maxDimension || Infinity
+  const maxPixels = totalLimits.maxPixels || Infinity
+
+  const exceeded = width > maxDimension || height > maxDimension || (width * height) > maxPixels
+
+  return { exceeded, maxDimension, maxPixels }
+}
+
 export interface ImageItem {
   id: string
   url: string
@@ -11,6 +98,8 @@ export interface ImageItem {
   y: number
   width?: number
   height?: number
+  naturalWidth?: number // 原始宽度（未缩放）
+  naturalHeight?: number // 原始高度（未缩放）
   element?: LeaferImage
 }
 
@@ -63,6 +152,9 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
   const layoutLayer = ref<Group | null>(null)
   const group = ref<Group | null>(null)
+
+  // 导出尺寸信息（供前端组件显示）
+  const canvasSize = ref({ width: 0, height: 0 })
 
   const activeTemplate = ref<CanvasTemplate | null>(null)
   const templateSlots = ref<TemplateSlot[]>([])
@@ -160,23 +252,88 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     const padding = templateStyle.value.padding
     const gap = templateStyle.value.gap
 
+    // 根据图片尺寸动态选择模板尺寸（高清或标准）
+    const { size: baseSize, useOriginal } = getTemplateSizeForImages(template, images.value)
+
     if (template === 'wechat-cover-235') {
-      const h = 300
+      const h = baseSize
       const leftW = Math.round(h * 2.35)
       const rightW = h
       const width = padding * 2 + leftW + gap + rightW
       const height = padding * 2 + h
+
+      // 检查总尺寸是否超过限制
+      const { exceeded, maxDimension, maxPixels } = checkTotalSizeLimit(width, height)
+      if (exceeded) {
+        logWarning('公众号封面总尺寸超过限制，已自动降级', {
+          width,
+          height,
+          maxDimension,
+          maxPixels,
+          useOriginal,
+        })
+        // 降级到标准尺寸
+        const standardH = 300
+        const standardLeftW = Math.round(standardH * 2.35)
+        const standardRightW = standardH
+        const standardWidth = padding * 2 + standardLeftW + gap + standardRightW
+        const standardHeight = padding * 2 + standardH
+        const slots: TemplateSlot[] = [
+          { id: 'wechat-left', x: padding, y: padding, width: standardLeftW, height: standardH, order: 0 },
+          { id: 'wechat-right', x: padding + standardLeftW + gap, y: padding, width: standardRightW, height: standardH, order: 1 },
+        ]
+        return { width: standardWidth, height: standardHeight, slots }
+      }
+
       const slots: TemplateSlot[] = [
         { id: 'wechat-left', x: padding, y: padding, width: leftW, height: h, order: 0 },
         { id: 'wechat-right', x: padding + leftW + gap, y: padding, width: rightW, height: h, order: 1 },
       ]
+
+      if (useOriginal) {
+        logInfo('公众号封面使用高清尺寸', { baseSize, width, height })
+      }
+
       return { width, height, slots }
     }
 
     // nine-grid
-    const size = 200
+    const size = baseSize
     const width = padding * 2 + size * 3 + gap * 2
     const height = padding * 2 + size * 3 + gap * 2
+
+    // 检查总尺寸是否超过限制
+    const { exceeded, maxDimension, maxPixels } = checkTotalSizeLimit(width, height)
+    if (exceeded) {
+      logWarning('九宫格总尺寸超过限制，已自动降级', {
+        width,
+        height,
+        maxDimension,
+        maxPixels,
+        useOriginal,
+      })
+      // 降级到标准尺寸
+      const standardSize = 200
+      const standardWidth = padding * 2 + standardSize * 3 + gap * 2
+      const standardHeight = padding * 2 + standardSize * 3 + gap * 2
+      const slots: TemplateSlot[] = []
+      let order = 0
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          slots.push({
+            id: `nine-${row}-${col}`,
+            x: padding + col * (standardSize + gap),
+            y: padding + row * (standardSize + gap),
+            width: standardSize,
+            height: standardSize,
+            order,
+          })
+          order++
+        }
+      }
+      return { width: standardWidth, height: standardHeight, slots }
+    }
+
     const slots: TemplateSlot[] = []
     let order = 0
     for (let row = 0; row < 3; row++) {
@@ -192,6 +349,11 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         order++
       }
     }
+
+    if (useOriginal) {
+      logInfo('九宫格使用高清尺寸', { size, width, height })
+    }
+
     return { width, height, slots }
   }
 
@@ -574,32 +736,32 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         img.src = url
       })
 
-      // 2. 计算缩放尺寸（最大宽度 300px）
+      // 2. 计算缩放尺寸（最大宽度 300px，仅用于视口显示）
       const maxWidth = 300
-      let finalWidth = naturalWidth
-      let finalHeight = naturalHeight
+      let displayWidth = naturalWidth
+      let displayHeight = naturalHeight
 
       if (naturalWidth > maxWidth) {
         const scale = maxWidth / naturalWidth
-        finalWidth = maxWidth
-        finalHeight = naturalHeight * scale
+        displayWidth = maxWidth
+        displayHeight = naturalHeight * scale
 
-        logInfo('图片将被缩放', {
+        logInfo('图片将被缩放显示（导出时使用原始尺寸）', {
           original: `${naturalWidth}x${naturalHeight}`,
-          scaled: `${Math.round(finalWidth)}x${Math.round(finalHeight)}`,
+          display: `${Math.round(displayWidth)}x${Math.round(displayHeight)}`,
           scale: scale.toFixed(2),
         })
       }
 
-      const displayWidth = width || finalWidth
-      const displayHeight = height || finalHeight
+      const finalDisplayWidth = width || displayWidth
+      const finalDisplayHeight = height || displayHeight
 
       // 3. 先创建 Image（不带 url），避免极快资源触发事件竞态
       const imageElement = new Image({
         x,
         y,
-        width: displayWidth,
-        height: displayHeight,
+        width: finalDisplayWidth,
+        height: finalDisplayHeight,
         editable: false,
         draggable: false,
         cornerRadius: templateStyle.value.imageRadius,
@@ -614,8 +776,10 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         url,
         x,
         y,
-        width: displayWidth,
-        height: displayHeight,
+        width: finalDisplayWidth,
+        height: finalDisplayHeight,
+        naturalWidth, // 保存原始尺寸
+        naturalHeight, // 保存原始尺寸
         element: imageElement,
       }
       images.value.push(item)
@@ -643,6 +807,19 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
           clearTimeout(timeoutId)
           logInfo('图片加载完成', { url, id: item.id })
+
+          // ⚠️ 关键修复：图片加载完成后，确保使用原始尺寸（而非 LeaferJS 的自动尺寸）
+          // 如果有 naturalWidth/naturalHeight，立即更新元素尺寸
+          if (item.naturalWidth && item.naturalHeight) {
+            imageElement.set({
+              width: item.naturalWidth,
+              height: item.naturalHeight,
+            } as any)
+            logInfo('图片尺寸已更新为原始尺寸', {
+              id: item.id,
+              size: `${item.naturalWidth}x${item.naturalHeight}`,
+            })
+          }
         }
         catch (e: any) {
           logError('图片加载失败', { url, id: item.id, error: e })
@@ -656,10 +833,13 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
       logInfo('图片已添加到画布（立即可见）', {
         id: item.id,
-        width: item.width,
-        height: item.height,
+        displaySize: `${item.width}x${item.height}`,
+        naturalSize: `${naturalWidth}x${naturalHeight}`,
         totalImages: images.value.length,
       })
+
+      // 更新尺寸提示（单张图片时也显示）
+      updateSizeInfo()
 
       return item
     }
@@ -923,11 +1103,19 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       if (!item.element)
         return
 
-      const itemWidth = item.width || 100
-      const itemHeight = item.height || 100
+      // 使用原始尺寸计算布局（如果有），否则使用显示尺寸
+      const itemWidth = item.naturalWidth || item.width || 100
+      const itemHeight = item.naturalHeight || item.height || 100
 
+      // 同步更新图片元素的显示尺寸
       item.element.x = x
       item.element.y = y
+      item.element.width = itemWidth as any
+      item.element.height = itemHeight as any
+
+      // 更新响应式状态
+      item.width = itemWidth
+      item.height = itemHeight
 
       maxHeightInRow = Math.max(maxHeightInRow, itemHeight)
       maxWidth = Math.max(maxWidth, x + itemWidth)
@@ -952,7 +1140,10 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     const totalHeight = y + padding
     setExportFrameRect({ width: totalWidth, height: totalHeight })
 
-    logInfo('网格布局完成', { columns, gap })
+    logInfo('网格布局完成', { columns, gap, totalWidth, totalHeight })
+
+    // 更新尺寸提示
+    updateSizeInfo()
   }
 
   /**
@@ -970,22 +1161,45 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       if (!item.element)
         return
 
-      const itemWidth = item.width || 100
-      const itemHeight = item.height || 100
+      // 使用原始尺寸计算布局（如果有），否则使用显示尺寸
+      const itemWidth = item.naturalWidth || item.width || 100
+      const itemHeight = item.naturalHeight || item.height || 100
 
+      // 同步更新图片元素的显示尺寸
       item.element.x = x
       item.element.y = y
+      item.element.width = itemWidth as any
+      item.element.height = itemHeight as any
+
+      // 更新响应式状态
+      item.width = itemWidth
+      item.height = itemHeight
 
       maxHeight = Math.max(maxHeight, itemHeight)
       x += itemWidth + gap
     })
 
-    // 根据内容更新导出区域尺寸，支持“无限”横向排列
+    // 根据内容更新导出区域尺寸，支持"无限"横向排列
     const totalWidth = (images.value.length > 0 ? x - gap : x) + padding
     const totalHeight = maxHeight + padding * 2
     setExportFrameRect({ width: totalWidth, height: totalHeight })
 
-    logInfo('水平布局完成', { gap })
+    // 调试：记录所有图片的位置和Box尺寸
+    logInfo('水平布局完成', {
+      gap,
+      totalWidth,
+      totalHeight,
+      images: images.value.map(img => ({
+        id: img.id,
+        x: img.element?.x,
+        y: img.element?.y,
+        width: img.width,
+        height: img.height,
+      })),
+    })
+
+    // 更新尺寸提示
+    updateSizeInfo()
   }
 
   /**
@@ -1003,11 +1217,19 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       if (!item.element)
         return
 
-      const itemHeight = item.height || 100
-      const itemWidth = item.width || 100
+      // 使用原始尺寸计算布局（如果有），否则使用显示尺寸
+      const itemHeight = item.naturalHeight || item.height || 100
+      const itemWidth = item.naturalWidth || item.width || 100
 
+      // 同步更新图片元素的显示尺寸
       item.element.x = x
       item.element.y = y
+      item.element.width = itemWidth as any
+      item.element.height = itemHeight as any
+
+      // 更新响应式状态
+      item.width = itemWidth
+      item.height = itemHeight
 
       maxWidth = Math.max(maxWidth, itemWidth)
       y += itemHeight + gap
@@ -1018,7 +1240,27 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     const totalWidth = maxWidth + padding * 2
     setExportFrameRect({ width: totalWidth, height: totalHeight })
 
-    logInfo('垂直布局完成', { gap })
+    logInfo('垂直布局完成', { gap, totalWidth, totalHeight })
+
+    // 更新尺寸提示
+    updateSizeInfo()
+  }
+
+  /**
+   * 更新尺寸信息（更新 canvasSize ref，供前端组件显示）
+   */
+  function updateSizeInfo() {
+    if (!exportFrame.value)
+      return
+
+    const boxWidth = exportFrameRect.value.width
+    const boxHeight = exportFrameRect.value.height
+
+    // 更新响应式尺寸信息
+    canvasSize.value = {
+      width: Math.round(boxWidth),
+      height: Math.round(boxHeight),
+    }
   }
 
   /**
@@ -1105,6 +1347,9 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         boxX,
         boxY,
       })
+
+      // 更新尺寸提示
+      updateSizeInfo()
     }
     else {
       logWarning('无法访问 tree.scale 属性')
@@ -1147,6 +1392,47 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       return null
     }
 
+    // 记录导出前的 Box 尺寸
+    const boxWidth = Number((box as any).width)
+    const boxHeight = Number((box as any).height)
+    const boxX = Number((box as any).x)
+    const boxY = Number((box as any).y)
+    const boxBounds = (box as any).getBounds?.()
+    const boxChildren = (box as any).children?.length || 0
+    const groupScale = (group.value as any)?.scaleX || 1
+
+    // ⚠️ 关键调试：检查所有图片元素的实际显示尺寸
+    const imageElementsSizes = images.value.map(img => ({
+      id: img.id,
+      itemWidth: img.width,
+      itemHeight: img.height,
+      elementWidth: (img.element as any)?.width,
+      elementHeight: (img.element as any)?.height,
+      elementScaleX: (img.element as any)?.scaleX,
+      elementScaleY: (img.element as any)?.scaleY,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+    }))
+
+    logInfo('导出前 Box 尺寸', {
+      boxWidth,
+      boxHeight,
+      boxX,
+      boxY,
+      boxBounds: boxBounds
+        ? {
+            x: boxBounds.x,
+            y: boxBounds.y,
+            width: boxBounds.width,
+            height: boxBounds.height,
+          }
+        : null,
+      boxChildren,
+      groupScale,
+      exportFrameRect: { ...exportFrameRect.value },
+      imageElementsSizes,
+    })
+
     const prevGuideVisible = (layoutLayer.value as any)?.visible
     if (layoutLayer.value)
       (layoutLayer.value as any).visible = false
@@ -1158,11 +1444,22 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         pixelRatio = 2,
       } = options
 
-      // 导出为 Blob（二进制数据）
+      logInfo('开始导出', { filename, format, pixelRatio })
+
+      // ⚠️ 关键修复：使用 relative: 'inner' 参数
+      // 这样导出的是 Box 容器内部的内容，而不是基于世界坐标的视口截图
       const result = await box.export(format, {
         pixelRatio,
-        blob: true, // 导出为 Blob
-        relative: 'world',
+        blob: true,
+        relative: 'inner', // 导出 Box 内部内容（不受视口缩放影响）
+      })
+
+      logInfo('导出结果', {
+        width: result.width,
+        height: result.height,
+        pixelRatio,
+        expectedWidth: boxWidth * pixelRatio,
+        expectedHeight: boxHeight * pixelRatio,
       })
 
       if (!result.data) {
@@ -1388,6 +1685,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     isReady,
     isLoading,
     editingImageId,
+    canvasSize, // 导出尺寸信息
 
     // 模板布局
     activeTemplate,

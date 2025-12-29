@@ -55,6 +55,7 @@ const {
   editingImageId,
   enterEditMode,
   exitEditMode,
+  canvasSize, // 导出尺寸信息
 } = useLeaferCanvas(canvasContainer)
 
 // 当前布局配置
@@ -63,6 +64,14 @@ const currentLayout = ref<CanvasLayout>(props.defaultLayout)
 // 导出配置
 const exportFormat = ref<'png' | 'jpg'>('png')
 const exportPixelRatio = ref(2)
+
+// 导出质量预设
+const exportQualityOptions = [
+  { label: '标准 (1x)', value: 1, desc: '' },
+  { label: '高清 (2x)', value: 2, desc: '' },
+  { label: '超清 (3x)', value: 3, desc: '' },
+  { label: '极清 (4x)', value: 4, desc: '' },
+]
 
 // 响应式图片数量（确保模板正确响应）
 const imageCount = computed(() => images.value.length)
@@ -84,6 +93,48 @@ const isApplyingTemplate = ref(false)
 type ControlType = 'background' | 'gap' | 'padding' | 'radius' | 'imageRadius' | null
 const activeControl = ref<ControlType>(null)
 
+// 背景类型：纯色或渐变
+type BackgroundType = 'solid' | 'gradient'
+const backgroundType = ref<BackgroundType>('solid')
+
+// 预设渐变色方案（适合社交媒体传播）
+const gradientPresets = [
+  {
+    name: '日出橙',
+    value: { type: 'linear', from: 'top', stops: [{ offset: 0, color: '#ff6b6b' }, { offset: 1, color: '#ffd93d' }] },
+  },
+  {
+    name: '海洋蓝',
+    value: { type: 'linear', from: 'top', stops: [{ offset: 0, color: '#667eea' }, { offset: 1, color: '#764ba2' }] },
+  },
+  {
+    name: '森林绿',
+    value: { type: 'linear', from: 'top', stops: [{ offset: 0, color: '#56ab2f' }, { offset: 1, color: '#a8e063' }] },
+  },
+  {
+    name: '紫粉梦',
+    value: { type: 'linear', from: 'left', stops: [{ offset: 0, color: '#ee9ca7' }, { offset: 1, color: '#ffdde1' }] },
+  },
+  {
+    name: '炫彩虹',
+    value: { type: 'linear', from: 'bottom-left', stops: [{ offset: 0, color: '#ff6b6b' }, { offset: 0.5, color: '#4ecdc4' }, { offset: 1, color: '#ffd93d' }] },
+  },
+  {
+    name: '暮光紫',
+    value: { type: 'linear', from: 'top', stops: [{ offset: 0, color: '#834d9b' }, { offset: 1, color: '#d04ed6' }] },
+  },
+  {
+    name: '极光绿',
+    value: { type: 'linear', from: 'left', stops: [{ offset: 0, color: '#00d2ff' }, { offset: 1, color: '#3a7bd5' }] },
+  },
+  {
+    name: '樱花粉',
+    value: { type: 'linear', from: 'top', stops: [{ offset: 0, color: '#fbc2eb' }, { offset: 1, color: '#a6c1ee' }] },
+  },
+]
+
+const selectedGradient = ref(gradientPresets[0])
+
 // 切换控制项
 const toggleControl = (type: ControlType) => {
   if (activeControl.value === type) {
@@ -92,6 +143,19 @@ const toggleControl = (type: ControlType) => {
   else {
     activeControl.value = type
   }
+}
+
+// 应用渐变色
+const applyGradient = (gradient: typeof gradientPresets[0]) => {
+  selectedGradient.value = gradient
+  backgroundType.value = 'gradient'
+  setTemplateStyle({
+    backgroundColor: gradient.value as any,
+    gap: templateGap.value,
+    radius: templateRadius.value,
+    padding: templatePadding.value,
+    imageRadius: templateImageRadius.value,
+  })
 }
 
 watch(
@@ -150,6 +214,12 @@ const applyTemplateStyleDebounced = () => {
   applyStyleTimer = setTimeout(() => {
     applyTemplateStyle()
   }, 100) // 100ms 防抖
+}
+
+// 应用纯色
+const applySolidColor = () => {
+  backgroundType.value = 'solid'
+  applyTemplateStyle()
 }
 
 // 等待画布就绪
@@ -478,9 +548,31 @@ defineExpose({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="导出图片" class="h-8 w-8 md:h-10 md:w-10" @click="handleExport">
-          <Icon name="lucide:download" class="w-4 h-4 md:w-5 md:h-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button size="icon" variant="ghost" :disabled="imageCount === 0" title="导出图片" class="h-8 w-8 md:h-10 md:w-10">
+              <Icon name="lucide:download" class="w-4 h-4 md:w-5 md:h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <div class="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+              导出质量
+            </div>
+            <DropdownMenuItem
+              v-for="option in exportQualityOptions"
+              :key="option.value"
+              @select="() => { exportPixelRatio = option.value; handleExport() }"
+            >
+              <div class="flex items-center justify-between w-full">
+                <div class="flex flex-col">
+                  <span class="font-medium">{{ option.label }}</span>
+                  <span class="text-[10px] text-muted-foreground">{{ option.desc }}</span>
+                </div>
+                <Icon v-if="exportPixelRatio === option.value" name="lucide:check" class="w-4 h-4 text-primary ml-2" />
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div class="w-px h-5 md:h-6 bg-border" />
         <Button
           size="icon"
@@ -498,6 +590,12 @@ defineExpose({
         </Button>
         <div v-if="imageCount > 0" class="ml-1 md:ml-2 text-[10px] md:text-xs text-muted-foreground">
           {{ imageCount }}
+        </div>
+
+        <!-- 尺寸信息显示 -->
+        <div v-if="canvasSize.width > 0 && canvasSize.height > 0" class="ml-auto flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground font-mono">
+          <Icon name="lucide:maximize-2" class="w-3 h-3 md:w-4 md:h-4" />
+          <span>{{ canvasSize.width }} × {{ canvasSize.height }}</span>
         </div>
       </div>
     </div>
@@ -521,14 +619,56 @@ defineExpose({
           class="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-3 py-2 md:px-4 md:py-3 w-full max-w-[min(400px,100%)]"
         >
           <!-- 背景颜色 -->
-          <div v-if="activeControl === 'background'" class="flex items-center justify-between">
-            <span class="text-xs md:text-sm font-medium">背景颜色</span>
-            <input
-              v-model="templateBgColor"
-              type="color"
-              class="h-8 w-16 md:h-10 md:w-20 rounded-md border border-border bg-transparent cursor-pointer"
-              @change="applyTemplateStyle"
-            >
+          <div v-if="activeControl === 'background'" class="space-y-2">
+            <!-- 类型切换 -->
+            <div class="flex items-center gap-2">
+              <button
+                class="flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                :class="backgroundType === 'solid' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                @click="backgroundType = 'solid'"
+              >
+                纯色
+              </button>
+              <button
+                class="flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                :class="backgroundType === 'gradient' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                @click="backgroundType = 'gradient'"
+              >
+                渐变
+              </button>
+            </div>
+
+            <!-- 纯色选择器 -->
+            <div v-if="backgroundType === 'solid'" class="flex items-center justify-between">
+              <span class="text-xs md:text-sm font-medium">选择颜色</span>
+              <input
+                v-model="templateBgColor"
+                type="color"
+                class="h-8 w-16 md:h-10 md:w-20 rounded-md border border-border bg-transparent cursor-pointer"
+                @change="applySolidColor"
+              >
+            </div>
+
+            <!-- 渐变色预设 -->
+            <div v-if="backgroundType === 'gradient'" class="space-y-2">
+              <span class="text-xs md:text-sm font-medium">选择渐变</span>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="preset in gradientPresets"
+                  :key="preset.name"
+                  class="relative h-12 rounded-md border-2 transition-all overflow-hidden"
+                  :class="selectedGradient?.name === preset.name ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'"
+                  :style="{
+                    background: `linear-gradient(to bottom, ${preset.value.stops.map(s => s.color).join(', ')})`,
+                  }"
+                  @click="applyGradient(preset)"
+                >
+                  <span class="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white drop-shadow-md">
+                    {{ preset.name }}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- 图片间距 -->
