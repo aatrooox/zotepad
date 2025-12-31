@@ -310,7 +310,7 @@ onMounted(async () => {
 <template>
   <div class="absolute inset-0 flex flex-col bg-background/50 overflow-hidden">
     <!-- Desktop Header -->
-    <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/60">
+    <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 backdrop-blur-xl">
       <div class="flex items-center gap-4">
         <NuxtLink to="/">
           <Button variant="outline" size="icon">
@@ -349,7 +349,7 @@ onMounted(async () => {
     </div>
 
     <!-- Mobile Header with Sticky Tabs -->
-    <div class="md:hidden sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/80">
+    <div class="md:hidden sticky top-0 z-20 backdrop-blur-xl">
       <div class="flex items-center justify-between px-4 pt-safe-offset-4 pb-3 mt-1">
         <!-- Tab Navigation -->
         <div class="flex items-center gap-6">

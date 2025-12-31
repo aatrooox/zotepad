@@ -36,10 +36,10 @@ const sidebarWidth = computed(() => {
 <template>
   <aside
     v-if="isVisible"
-    class="border-r bg-card/50 backdrop-blur-xl flex flex-col h-screen z-20 shadow-sm relative group/sidebar transition-all duration-300 ease-in-out overflow-hidden"
+    class="border-r bg-card/50 backdrop-blur-xl flex flex-col h-screen z-20 shadow-sm relative group/sidebar transition-all duration-300 ease-in-out overflow-hidden bg-gradient-sidebar-top"
     :class="sidebarWidth"
   >
-    <div class="h-full w-full relative">
+    <div class="h-full w-full relative z-10">
       <Transition name="fade" mode="out-in">
         <NoteList
           v-if="mode === 'context' && contextType === 'notes'"

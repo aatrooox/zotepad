@@ -207,7 +207,7 @@ const formatDate = (dateStr?: string) => {
 <template>
   <div class="h-full flex flex-col bg-background/50">
     <!-- Header - 桌面端显示完整头部，移动端精简 -->
-    <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <div class="hidden md:flex px-8 py-6 items-center justify-between sticky top-0 z-10 backdrop-blur-md">
       <div>
         <h1 class="text-3xl font-bold tracking-tight text-foreground">
           流

@@ -778,7 +778,7 @@ async function handleRunWorkflow(workflow: Workflow) {
 <template>
   <div class="h-full flex flex-col bg-background/50 overflow-hidden">
     <!-- Desktop Header -->
-    <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/60">
+    <div class="hidden md:flex px-8 lg:px-12 py-4 items-center justify-between sticky top-0 z-10 backdrop-blur-xl">
       <!-- Tab Navigation -->
       <div class="flex items-center gap-1 bg-muted/50 p-1 rounded-full border border-border/20">
         <button
@@ -832,7 +832,7 @@ async function handleRunWorkflow(workflow: Workflow) {
     </div>
 
     <!-- Mobile Header with Sticky Tabs -->
-    <div class="md:hidden sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/40 supports-[backdrop-filter]:bg-background/80">
+    <div class="md:hidden sticky top-0 z-20 backdrop-blur-xl">
       <div class="flex items-center justify-between px-4 pt-safe-offset-4 pb-3 mt-1">
         <!-- Tab Navigation -->
         <div class="flex items-center gap-6">

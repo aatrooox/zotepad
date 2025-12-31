@@ -49,7 +49,8 @@ const isNotePage = computed(() => {
 
 <template>
   <div
-    class="fixed inset-0 bg-background text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-hidden"
+    class="fixed inset-0 text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-hidden"
+    :class="isMobile ? 'bg-gradient-immersive-top' : 'bg-background'"
   >
     <!-- Desktop Sidebar -->
     <AppSidebar v-if="!isMobile" />

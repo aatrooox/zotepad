@@ -100,6 +100,64 @@
     @apply bg-gradient-to-br from-primary to-slate-500;
   }
 
+  /* 桌面端侧边栏顶部渐变 */
+  .bg-gradient-sidebar-top {
+    position: relative;
+  }
+
+  .bg-gradient-sidebar-top::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 200px;
+    background: linear-gradient(
+      to bottom,
+      hsl(142 30% 40% / 0.15) 0%,
+      hsl(142 25% 35% / 0.08) 30%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .dark .bg-gradient-sidebar-top::before {
+    background: linear-gradient(
+      to bottom,
+      hsl(142 35% 30% / 0.2) 0%,
+      hsl(142 25% 20% / 0.1) 30%,
+      transparent 100%
+    );
+  }
+
+  /* 移动端沉浸式顶部渐变 */
+  .bg-gradient-immersive-top {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, hsl(142 40% 45% / 0.6) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 20% 0%, hsl(142 35% 40% / 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 80% 0%, hsl(142 25% 35% / 0.3) 0%, transparent 50%),
+      linear-gradient(
+        to bottom,
+        hsl(142 30% 35%) 0%,
+        hsl(142 20% 25%) 15%,
+        hsl(var(--background)) 50%
+      );
+  }
+
+  .dark .bg-gradient-immersive-top {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, hsl(142 45% 35% / 0.5) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 20% 0%, hsl(142 40% 30% / 0.25) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 80% 0%, hsl(142 30% 25% / 0.25) 0%, transparent 50%),
+      linear-gradient(
+        to bottom,
+        hsl(142 35% 20%) 0%,
+        hsl(142 20% 12%) 15%,
+        hsl(var(--background)) 50%
+      );
+  }
+
   /* 文本平衡，用于标题 */
   .text-balance {
     text-wrap: balance;

@@ -67,9 +67,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background" style="touch-action: none; -webkit-user-select: none; user-select: none;">
+  <div class="h-full flex flex-col" style="touch-action: none; -webkit-user-select: none; user-select: none;">
     <!-- 顶部导航栏 -->
-    <AppPageHeader title="图片工具" class="bg-background/80 backdrop-blur-md sticky top-0 z-20 border-b" />
+    <AppPageHeader title="图片工具" class="backdrop-blur-md sticky top-0 z-20" />
 
     <!-- 编辑器主体 -->
     <div class="flex-1 overflow-hidden p-4 md:p-2" style="touch-action: none;">
