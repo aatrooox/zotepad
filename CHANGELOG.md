@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.25.7
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.6...v0.25.7)
+
+### 🏡 Chore
+
+- 发版问题 ([d624681](https://github.com/aatrooox/zotepad/commit/d624681))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.25.6
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.5...v0.25.6)
