@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.25.8
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.7...v0.25.8)
+
 ## v0.25.7
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.6...v0.25.7)
