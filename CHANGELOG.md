@@ -1,6 +1,32 @@
 # Changelog
 
 
+## v0.25.1
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.0...v0.25.1)
+
+### 🚀 Enhancements
+
+- 优化图片工具;支持原图拼接导出 ([89eb163](https://github.com/aatrooox/zotepad/commit/89eb163))
+- 优化图片工具 ([36c5737](https://github.com/aatrooox/zotepad/commit/36c5737))
+
+### 🩹 Fixes
+
+- 优化移动端标题栏; 缩放比例放宽 ([14e5aed](https://github.com/aatrooox/zotepad/commit/14e5aed))
+
+### 🏡 Chore
+
+- **release:** V0.25.0 ([537eee8](https://github.com/aatrooox/zotepad/commit/537eee8))
+- **build:** Release v0.25.0 ([395e8b0](https://github.com/aatrooox/zotepad/commit/395e8b0))
+
+### 🎨 Styles
+
+- 增加浅色绿渐变背景 ([3ad836d](https://github.com/aatrooox/zotepad/commit/3ad836d))
+
+### ❤️ Contributors
+
+- Aatrox <gnakzz@qq.com>
+
 ## v0.25.0
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.24.5...v0.25.0)
