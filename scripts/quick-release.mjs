@@ -10,40 +10,41 @@ const rootDir = resolve(__dirname, '..')
 // 获取参数
 const args = process.argv.slice(2)
 const versionType = args[0]
-const autoMode = args.includes('--auto')
 
 if (!versionType || !['patch', 'minor', 'major'].includes(versionType)) {
   console.error('请指定版本类型: patch, minor, 或 major')
-  console.error('使用方法: node scripts/quick-release.mjs [patch|minor|major] [--auto]')
-  console.error('  --auto: 自动执行所有步骤（包括 git push 和创建 release）')
+  console.error('使用方法: pnpm release:patch / release:minor / release:major')
   process.exit(1)
 }
 
 console.log(`🚀 开始 ${versionType} 版本发布...`)
-if (autoMode) {
-  console.log('🤖 自动模式已启用')
-}
 
-// 1. 使用 changelogen 更新 package.json 版本号和生成 changelog
-console.log('📝 使用 changelogen 更新版本号和生成 changelog...')
-try {
-  execSync(`pnpm release:${versionType}`, { stdio: 'inherit', cwd: rootDir })
-}
-catch {
-  console.error('❌ changelogen 执行失败')
-  process.exit(1)
-}
-
-// 2. 获取更新后的版本号
+// 1. 读取当前版本号
 const packageJsonPath = join(rootDir, 'package.json')
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'))
-const newVersion = packageJson.version
-console.log(`📦 新版本: v${newVersion}`)
+const currentVersion = packageJson.version
+const [major, minor, patch] = currentVersion.split('.').map(Number)
 
-// 3. 同步更新 Tauri 相关文件的版本号
-console.log(`🔧 同步 Tauri 版本号到 ${newVersion}...`)
+// 2. 计算新版本号
+let newVersion
+if (versionType === 'major') {
+  newVersion = `${major + 1}.0.0`
+}
+else if (versionType === 'minor') {
+  newVersion = `${major}.${minor + 1}.0`
+}
+else {
+  newVersion = `${major}.${minor}.${patch + 1}`
+}
 
-// 更新 tauri.conf.json
+console.log(`📦 版本号: ${currentVersion} → ${newVersion}`)
+
+// 3. 更新 package.json
+packageJson.version = newVersion
+writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`)
+console.log('✅ 已更新 package.json')
+
+// 4. 更新 tauri.conf.json
 const tauriConfPath = join(rootDir, 'src-tauri/tauri.conf.json')
 try {
   const tauriConf = JSON.parse(readFileSync(tauriConfPath, 'utf-8'))
@@ -53,9 +54,10 @@ try {
 }
 catch (error) {
   console.error('❌ 更新 tauri.conf.json 失败', error)
+  process.exit(1)
 }
 
-// 更新 Cargo.toml
+// 5. 更新 Cargo.toml
 const cargoTomlPath = join(rootDir, 'src-tauri/Cargo.toml')
 try {
   let cargoToml = readFileSync(cargoTomlPath, 'utf-8')
@@ -65,42 +67,83 @@ try {
 }
 catch (error) {
   console.error('❌ 更新 Cargo.toml 失败', error)
+  process.exit(1)
 }
 
-// 4. 提交 Tauri 版本同步更新
-console.log('💾 提交 Tauri 版本同步更新...')
+// 6. 生成 CHANGELOG（基于最近的 commits）
+console.log('📝 生成更新日志...')
 try {
-  execSync(`git add src-tauri/tauri.conf.json src-tauri/Cargo.toml`, { stdio: 'inherit', cwd: rootDir })
-  execSync(`git commit -m "chore(build): release v${newVersion}"`, { stdio: 'inherit', cwd: rootDir })
+  // 获取上一个 tag
+  let lastTag
+  try {
+    lastTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, encoding: 'utf-8' }).trim()
+  }
+  catch {
+    lastTag = '' // 没有之前的 tag
+  }
+
+  // 获取自上个 tag 以来的 commits
+  const gitLogCmd = lastTag
+    ? `git log ${lastTag}..HEAD --pretty=format:"- %s"`
+    : 'git log --pretty=format:"- %s" -10' // 如果没有 tag，取最近 10 条
+
+  const commits = execSync(gitLogCmd, { cwd: rootDir, encoding: 'utf-8' })
+    .split('\n')
+    .filter(line => line && !line.includes('chore(build): release')) // 过滤发版 commit
+    .join('\n')
+
+  // 生成 CHANGELOG 内容
+  const changelogEntry = `## v${newVersion} (${new Date().toISOString().split('T')[0]})
+
+${commits || '- 常规更新'}
+
+`
+
+  // 读取现有 CHANGELOG 或创建新的
+  const changelogPath = join(rootDir, 'CHANGELOG.md')
+  let existingChangelog = '# 更新日志\n\n'
+  try {
+    existingChangelog = readFileSync(changelogPath, 'utf-8')
+  }
+  catch {
+    // CHANGELOG 不存在，使用默认标题
+  }
+
+  // 将新条目插入到标题后
+  const updatedChangelog = existingChangelog.replace(
+    /^(# .*\n\n)/,
+    `$1${changelogEntry}`,
+  )
+
+  writeFileSync(changelogPath, updatedChangelog)
+  console.log('✅ 已更新 CHANGELOG.md')
 }
 catch (error) {
-  console.error('❌ Git 提交失败', error)
-  // 不退出，可能没有文件变更
+  console.warn('⚠️ CHANGELOG 生成失败，将跳过', error.message)
 }
 
-console.log('✅ 版本号更新完成！')
-
-if (autoMode) {
-  console.log('🔄 自动执行后续步骤...')
-  console.log('⬆️ 流到远程仓库...')
-  try {
-    execSync('git push --follow-tags', { stdio: 'inherit', cwd: rootDir })
-    console.log('🎉 自动发布完成！')
-    console.log('📋 GitHub Actions 将自动构建并更新现有 Release')
-  }
-  catch (error) {
-    console.error('❌ 流失败', error)
-    process.exit(1)
-  }
+// 7. Git 提交和推送
+console.log('💾 提交更改...')
+try {
+  execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml CHANGELOG.md', { stdio: 'inherit', cwd: rootDir })
+  execSync(`git commit -m "chore(build): release v${newVersion}"`, { stdio: 'inherit', cwd: rootDir })
+  execSync(`git tag v${newVersion}`, { stdio: 'inherit', cwd: rootDir })
+  console.log('✅ 已创建 commit 和 tag')
 }
-else {
-  console.log('')
-  console.log('📋 接下来请手动执行以下步骤:')
-  console.log('1. 检查生成的 CHANGELOG.md 和 package.json 文件')
-  console.log('2. 流更改和标签:')
-  console.log('   git push --follow-tags')
-  console.log('3. GitHub Actions 将自动构建并更新现有 Release')
-  console.log('')
-  console.log('🎉 发布准备完成！')
-  console.log('💡 提示: 使用 --auto 参数可自动执行所有步骤')
+catch (error) {
+  console.error('❌ Git 操作失败', error)
+  process.exit(1)
+}
+
+// 7. 推送到远程
+console.log('⬆️ 推送到远程仓库...')
+try {
+  execSync('git push --follow-tags', { stdio: 'inherit', cwd: rootDir })
+  console.log('🎉 发布完成！')
+  console.log('📋 GitHub Actions 将自动构建并创建 Release')
+}
+catch (error) {
+  console.error('❌ 推送失败', error)
+  console.error('💡 请手动执行: git push --follow-tags')
+  process.exit(1)
 }

@@ -296,6 +296,21 @@ jobs:
           name: windows-installers
           path: ./artifacts/windows/
 
+      - name: Extract version changelog
+        id: changelog
+        run: |
+          VERSION="v${{ needs.check-commit.outputs.version }}"
+          # 提取当前版本的 CHANGELOG
+          CHANGELOG=$(sed -n "/## ${VERSION}/,/## v/p" CHANGELOG.md | sed '$ d' | tail -n +2)
+          # 如果为空，使用默认文案
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="常规更新"
+          fi
+          # 输出为多行文本
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -308,8 +323,8 @@ jobs:
             - **Android (arm64-v8a)**: `.apk` 文件
             - **Windows (x64)**: `.msi` 或 `.exe` 安装包
 
-            ## 📝 更新日志
-            请查看 [CHANGELOG.md](https://github.com/aatrooox/community-service-center/blob/main/CHANGELOG.md)
+            ## 📝 更新内容
+            ${{ steps.changelog.outputs.content }}
           files: |
             ./artifacts/macos/*.dmg
             ./artifacts/android/**/*.apk
