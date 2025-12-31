@@ -56,21 +56,8 @@ export default defineAppConfig({
      * 设置为 0 表示不限制，始终使用原图尺寸（可能影响性能）
      */
     imageSizeThresholds: {
-      // 单张图片阈值（用于单图或少量图片场景）
-      single: {
-        maxDimension: 3000, // 单边最大像素 (0 = 不限制)
-        maxPixels: 9000000, // 总像素上限：900万像素 (0 = 不限制)
-      },
-      // 多张图片阈值（用于九宫格等多图场景）
-      multiple: {
-        maxDimension: 2000, // 单边最大像素 (0 = 不限制)
-        maxPixels: 4000000, // 总像素上限：400万像素 (0 = 不限制)
-      },
-      // 九宫格总尺寸限制（防止内存溢出）
-      total: {
-        maxDimension: 15000, // 拼接后单边最大像素 (0 = 不限制)
-        maxPixels: 100000000, // 拼接后总像素上限：1亿像素 (0 = 不限制)
-      },
+      maxDimension: 0, // Box 单边最大像素 (0 = 不限制)
+      maxPixels: 16777216, // Box 总像素上限：16MP (0 = 不限制)
     },
 
     /**

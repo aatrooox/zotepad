@@ -6,26 +6,17 @@ import { useEnvironment } from '~/composables/useEnvironment'
 
 /**
  * 图片尺寸判断辅助函数
+ * 简化版：直接检查图片尺寸是否符合阈值
  */
 function shouldUseOriginalSize(
   imageWidth: number,
   imageHeight: number,
-  context: {
-    totalImages: number
-    layoutType: 'horizontal' | 'vertical' | 'grid' | 'template'
-  },
 ): boolean {
   const appConfig = useAppConfig()
   const thresholds = appConfig.canvasEditor.imageSizeThresholds
 
-  // 根据场景选择阈值
-  const threshold = context.layoutType === 'template' || context.totalImages >= 4
-    ? thresholds.multiple
-    : thresholds.single
-
-  // 如果设置为 0，表示不限制
-  const maxDimension = threshold.maxDimension || Infinity
-  const maxPixels = threshold.maxPixels || Infinity
+  const maxDimension = thresholds.maxDimension || Infinity
+  const maxPixels = thresholds.maxPixels || Infinity
 
   return imageWidth <= maxDimension
     && imageHeight <= maxDimension
@@ -46,10 +37,7 @@ function getTemplateSizeForImages(
   const allImagesQualify = images.every((img) => {
     const width = img.width || 0
     const height = img.height || 0
-    return shouldUseOriginalSize(width, height, {
-      totalImages: images.length,
-      layoutType: 'template',
-    })
+    return shouldUseOriginalSize(width, height)
   })
 
   if (allImagesQualify) {
@@ -81,10 +69,10 @@ function checkTotalSizeLimit(
   height: number,
 ): { exceeded: boolean, maxDimension: number, maxPixels: number } {
   const appConfig = useAppConfig()
-  const totalLimits = appConfig.canvasEditor.imageSizeThresholds.total
+  const thresholds = appConfig.canvasEditor.imageSizeThresholds
 
-  const maxDimension = totalLimits.maxDimension || Infinity
-  const maxPixels = totalLimits.maxPixels || Infinity
+  const maxDimension = thresholds.maxDimension || Infinity
+  const maxPixels = thresholds.maxPixels || Infinity
 
   const exceeded = width > maxDimension || height > maxDimension || (width * height) > maxPixels
 
@@ -808,18 +796,8 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
           clearTimeout(timeoutId)
           logInfo('图片加载完成', { url, id: item.id })
 
-          // ⚠️ 关键修复：图片加载完成后，确保使用原始尺寸（而非 LeaferJS 的自动尺寸）
-          // 如果有 naturalWidth/naturalHeight，立即更新元素尺寸
-          if (item.naturalWidth && item.naturalHeight) {
-            imageElement.set({
-              width: item.naturalWidth,
-              height: item.naturalHeight,
-            } as any)
-            logInfo('图片尺寸已更新为原始尺寸', {
-              id: item.id,
-              size: `${item.naturalWidth}x${item.naturalHeight}`,
-            })
-          }
+          // 图片加载完成后，不再自动设置为原始尺寸
+          // 让布局函数根据总尺寸阈值来决定是否使用原图
         }
         catch (e: any) {
           logError('图片加载失败', { url, id: item.id, error: e })
@@ -1157,13 +1135,49 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     const y = padding
     let maxHeight = 0
 
+    // 第一步：使用原始尺寸计算总尺寸
+    let totalWidthOriginal = padding
+    let maxHeightOriginal = 0
+    images.value.forEach((item) => {
+      const itemWidth = item.naturalWidth || 100
+      const itemHeight = item.naturalHeight || 100
+      totalWidthOriginal += itemWidth + gap
+      maxHeightOriginal = Math.max(maxHeightOriginal, itemHeight)
+    })
+    totalWidthOriginal = (images.value.length > 0 ? totalWidthOriginal - gap : totalWidthOriginal) + padding
+    const totalHeightOriginal = maxHeightOriginal + padding * 2
+
+    // 第二步：检查是否超过限制，计算降级缩放比例
+    const { exceeded, maxDimension, maxPixels } = checkTotalSizeLimit(totalWidthOriginal, totalHeightOriginal)
+
+    let downgradeScale = 1
+    if (exceeded) {
+      // 计算需要的缩放比例，使降级后符合阈值
+      // 乘以 0.98 留一点余量，避免舍入误差导致略微超过阈值
+      const scaleByWidth = (maxDimension / totalWidthOriginal) * 0.98
+      const scaleByHeight = (maxDimension / totalHeightOriginal) * 0.98
+      const scaleByPixels = Math.sqrt(maxPixels / (totalWidthOriginal * totalHeightOriginal)) * 0.98
+      downgradeScale = Math.min(scaleByWidth, scaleByHeight, scaleByPixels)
+
+      logWarning('水平布局总尺寸超过限制，已自动降级', {
+        originalWidth: totalWidthOriginal,
+        originalHeight: totalHeightOriginal,
+        downgradeScale: downgradeScale.toFixed(3),
+        targetWidth: Math.round(totalWidthOriginal * downgradeScale),
+        targetHeight: Math.round(totalHeightOriginal * downgradeScale),
+      })
+    }
+
     images.value.forEach((item) => {
       if (!item.element)
         return
 
-      // 使用原始尺寸计算布局（如果有），否则使用显示尺寸
-      const itemWidth = item.naturalWidth || item.width || 100
-      const itemHeight = item.naturalHeight || item.height || 100
+      const naturalW = item.naturalWidth || 100
+      const naturalH = item.naturalHeight || 100
+
+      // 根据缩放比例计算实际尺寸
+      const itemWidth = Math.round(naturalW * downgradeScale)
+      const itemHeight = Math.round(naturalH * downgradeScale)
 
       // 同步更新图片元素的显示尺寸
       item.element.x = x
@@ -1179,26 +1193,23 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       x += itemWidth + gap
     })
 
-    // 根据内容更新导出区域尺寸，支持"无限"横向排列
+    // 根据内容更新导出区域尺寸
     const totalWidth = (images.value.length > 0 ? x - gap : x) + padding
     const totalHeight = maxHeight + padding * 2
     setExportFrameRect({ width: totalWidth, height: totalHeight })
 
-    // 调试：记录所有图片的位置和Box尺寸
     logInfo('水平布局完成', {
       gap,
       totalWidth,
       totalHeight,
+      downgradeScale,
       images: images.value.map(img => ({
         id: img.id,
-        x: img.element?.x,
-        y: img.element?.y,
         width: img.width,
         height: img.height,
       })),
     })
 
-    // 更新尺寸提示
     updateSizeInfo()
   }
 
@@ -1213,13 +1224,49 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     let y = padding
     let maxWidth = 0
 
+    // 第一步：使用原始尺寸计算总尺寸
+    let totalHeightOriginal = padding
+    let maxWidthOriginal = 0
+    images.value.forEach((item) => {
+      const itemWidth = item.naturalWidth || 100
+      const itemHeight = item.naturalHeight || 100
+      totalHeightOriginal += itemHeight + gap
+      maxWidthOriginal = Math.max(maxWidthOriginal, itemWidth)
+    })
+    totalHeightOriginal = (images.value.length > 0 ? totalHeightOriginal - gap : totalHeightOriginal) + padding
+    const totalWidthOriginal = maxWidthOriginal + padding * 2
+
+    // 第二步：检查是否超过限制，计算降级缩放比例
+    const { exceeded, maxDimension, maxPixels } = checkTotalSizeLimit(totalWidthOriginal, totalHeightOriginal)
+
+    let downgradeScale = 1
+    if (exceeded) {
+      // 计算需要的缩放比例，使降级后符合阈值
+      // 乘以 0.98 留一点余量，避免舍入误差导致略微超过阈值
+      const scaleByWidth = (maxDimension / totalWidthOriginal) * 0.98
+      const scaleByHeight = (maxDimension / totalHeightOriginal) * 0.98
+      const scaleByPixels = Math.sqrt(maxPixels / (totalWidthOriginal * totalHeightOriginal)) * 0.98
+      downgradeScale = Math.min(scaleByWidth, scaleByHeight, scaleByPixels)
+
+      logWarning('垂直布局总尺寸超过限制，已自动降级', {
+        originalWidth: totalWidthOriginal,
+        originalHeight: totalHeightOriginal,
+        downgradeScale: downgradeScale.toFixed(3),
+        targetWidth: Math.round(totalWidthOriginal * downgradeScale),
+        targetHeight: Math.round(totalHeightOriginal * downgradeScale),
+      })
+    }
+
     images.value.forEach((item) => {
       if (!item.element)
         return
 
-      // 使用原始尺寸计算布局（如果有），否则使用显示尺寸
-      const itemHeight = item.naturalHeight || item.height || 100
-      const itemWidth = item.naturalWidth || item.width || 100
+      const naturalW = item.naturalWidth || 100
+      const naturalH = item.naturalHeight || 100
+
+      // 根据缩放比例计算实际尺寸
+      const itemWidth = Math.round(naturalW * downgradeScale)
+      const itemHeight = Math.round(naturalH * downgradeScale)
 
       // 同步更新图片元素的显示尺寸
       item.element.x = x
@@ -1235,14 +1282,13 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
       y += itemHeight + gap
     })
 
-    // 根据内容更新导出区域尺寸，支持“无限”纵向排列
+    // 根据内容更新导出区域尺寸
     const totalHeight = (images.value.length > 0 ? y - gap : y) + padding
     const totalWidth = maxWidth + padding * 2
     setExportFrameRect({ width: totalWidth, height: totalHeight })
 
-    logInfo('垂直布局完成', { gap, totalWidth, totalHeight })
+    logInfo('垂直布局完成', { gap, totalWidth, totalHeight, downgradeScale })
 
-    // 更新尺寸提示
     updateSizeInfo()
   }
 
@@ -1444,15 +1490,81 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
         pixelRatio = 2,
       } = options
 
-      logInfo('开始导出', { filename, format, pixelRatio })
+      // ⚠️ 关键：导出前检查 Box 原始尺寸（不乘以 pixelRatio）
+      // 因为布局时已经降级过了，导出时只是放大，不应该再拦截
+      const appConfig = useAppConfig()
+      const thresholds = appConfig.canvasEditor.imageSizeThresholds
+      const maxDimension = thresholds.maxDimension || Infinity
+      const maxPixels = thresholds.maxPixels || Infinity
 
-      // ⚠️ 关键修复：使用 relative: 'inner' 参数
-      // 这样导出的是 Box 容器内部的内容，而不是基于世界坐标的视口截图
-      const result = await box.export(format, {
+      // 检查 Box 原始尺寸是否超过限制（不考虑 pixelRatio）
+      const boxPixels = boxWidth * boxHeight
+      if (boxPixels > maxPixels || boxWidth > maxDimension || boxHeight > maxDimension) {
+        const maxMP = (maxPixels / 1000000).toFixed(0)
+        const currentMP = (boxPixels / 1000000).toFixed(1)
+
+        const errorMsg = `Box 尺寸超过限制！\n\n`
+          + `当前：${Math.round(boxWidth)} × ${Math.round(boxHeight)} (约 ${currentMP}MP)\n`
+          + `限制：${maxDimension} × ${maxDimension} (最大 ${maxMP}MP)\n\n`
+          + `请先选择布局，系统会自动降级图片尺寸`
+
+        logError('Box 尺寸超限', {
+          boxWidth,
+          boxHeight,
+          boxPixels,
+          maxDimension,
+          maxPixels,
+        })
+
+        throw new Error(errorMsg)
+      }
+
+      const exportWidth = Math.round(boxWidth * pixelRatio)
+      const exportHeight = Math.round(boxHeight * pixelRatio)
+      const exportPixels = exportWidth * exportHeight
+
+      // 移动端 WebView 的 Canvas 限制更严格
+      // Android WebView 通常限制在 4096x4096 或更小
+      const isMobileExport = /Android|iPhone|iPad/i.test(navigator.userAgent)
+      const maxExportDimension = isMobileExport ? 8192 : 16384
+      const maxExportPixels = isMobileExport ? 16777216 : 67108864 // 16MP / 64MP
+
+      if (exportWidth > maxExportDimension || exportHeight > maxExportDimension || exportPixels > maxExportPixels) {
+        const currentMP = (exportPixels / 1000000).toFixed(1)
+        const maxMP = (maxExportPixels / 1000000).toFixed(0)
+
+        const errorMsg = `导出尺寸超过${isMobileExport ? '移动端' : ''}限制！\n\n`
+          + `当前：${exportWidth} × ${exportHeight} (约 ${currentMP}MP)\n`
+          + `限制：${maxExportDimension} × ${maxExportDimension} (最大 ${maxMP}MP)\n\n`
+          + `请降低导出质量（如 1x 或 2x）`
+
+        logError('导出尺寸超过 Canvas 限制', {
+          exportWidth,
+          exportHeight,
+          exportPixels,
+          maxExportDimension,
+          maxExportPixels,
+          isMobileExport,
+          pixelRatio,
+        })
+
+        throw new Error(errorMsg)
+      }
+
+      logInfo('开始导出', { filename, format, pixelRatio, boxWidth, boxHeight, exportWidth, exportHeight })
+
+      // 添加超时保护，避免无限卡死
+      const exportPromise = box.export(format, {
         pixelRatio,
         blob: true,
-        relative: 'inner', // 导出 Box 内部内容（不受视口缩放影响）
+        relative: 'inner',
       })
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('导出超时，图片可能过大，请降低导出质量')), 30000)
+      })
+
+      const result = await Promise.race([exportPromise, timeoutPromise]) as any
 
       logInfo('导出结果', {
         width: result.width,
@@ -1685,7 +1797,6 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
     isReady,
     isLoading,
     editingImageId,
-    canvasSize, // 导出尺寸信息
 
     // 模板布局
     activeTemplate,
@@ -1723,6 +1834,7 @@ export function useLeaferCanvas(containerRef: Ref<HTMLElement | null>) {
 
     // 缩放控制
     fitToViewport,
+    canvasSize,
 
     destroy,
   }

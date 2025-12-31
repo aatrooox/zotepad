@@ -63,7 +63,7 @@ const currentLayout = ref<CanvasLayout>(props.defaultLayout)
 
 // 导出配置
 const exportFormat = ref<'png' | 'jpg'>('png')
-const exportPixelRatio = ref(2)
+const exportPixelRatio = ref(1)
 
 // 导出质量预设
 const exportQualityOptions = [
@@ -436,12 +436,24 @@ const handleSlotFileSelect = async (event: Event) => {
 const handleExport = async () => {
   const toastId = toast.loading('正在导出图片...')
 
+  // 定时切换提示，提醒用户可能会卡住
+  let showWarning = false
+  const toastTimer = setInterval(() => {
+    showWarning = !showWarning
+    toast.loading(
+      showWarning ? '注意，图片过大可能会导致卡死' : '正在导出图片...',
+      { id: toastId },
+    )
+  }, 3000)
+
   try {
     const result = await exportAsImage({
       filename: `zotepad_img_${Date.now()}.${exportFormat.value}`,
       format: exportFormat.value,
       pixelRatio: exportPixelRatio.value,
     })
+
+    clearInterval(toastTimer)
 
     if (result) {
       const savedPath = typeof result.data === 'string' ? result.data : null
@@ -477,8 +489,17 @@ const handleExport = async () => {
     }
   }
   catch (error) {
+    clearInterval(toastTimer)
     console.error('导出失败', error)
-    toast.error('导出失败', { id: toastId })
+    // 显示详细错误信息（保留换行）
+    const errorMessage = error instanceof Error ? error.message : '导出失败'
+    toast.error(errorMessage, {
+      id: toastId,
+      duration: 8000, // 延长显示时间，让用户有时间阅读
+      style: {
+        whiteSpace: 'pre-line', // 支持换行
+      },
+    })
     emit('export-error', error)
   }
 }
@@ -505,7 +526,7 @@ defineExpose({
     <div
       class="absolute inset-x-0 z-30 flex justify-center px-1.5 md:px-4"
       :style="{
-        top: 'calc(0.25rem + env(safe-area-inset-top))',
+        top: '0',
       }"
     >
       <div class="flex flex-wrap items-center gap-1 md:gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg px-1.5 py-1 md:px-3 md:py-2 w-full max-w-[min(640px,100%)]">
