@@ -7711,7 +7711,7 @@ dependencies = [
 
 [[package]]
 name = "zotepad"
-version = "0.25.0"
+version = "0.25.9"
 dependencies = [
  "axum",
  "chrono",
