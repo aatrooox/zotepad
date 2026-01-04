@@ -14,7 +14,7 @@ const tabs = [
 
 const isActive = (path: string) => {
   if (path === '/')
-    return route.path === '/' || route.path.startsWith('/notes')
+    return route.path === '/' || route.path.startsWith('/notes') || route.path.startsWith('/write')
   if (path === '/achievements')
     return route.path === '/achievements'
   return route.path.startsWith(path)

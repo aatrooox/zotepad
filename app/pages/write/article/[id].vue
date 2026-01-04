@@ -6,6 +6,7 @@ import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueus
 import gsap from 'gsap'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
+import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
@@ -55,8 +56,9 @@ const isWeChatPreviewOpen = ref(false)
 const wechatPreviewRef = ref<HTMLElement | null>(null)
 
 const { getNote, createNote, updateNote } = useNoteRepository()
+const { createAsset } = useAssetRepository()
 const { getSetting } = useSettingRepository()
-const { getAllWorkflows, getSystemWorkflow } = useWorkflowRepository()
+const { getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFiles } = useStorageService()
@@ -549,6 +551,22 @@ const sendToWxDraft = async () => {
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
   try {
     const results = await uploadFiles(files)
+
+    // 记录到资源表
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i] as any
+      const file = files[i] as any
+
+      await createAsset({
+        url: result.url,
+        path: result.path,
+        filename: result.filename || file.name,
+        size: result.size || file.size,
+        mime_type: result.mime_type || file.type,
+        storage_type: 'cos',
+      })
+    }
+
     const urls = results.map(r => r.url)
     callback(urls)
   }

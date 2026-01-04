@@ -30,7 +30,7 @@ const filteredNotes = computed(() => {
 })
 
 const handleNoteClick = (id: number) => {
-  router.push(`/notes/${id}`)
+  router.push(`/write/article/${id}`)
 }
 
 const handleBack = () => {
@@ -43,7 +43,7 @@ const handleCreateNote = async () => {
     const id = await createNote('无标题笔记', '')
     if (id) {
       await fetchNotes(true) // 刷新笔记列表
-      router.push(`/notes/${id}`)
+      router.push(`/write/article/${id}`)
     }
   }
   catch {
@@ -78,12 +78,12 @@ const confirmDelete = async (id: number) => {
       }
 
       if (targetNote) {
-        router.push(`/notes/${targetNote.id}`)
+        router.push(`/write/article/${targetNote.id}`)
       }
       else {
-        // 如果一篇笔记都没有了，返回首页
+        // 如果一篇笔记都没有了，返回文章列表页
         setNavigation()
-        router.push('/')
+        router.push('/write/article')
       }
     }
   }

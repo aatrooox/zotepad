@@ -42,9 +42,10 @@ const version = config.public.version
       <NuxtLink
         to="/"
         class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group overflow-hidden whitespace-nowrap"
-        active-class="bg-primary text-primary-foreground shadow-md shadow-primary/20"
         :class="[
-          $route.path === '/' ? '' : 'hover:bg-accent hover:text-accent-foreground',
+          ($route.path === '/' || $route.path.startsWith('/notes') || $route.path.startsWith('/write'))
+            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+            : 'hover:bg-accent hover:text-accent-foreground',
           isSidebarOpen ? 'justify-start' : 'justify-center px-0',
         ]"
       >
