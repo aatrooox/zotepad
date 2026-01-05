@@ -39,7 +39,18 @@ watch(() => route.path, async (newPath) => {
 })
 
 const showTabBar = computed(() => {
-  return isMobile.value && !route.path.match(/^\/(notes|write)\//)
+  if (!isMobile.value)
+    return false
+  // Hide on write pages
+  if (route.path.startsWith('/write/'))
+    return false
+  // For notes routes, only show on the main list tabs
+  if (route.path.startsWith('/notes/')) {
+    const listPaths = ['/notes', '/notes/articles', '/notes/moments', '/notes/assets']
+    const normalizedPath = route.path.replace(/\/$/, '')
+    return listPaths.includes(normalizedPath)
+  }
+  return true
 })
 
 const isNotePage = computed(() => {
