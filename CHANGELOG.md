@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.26.2 (2026-01-05)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.1...v0.26.2)
+
+### 🐞 Bug Fixes
+
+- 移动端菜单栏显示问题 ([0dd0dec](https://github.com/aatrooox/zotepad/commit/0dd0dec))
+
+
 ## v0.26.1 (2026-01-05)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.0...v0.26.1)
