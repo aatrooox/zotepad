@@ -348,7 +348,8 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
   // 文本类元素强制添加字间距 (使用 1px 而非 em，兼容性更好)
   // 需要先移除可能已存在的 letter-spacing，再强制设置
   // 同时移除固定宽度，避免预览窗口宽度影响实际显示
-  if (['p', 'span', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'strong'].includes(outTagName)) {
+  // 注意：h1-h6 已被转换为 section，所以需要检查原始 tagName
+  if (['p', 'span', 'li', 'blockquote', 'strong'].includes(outTagName) || ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
     const letterSpacingIdx = styles.findIndex(s => s.startsWith('letter-spacing:'))
     if (letterSpacingIdx > -1)
       styles.splice(letterSpacingIdx, 1)
@@ -358,6 +359,28 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     const widthIdx = styles.findIndex(s => s.startsWith('width:'))
     if (widthIdx > -1)
       styles.splice(widthIdx, 1)
+
+    // 标题特殊处理：确保有加粗和合适的行高
+    if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+      if (!styles.some(s => s.startsWith('font-weight:'))) {
+        styles.push('font-weight: bold')
+      }
+      // 移除可能导致重叠的行高
+      const lineHeightIdx = styles.findIndex(s => s.startsWith('line-height:'))
+      if (lineHeightIdx > -1) {
+        // 如果行高太小（比如 1），可能会导致显示问题，这里可以考虑强制设置一个最小值
+        // 但目前先保留原样，或者设置为 1.4
+      }
+      else {
+        styles.push('line-height: 1.4')
+      }
+
+      // 确保 margin
+      if (!styles.some(s => s.startsWith('margin:')) && !styles.some(s => s.startsWith('margin-top:'))) {
+        styles.push('margin-top: 1.2em')
+        styles.push('margin-bottom: 0.6em')
+      }
+    }
   }
 
   // 列表项特殊处理 (li)
@@ -505,19 +528,50 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     if (maxWidthIdx > -1)
       styles.splice(maxWidthIdx, 1)
 
-    // 使用渲染尺寸，但限制最大宽度为100%
-    if (renderedWidth > 0) {
-      styles.push(`width: ${Math.round(renderedWidth)}px`)
-      styles.push(`max-width: 100%`)
+    // 优先检查是否有显式的 width 属性或样式 (编辑器调整大小时通常会设置)
+    const attrWidth = el.getAttribute('width')
+    const styleWidth = el.style.width
+    const explicitWidth = attrWidth || styleWidth
+
+    if (explicitWidth) {
+      let finalWidth = explicitWidth
+      // 如果是纯数字，添加 px 单位
+      if (/^\d+$/.test(finalWidth)) {
+        finalWidth = `${finalWidth}px`
+      }
+      styles.push(`width: ${finalWidth}`)
+
+      // 检查高度
+      const attrHeight = el.getAttribute('height')
+      const styleHeight = el.style.height
+      const explicitHeight = attrHeight || styleHeight
+
+      if (explicitHeight) {
+        let finalHeight = explicitHeight
+        if (/^\d+$/.test(finalHeight)) {
+          finalHeight = `${finalHeight}px`
+        }
+        styles.push(`height: ${finalHeight}`)
+      }
+      else {
+        styles.push('height: auto')
+      }
     }
     else {
-      styles.push('max-width: 100%')
-    }
-    if (renderedHeight > 0) {
-      styles.push(`height: ${Math.round(renderedHeight)}px`)
-    }
-    else {
-      styles.push('height: auto')
+      // 使用渲染尺寸，但限制最大宽度为100%
+      if (renderedWidth > 0) {
+        styles.push(`width: ${Math.round(renderedWidth)}px`)
+        styles.push(`max-width: 100%`)
+      }
+      else {
+        styles.push('max-width: 100%')
+      }
+      if (renderedHeight > 0) {
+        styles.push(`height: ${Math.round(renderedHeight)}px`)
+      }
+      else {
+        styles.push('height: auto')
+      }
     }
 
     if (!styles.some(s => s.startsWith('display:'))) {
@@ -640,9 +694,7 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
 }
 
 /**
- * 生成精简版微信公众号格式的 HTML (适用于手机端公众号助手)
- * 直接复用完整版样式，只是压缩 HTML 移除换行和空白
- * 手机端编辑器会把 HTML 中的换行当作内容显示
+ * 生成压缩版微信公众号格式的 HTML (适用于手机端公众号助手)
  */
 export const getWeChatMinimalHTML = (rootEl: HTMLElement): string => {
   if (!rootEl)

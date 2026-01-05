@@ -877,7 +877,48 @@ pub fn run() {
                             ",
                             kind: MigrationKind::Up,
                         },
+                        // Migration 7: Asset tags and grouping system
+                        Migration {
+                            version: 7,
+                            description: "create_asset_tags_tables",
+                            sql: "\
+                                CREATE TABLE IF NOT EXISTS asset_tags (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    uuid TEXT UNIQUE NOT NULL,
+                                    name TEXT NOT NULL,
+                                    parent_id INTEGER DEFAULT NULL,
+                                    type TEXT DEFAULT 'tag', -- 'tag' or 'folder'
+                                    description TEXT,
+                                    icon TEXT,
+                                    color TEXT,
+                                    sort_order INTEGER DEFAULT 0,
+                                    version INTEGER DEFAULT 0,
+                                    deleted_at DATETIME,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_asset_tags_version ON asset_tags(version);
+                                CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_tags_uuid ON asset_tags(uuid);
+                                CREATE INDEX IF NOT EXISTS idx_asset_tags_parent ON asset_tags(parent_id);
 
+                                CREATE TABLE IF NOT EXISTS asset_tag_relations (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    uuid TEXT UNIQUE NOT NULL,
+                                    asset_id INTEGER NOT NULL,
+                                    tag_id INTEGER NOT NULL,
+                                    version INTEGER DEFAULT 0,
+                                    deleted_at DATETIME,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    UNIQUE(asset_id, tag_id)
+                                );
+                                CREATE INDEX IF NOT EXISTS idx_asset_tag_relations_version ON asset_tag_relations(version);
+                                CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_tag_relations_uuid ON asset_tag_relations(uuid);
+                                CREATE INDEX IF NOT EXISTS idx_asset_tag_relations_asset ON asset_tag_relations(asset_id);
+                                CREATE INDEX IF NOT EXISTS idx_asset_tag_relations_tag ON asset_tag_relations(tag_id);
+                            ",
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

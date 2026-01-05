@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
+import type { Asset } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
-import { MdEditor, MdPreview } from 'md-editor-v3'
+import { config, MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
@@ -55,8 +56,13 @@ const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 const isWeChatPreviewOpen = ref(false)
 const wechatPreviewRef = ref<HTMLElement | null>(null)
 
+// Resources Drawer state
+const isResourcesDrawerOpen = ref(false)
+const assetsList = ref<Asset[]>([])
+const isAssetsLoading = ref(false)
+
 const { getNote, createNote, updateNote } = useNoteRepository()
-const { createAsset } = useAssetRepository()
+const { createAsset, getAllAssets } = useAssetRepository()
 const { getSetting } = useSettingRepository()
 const { getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
@@ -227,7 +233,6 @@ const toolbars: ToolbarNames[] = [
 
 // Mobile specific toolbar (simplified)
 const mobileToolbars: ToolbarNames[] = [
-  'title',
   'bold',
   'underline',
   'italic',
@@ -358,6 +363,25 @@ watch([content, title], () => {
   debouncedSave()
 })
 
+// 配置短链的缩短阈值
+config({
+  codeMirrorExtensions(extensions) {
+    return extensions.map((item) => {
+      if (item.type === 'linkShortener') {
+        return {
+          ...item,
+          options: {
+            maxLength: 150,
+            shortenText: (_url: string) => '...',
+          },
+        }
+      }
+
+      return item
+    })
+  },
+})
+
 // Load initial data
 onMounted(async () => {
   // Animate editor entry
@@ -470,6 +494,33 @@ const copyWeChatMinimalHtml = async () => {
     console.error('WeChat minimal copy failed', e)
     toast.error('格式化复制失败')
   }
+}
+
+// Resources Drawer Logic
+const openResourcesDrawer = async () => {
+  isResourcesDrawerOpen.value = true
+  isAssetsLoading.value = true
+  try {
+    assetsList.value = await getAllAssets() || []
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('加载资源失败')
+  }
+  finally {
+    isAssetsLoading.value = false
+  }
+}
+
+const copyAssetUrl = (url: string) => {
+  copy(url)
+  toast.success('链接已复制')
+}
+
+const copyAssetMarkdown = (asset: Asset) => {
+  const md = `![](${asset.url})`
+  copy(md)
+  toast.success('Markdown链接已复制')
 }
 
 // 发送到微信草稿箱
@@ -648,10 +699,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           variant="ghost"
           size="icon"
           class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
-          title="复制 Markdown"
-          @click="copyMarkdown"
+          title="资源库"
+          @click="openResourcesDrawer"
         >
-          <Icon name="lucide:copy" class="w-4 h-4" />
+          <Icon name="lucide:images" class="w-4 h-4" />
         </Button>
 
         <Button
@@ -806,6 +857,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         <div class="shrink-0 border-t bg-background px-4 py-4">
           <div class="mx-auto flex flex-col gap-2" style="max-width: 375px;">
             <div class="flex gap-2">
+              <Button class="flex-1" variant="outline" @click="copyMarkdown">
+                <Icon name="lucide:file-code" class="w-4 h-4 mr-2" />
+                复制 MD
+              </Button>
               <Button class="flex-1" @click="copyWeChatMinimalHtml">
                 <Icon name="lucide:copy" class="w-4 h-4 mr-2" />
                 复制样式
@@ -826,6 +881,38 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
                 关闭
               </Button>
             </DrawerClose>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+
+    <!-- Resources Drawer -->
+    <Drawer v-model:open="isResourcesDrawerOpen">
+      <DrawerContent class="max-h-[85vh] flex flex-col">
+        <DrawerHeader class="text-left shrink-0">
+          <DrawerTitle>资源库</DrawerTitle>
+        </DrawerHeader>
+        <div class="flex-1 overflow-y-auto px-4 pb-4">
+          <div v-if="isAssetsLoading" class="flex justify-center py-8">
+            <Icon name="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+          <div v-else-if="assetsList.length === 0" class="text-center text-muted-foreground py-8">
+            暂无资源
+          </div>
+          <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-for="asset in assetsList" :key="asset.id" class="flex flex-col gap-2">
+              <div class="aspect-square bg-muted/30 rounded-lg overflow-hidden border relative">
+                <img :src="asset.url" class="w-full h-full object-cover" :alt="asset.filename" loading="lazy">
+              </div>
+              <div class="flex items-center gap-1">
+                <Button variant="outline" size="sm" class="flex-1 h-8 px-0" title="复制链接" @click="copyAssetUrl(asset.url)">
+                  <Icon name="lucide:link" class="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" class="flex-1 h-8 px-0" title="复制 Markdown" @click="copyAssetMarkdown(asset)">
+                  <Icon name="lucide:file-code" class="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </DrawerContent>
@@ -904,6 +991,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: none;
     /* 40px is approx toolbar height, plus safe area, plus keyboard height */
     padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px) + var(--keyboard-height)) !important;
   }

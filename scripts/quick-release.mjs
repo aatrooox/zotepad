@@ -84,24 +84,72 @@ try {
 
   // 获取自上个 tag 以来的 commits
   const gitLogCmd = lastTag
-    ? `git log ${lastTag}..HEAD --pretty=format:"- %s"`
-    : 'git log --pretty=format:"- %s" -10' // 如果没有 tag，取最近 10 条
+    ? `git log ${lastTag}..HEAD --pretty=format:"%h %s"`
+    : 'git log --pretty=format:"%h %s" -10' // 如果没有 tag，取最近 10 条
 
-  const commits = execSync(gitLogCmd, { cwd: rootDir, encoding: 'utf-8' })
-    .split('\n')
-    .filter(line => line && !line.includes('chore(build): release')) // 过滤发版 commit
-    .join('\n')
+  const rawCommits = execSync(gitLogCmd, { cwd: rootDir, encoding: 'utf-8' })
+    .split(/\r?\n/)
+    .filter(line => line && !line.includes('chore(build): release'))
+
+  // 解析 commits
+  const REPO_URL = 'https://github.com/aatrooox/zotepad'
+  const commits = rawCommits.map((line) => {
+    const [hash, ...msgParts] = line.split(' ')
+    const message = msgParts.join(' ')
+    return { hash, message }
+  })
+
+  // 分组
+  const groups = {
+    feat: { title: '🚀 Features', items: [] },
+    fix: { title: '🐞 Bug Fixes', items: [] },
+    perf: { title: '🏎 Performance', items: [] },
+    refactor: { title: '💅 Refactors', items: [] },
+    other: { title: '🏡 Chore', items: [] },
+  }
+
+  commits.forEach(({ hash, message }) => {
+    const type = message.split(':')[0].toLowerCase()
+    const cleanMessage = message.replace(/^[a-z]+\(?\)?:\s*/, '') // 去掉前缀
+    const link = `([${hash}](${REPO_URL}/commit/${hash}))`
+    const item = `- ${cleanMessage} ${link}`
+
+    if (type.startsWith('feat'))
+      groups.feat.items.push(item)
+    else if (type.startsWith('fix'))
+      groups.fix.items.push(item)
+    else if (type.startsWith('perf'))
+      groups.perf.items.push(item)
+    else if (type.startsWith('refactor'))
+      groups.refactor.items.push(item)
+    else
+      groups.other.items.push(item)
+  })
+
+  // 构建内容
+  let changelogBody = ''
+
+  // 添加 Compare Link
+  if (lastTag) {
+    changelogBody += `[compare changes](${REPO_URL}/compare/${lastTag}...v${newVersion})\n\n`
+  }
+
+  for (const key of ['feat', 'fix', 'perf', 'refactor', 'other']) {
+    const group = groups[key]
+    if (group.items.length > 0) {
+      changelogBody += `### ${group.title}\n\n${group.items.join('\n')}\n\n`
+    }
+  }
 
   // 生成 CHANGELOG 内容
   const changelogEntry = `## v${newVersion} (${new Date().toISOString().split('T')[0]})
 
-${commits || '- 常规更新'}
-
+${changelogBody}
 `
 
   // 读取现有 CHANGELOG 或创建新的
   const changelogPath = join(rootDir, 'CHANGELOG.md')
-  let existingChangelog = '# 更新日志\n\n'
+  let existingChangelog = '# Changelog\n\n'
   try {
     existingChangelog = readFileSync(changelogPath, 'utf-8')
   }
@@ -109,11 +157,20 @@ ${commits || '- 常规更新'}
     // CHANGELOG 不存在，使用默认标题
   }
 
-  // 将新条目插入到标题后
-  const updatedChangelog = existingChangelog.replace(
-    /^(# .*\n\n)/,
-    `$1${changelogEntry}`,
-  )
+  // 尝试匹配标题行（兼容 Windows CRLF）
+  const titleMatch = existingChangelog.match(/^# .*(?:\r?\n)+/)
+
+  let updatedChangelog
+  if (titleMatch) {
+    // 找到标题，插入到标题后
+    const title = titleMatch[0]
+    const rest = existingChangelog.slice(title.length)
+    updatedChangelog = `${title.trimEnd()}\n\n${changelogEntry}${rest}`
+  }
+  else {
+    // 没找到标题，加在最前面
+    updatedChangelog = `# Changelog\n\n${changelogEntry}${existingChangelog}`
+  }
 
   writeFileSync(changelogPath, updatedChangelog)
   console.log('✅ 已更新 CHANGELOG.md')

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
-import type { Moment } from '~/types/models'
+import type { Asset, Moment } from '~/types/models'
 import { useColorMode, useFileDialog } from '@vueuse/core'
 import { MdEditor } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
@@ -17,7 +17,7 @@ const route = useRoute()
 const logger = useLog()
 const { createMoment, getMoment, updateMoment } = useMomentRepository()
 const { uploadFile, uploadFiles } = useStorageService()
-const { createAsset } = useAssetRepository()
+const { createAsset, getAllAssets } = useAssetRepository()
 
 const colorMode = useColorMode({
   emitAuto: true,
@@ -36,6 +36,11 @@ const momentTags = ref<string[]>([])
 const newMomentTag = ref('')
 const momentImages = ref<string[]>([])
 const isUploading = ref(false)
+
+// Resources Drawer state
+const isResourcesDrawerOpen = ref(false)
+const assetsList = ref<Asset[]>([])
+const isAssetsLoading = ref(false)
 
 const momentId = computed(() => {
   const id = route.params.id
@@ -156,6 +161,30 @@ function handleRemoveMomentImage(index: number) {
   momentImages.value.splice(index, 1)
 }
 
+// Resources Drawer Logic
+const openResourcesDrawer = async () => {
+  isResourcesDrawerOpen.value = true
+  isAssetsLoading.value = true
+  try {
+    assetsList.value = await getAllAssets() || []
+  }
+  catch (e) {
+    console.error(e)
+    toast.error('加载资源失败')
+  }
+  finally {
+    isAssetsLoading.value = false
+  }
+}
+
+const selectAsset = (asset: Asset) => {
+  if (asset.url) {
+    momentImages.value.push(asset.url)
+    toast.success('已添加图片')
+    isResourcesDrawerOpen.value = false
+  }
+}
+
 async function handlePublishMoment() {
   if (!momentContent.value.trim() && momentImages.value.length === 0) {
     toast.warning('请输入内容或上传图片')
@@ -188,19 +217,15 @@ async function handlePublishMoment() {
 <template>
   <div class="h-full flex flex-col bg-background">
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b">
-      <Button variant="ghost" size="icon" @click="router.back()">
-        <Icon name="lucide:arrow-left" class="w-5 h-5" />
-      </Button>
-      <h1 class="text-base font-medium">
-        {{ isEditing ? '编辑动态' : '发布动态' }}
-      </h1>
-      <Button :disabled="isPublishing || (!momentContent.trim() && momentImages.length === 0)" @click="handlePublishMoment">
-        <Icon v-if="isPublishing" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-        <Icon v-else name="lucide:send" class="w-4 h-4 mr-2" />
-        {{ isEditing ? '更新' : '发布' }}
-      </Button>
-    </div>
+    <AppPageHeader :title="isEditing ? '编辑动态' : '发布动态'" :show-back="true" back-to="">
+      <template #actions>
+        <Button :disabled="isPublishing || (!momentContent.trim() && momentImages.length === 0)" @click="handlePublishMoment">
+          <Icon v-if="isPublishing" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-else name="lucide:send" class="w-4 h-4 mr-2" />
+          {{ isEditing ? '更新' : '发布' }}
+        </Button>
+      </template>
+    </AppPageHeader>
 
     <div class="flex-1 overflow-y-auto p-4 space-y-6">
       <!-- Editor Section -->
@@ -255,16 +280,48 @@ async function handlePublishMoment() {
         </div>
 
         <div class="px-4 py-3 bg-muted/30 border-t flex justify-between items-center">
-          <div class="text-xs text-muted-foreground">
+          <div class="text-xs text-muted-foreground flex gap-2">
             <Button variant="ghost" size="sm" class="gap-2" :disabled="isUploading" @click="openFileDialog()">
               <Icon v-if="isUploading" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
               <Icon v-else name="lucide:image" class="w-4 h-4" />
               <span>{{ isUploading ? '上传中...' : '上传图片' }}</span>
             </Button>
+            <Button variant="ghost" size="sm" class="gap-2" @click="openResourcesDrawer()">
+              <Icon name="lucide:images" class="w-4 h-4" />
+              <span>选择资源</span>
+            </Button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Resources Drawer -->
+    <Drawer v-model:open="isResourcesDrawerOpen">
+      <DrawerContent class="max-h-[85vh] flex flex-col">
+        <DrawerHeader class="text-left shrink-0">
+          <DrawerTitle>资源库</DrawerTitle>
+          <DrawerDescription>选择图片添加到动态</DrawerDescription>
+        </DrawerHeader>
+        <div class="flex-1 overflow-y-auto px-4 pb-4">
+          <div v-if="isAssetsLoading" class="flex justify-center py-8">
+            <Icon name="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+          <div v-else-if="assetsList.length === 0" class="text-center text-muted-foreground py-8">
+            暂无资源
+          </div>
+          <div v-else class="grid grid-cols-3 md:grid-cols-4 gap-2">
+            <div
+              v-for="asset in assetsList"
+              :key="asset.id"
+              class="aspect-square bg-muted/30 rounded-lg overflow-hidden border relative cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+              @click="selectAsset(asset)"
+            >
+              <img :src="asset.url" class="w-full h-full object-cover" :alt="asset.filename" loading="lazy">
+            </div>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
   </div>
 </template>
 

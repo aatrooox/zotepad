@@ -39,17 +39,17 @@ watch(() => route.path, async (newPath) => {
 })
 
 const showTabBar = computed(() => {
-  return isMobile.value && !route.path.match(/^\/notes\/(new|\d+)$/)
+  return isMobile.value && !route.path.match(/^\/(notes|write)\//)
 })
 
 const isNotePage = computed(() => {
-  return route.path.match(/^\/notes\/(new|\d+)$/)
+  return route.path.match(/^\/(notes|write)\//)
 })
 </script>
 
 <template>
   <div
-    class="fixed inset-0 text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-hidden"
+    class="fixed inset-0 text-foreground flex font-sans antialiased selection:bg-primary/20 overflow-hidden overscroll-none"
     :class="isMobile ? 'bg-gradient-immersive-top' : 'bg-background'"
   >
     <!-- Desktop Sidebar -->
