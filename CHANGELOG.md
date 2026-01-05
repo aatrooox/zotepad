@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.26.1 (2026-01-05)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.0...v0.26.1)
+
+### 🚀 Features
+
+- 优化体验; 编写动态和文章可以直接选择资源 ([de8e026](https://github.com/aatrooox/zotepad/commit/de8e026))
+
+
 ## v0.25.1
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.25.0...v0.25.1)
