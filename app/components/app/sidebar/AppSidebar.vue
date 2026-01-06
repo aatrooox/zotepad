@@ -4,7 +4,7 @@ import { useSidebar } from '~/composables/useSidebar'
 import NoteList from './context/NoteList.vue'
 import SidebarNavigation from './SidebarNavigation.vue'
 
-const { mode, contextType, isVisible, restoreState } = useSidebar()
+const { mode, contextType, isVisible, isCollapsed, restoreState } = useSidebar()
 const { getSetting, setSetting } = useSettingRepository()
 
 const isSidebarOpen = ref(true)
@@ -17,6 +17,18 @@ onMounted(async () => {
   const savedState = await getSetting('sidebar_open')
   if (savedState !== null) {
     isSidebarOpen.value = savedState === 'true'
+  }
+})
+
+// Sync isSidebarOpen with isCollapsed from composable
+watch(isCollapsed, (val) => {
+  isSidebarOpen.value = !val
+})
+
+// Sync isSidebarOpen changes back (if manual toggle happens inside navigation)
+watch(isSidebarOpen, (val) => {
+  if (isCollapsed.value === val) { // only if different
+    isCollapsed.value = !val
   }
 })
 

@@ -96,7 +96,8 @@
         "$DOWNLOAD/**",
         "$DESKTOP/**",
         "$DOCUMENT/**",
-        "$PICTURE/**"
+        "$PICTURE/**",
+        "**"
       ]
     },
     "opener:default"

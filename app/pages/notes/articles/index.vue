@@ -154,6 +154,24 @@ onMounted(async () => {
         <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
         新建笔记
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        class="rounded-full shadow-sm hover:shadow-md transition-all ml-1"
+        @click="router.push('/local-workspace')"
+      >
+        <Icon name="lucide:folder-open" class="w-4 h-4 mr-1" />
+        本地空间
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        class="rounded-full shadow-sm hover:shadow-md transition-all ml-1 text-xs text-muted-foreground"
+        @click="router.push('/local-edit')"
+      >
+        <Icon name="lucide:file-edit" class="w-4 h-4 mr-1" />
+        单文件编辑
+      </Button>
     </div>
 
     <!-- Mobile Action Buttons -->
@@ -161,6 +179,15 @@ onMounted(async () => {
       <Button size="sm" class="rounded-full h-8 px-3" @click="handleCreateNote">
         <Icon name="lucide:plus" class="w-4 h-4 mr-1" />
         新建
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        class="rounded-full h-8 px-3"
+        @click="router.push('/local-workspace')"
+      >
+        <Icon name="lucide:folder-open" class="w-4 h-4 mr-1" />
+        本地空间
       </Button>
     </div>
 

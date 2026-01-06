@@ -18,6 +18,7 @@ export const useSidebar = () => {
   const mode = useState<SidebarMode>('sidebar_mode', () => 'navigation')
   const contextType = useState<ContextType>('sidebar_context_type', () => null)
   const isVisible = useState<boolean>('sidebar_visible', () => true)
+  const isCollapsed = useState<boolean>('sidebar_collapsed', () => false)
   const contextData = useState<any>('sidebar_context_data', () => ({}))
   const isInitialized = useState<boolean>('sidebar_initialized', () => false)
 
@@ -97,5 +98,6 @@ export const useSidebar = () => {
     setNavigation,
     setVisibility,
     restoreState,
+    isCollapsed,
   }
 }

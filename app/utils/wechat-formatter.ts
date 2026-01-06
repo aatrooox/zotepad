@@ -100,6 +100,11 @@ const EXCLUDE_CLASS_LIST = [
   'md-editor-icon',
   'md-editor-katex-inline', // 不支持 kateX 公式导出
   'md-editor-katex-block',
+  // Crepe Image Block exclude
+  'operation',
+  'operation-item',
+  'image-resize-handle',
+  'image-edit',
   // 'not-prose', // 排除不需要样式的元素
 ]
 
@@ -163,6 +168,75 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
   const el = node as HTMLElement
   const tagName = el.tagName.toLowerCase()
 
+  // 降级兼容易处理：列表项 (LI) 统一转为 "- 文本" 形式
+  // 解决微信端列表渲染的各种对齐、间距和兼容性问题
+  if (tagName === 'li') {
+    let contentHtml = ''
+    let nestedListHtml = ''
+
+    // 辅助函数：提取子元素内容，尽可能扁平化 Block 元素 (P, DIV, SECTION) 为 Inline，以保持文本流
+    const extractInlineContent = (target: Node): string => {
+      let resHtml = ''
+      if (target.hasChildNodes()) {
+        Array.from(target.childNodes).forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            // 文本节点直接处理
+            resHtml += getOneDomCssStyle(child, references, [], isInCodeBlock)
+          }
+          else if (child.nodeType === Node.ELEMENT_NODE) {
+            const cEl = child as HTMLElement
+            const cTag = cEl.tagName.toLowerCase()
+
+            // 忽略图标容器
+            if (cEl.classList.contains('label-wrapper'))
+              return
+
+            // 嵌套列表稍后单独处理
+            if (['ul', 'ol'].includes(cTag))
+              return
+
+            // 遇到 Block 容器，递归提取内容 (剥离外壳)
+            if (['p', 'div', 'section', 'article', 'aside'].includes(cTag)) {
+              resHtml += extractInlineContent(child)
+            }
+            else {
+              // Inline 元素 (span, strong, code, a...), 保留样式
+              resHtml += getOneDomCssStyle(child, references, [], isInCodeBlock)
+            }
+          }
+        })
+      }
+      return resHtml
+    }
+
+    // 1. 尝试获取 Milkdown/Crepe 的内容容器 (.content-dom)
+    const contentDom = el.querySelector('.content-dom')
+    if (contentDom) {
+      contentHtml = extractInlineContent(contentDom)
+    }
+    else {
+      // 2. 非 Standard Milkdown 结构，直接处理 li 子元素
+      contentHtml = extractInlineContent(el)
+    }
+
+    // 3. 处理嵌套列表 (递归)
+    const nestedLists = el.querySelectorAll(':scope > ul, :scope > ol')
+    nestedLists.forEach((list) => {
+      nestedListHtml += getOneDomCssStyle(list, references, [], isInCodeBlock)
+    })
+
+    // 构造最终 HTML - 文本缩进布局 (Hanging Indent)
+    // 摒弃 Flex，使用 margin/padding/text-indent 组合，兼容性最好
+    const rowStyle = 'margin: 2px 0; line-height: 1.6; color: #595959; font-size: 15px; padding-left: 1.2em; text-indent: -0.8em; letter-spacing: 0.5px;'
+
+    let rowHtml = ''
+    if (contentHtml.trim()) {
+      rowHtml = `<p style="${rowStyle}">- ${contentHtml}</p>`
+    }
+
+    return rowHtml + nestedListHtml
+  }
+
   // 任务列表 checkbox 处理
   if (tagName === 'input' && (el.getAttribute('type') === 'checkbox' || el.classList.contains('task-list-item-checkbox'))) {
     const isChecked = el.hasAttribute('checked') || (el as HTMLInputElement).checked
@@ -184,6 +258,51 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
       childrenHtml = el.innerHTML
     }
     return getSupHtml(childrenHtml)
+  }
+
+  // Crepe 列表图标 (SVG) 处理 - 转为 Base64 图片
+  // 宽松匹配：只要包含了 SVG 的 milkdown-icon (bullet 或 label) 都进行处理
+  if (tagName === 'span' && el.classList.contains('milkdown-icon') && (el.classList.contains('bullet') || el.classList.contains('label'))) {
+    try {
+      const svg = el.querySelector('svg')
+      if (svg) {
+        const serializer = new XMLSerializer()
+        const svgString = serializer.serializeToString(svg)
+        // 修正颜色：强制使用黑色或深色
+        // 对于 checkbox (label)，如果是 checked 状态，路径通常是 filled
+        // 这里统一将 currentColor 替换为 #333333
+        const fixedSvgString = svgString.replace(/currentColor/g, '#333333')
+
+        const base64 = window.btoa(unescape(encodeURIComponent(fixedSvgString)))
+        const imgSrc = `data:image/svg+xml;base64,${base64}`
+
+        // 根据类型调整尺寸和位置
+        let iconStyle = 'display: inline-block; flex-shrink: 0;'
+
+        // 普通行高假设为 1.6 * 16px ≈ 25.6px 或 24px。视实际编辑器样式而定。
+        // 这里按常见的 line-height: 1.6 (约 26px) 或 1.5 (24px) 来计算对齐。
+        // 假设行高为 24px。
+
+        if (el.classList.contains('label')) {
+          // Task list checkbox (增大至 22px)
+          iconStyle += 'width: 22px; height: 22px; margin-right: 4px;'
+          // 垂直偏移：(24 - 22) / 2 = 1px。
+          iconStyle += 'margin-top: 1px;'
+        }
+        else {
+          // Bullet point (增大至 12px)
+          iconStyle += 'width: 12px; height: 12px; margin-right: 6px;'
+          // 垂直偏移：(24 - 12) / 2 = 6px。
+          iconStyle += 'margin-top: 6px;'
+        }
+
+        // 返回 img
+        return `<img src="${imgSrc}" style="${iconStyle}" />`
+      }
+    }
+    catch (e) {
+      console.error('List icon conversion failed', e)
+    }
   }
 
   // Mermaid 图表处理 (转为图片)
@@ -211,8 +330,16 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     }
   }
 
-  // 忽略无效标签
+  // 忽略无效标签 (Crepe caption-input 除外)
   if (['script', 'style', 'button', 'link', 'meta', 'input', 'textarea', 'select'].includes(tagName)) {
+    // 特殊处理 Crepe 图片描述输入框
+    if (tagName === 'input' && el.classList.contains('caption-input')) {
+      const val = (el as HTMLInputElement).value
+      if (!val)
+        return ''
+      // 返回居中的 figcaption
+      return `<figcaption style="margin-top: 6px; text-align: center; color: #888; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">${val}</figcaption>`
+    }
     return ''
   }
 
@@ -264,6 +391,39 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   // 确定要提取的属性列表
   const attrsToExtract = (targetStyles && targetStyles.length > 0) ? targetStyles : [...STYLE_WHITELIST]
+
+  // Crepe 列表项 (List Item) 特殊处理
+  if (el.classList.contains('list-item')) {
+    // 强制使用 flex 布局，确保图标/序号和内容在同一行
+    if (!attrsToExtract.includes('display'))
+      attrsToExtract.push('display')
+    if (!attrsToExtract.includes('align-items'))
+      attrsToExtract.push('align-items')
+    // 移除可能导致换行的属性
+    // flex-direction 默认为 row
+  }
+
+  // Crepe 列表 Label (序号/图标容器) 特殊处理
+  if (el.classList.contains('label-wrapper')) {
+    if (!attrsToExtract.includes('display'))
+      attrsToExtract.push('display')
+    // 确保不换行
+    if (!attrsToExtract.includes('white-space'))
+      attrsToExtract.push('white-space')
+  }
+
+  // Crepe Image Wrapper 特殊处理：强制居中对齐
+  if (el.classList.contains('image-wrapper')) {
+    // 强制使用 flex 居中
+    if (!attrsToExtract.includes('display'))
+      attrsToExtract.push('display')
+    if (!attrsToExtract.includes('justify-content'))
+      attrsToExtract.push('justify-content')
+    if (!attrsToExtract.includes('align-items'))
+      attrsToExtract.push('align-items')
+    if (!attrsToExtract.includes('flex-direction'))
+      attrsToExtract.push('flex-direction')
+  }
 
   // 特殊处理：对于任务列表项、代码块头部、代码块内容，保留 display 属性以维持布局
   if (el.classList.contains('task-list-item')
@@ -345,6 +505,85 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     }
   })
 
+  // Crepe 列表项强制样式修正
+  if (el.classList.contains('list-item')) {
+    // 强制 Flex Row
+    // 移除可能存在的 block
+    const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+    if (displayIdx > -1)
+      styles.splice(displayIdx, 1)
+    styles.push('display: flex')
+
+    // 顶部对齐或基线对齐，防止文字过多时图标位置奇怪
+    styles.push('align-items: flex-start')
+
+    // 间距
+    if (!styles.some(s => s.startsWith('margin-bottom:'))) {
+      styles.push('margin-bottom: 2px')
+    }
+  }
+
+  // Crepe 列表 Label 修正
+  if (el.classList.contains('label-wrapper')) {
+    styles.push('flex-shrink: 0') // 防止被压缩
+    styles.push('margin-right: 6px') // 和内容的间距
+    // 移除了 margin-top: 2px，因为现在通过 icon 的 margin-top 来控制精确对齐
+  }
+
+  // Crepe 列表内容修正
+  if (el.classList.contains('content-dom')) {
+    styles.push('flex: 1') // 占据剩余空间
+    styles.push('min-width: 0') // 防止溢出
+    // 强制移除 content-dom 可能存在的 margin，防止多行列表间距过大
+    const marginIdx = styles.findIndex(s => s.startsWith('margin:'))
+    if (marginIdx > -1)
+      styles.splice(marginIdx, 1)
+    styles.push('margin: 0')
+  }
+
+  // Crepe Image Wrapper 强制修正样式
+  if (el.classList.contains('image-wrapper')) {
+    // 强制宽度100%或居中
+    const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+    if (widthIdx > -1)
+      styles.splice(widthIdx, 1)
+    styles.push('width: 100%') // 铺满容器，配合内部 img 的 margin: auto 或 flex center
+
+    // 强制 margin: 0
+    const marginIdx = styles.findIndex(s => s.startsWith('margin:'))
+    if (marginIdx > -1)
+      styles.splice(marginIdx, 1)
+    styles.push('margin: 0')
+  }
+
+  // Blockquote 引用块特殊处理
+  if (outTagName === 'blockquote') {
+    // 移除原有 border-left (如果有)
+    const borderLeftIdx = styles.findIndex(s => s.startsWith('border-left:'))
+    if (borderLeftIdx > -1)
+      styles.splice(borderLeftIdx, 1)
+
+    // 移除原有 padding-left
+    const paddingLeftIdx = styles.findIndex(s => s.startsWith('padding-left:'))
+    if (paddingLeftIdx > -1)
+      styles.splice(paddingLeftIdx, 1)
+
+    // 移除原有 color
+    const colorIdx = styles.findIndex(s => s.startsWith('color:'))
+    if (colorIdx > -1)
+      styles.splice(colorIdx, 1)
+
+    // 注入模拟的引用条样式 (Github 风格)
+    styles.push('border-left: 4px solid #d0d7de')
+    styles.push('padding-left: 16px')
+    styles.push('color: #57606a')
+    // 确保有垂直间距
+    if (!styles.some(s => s.startsWith('margin:'))) {
+      styles.push('margin-top: 8px')
+      styles.push('margin-bottom: 8px')
+    }
+  }
+
   // 文本类元素强制添加字间距 (使用 1px 而非 em，兼容性更好)
   // 需要先移除可能已存在的 letter-spacing，再强制设置
   // 同时移除固定宽度，避免预览窗口宽度影响实际显示
@@ -359,6 +598,26 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     const widthIdx = styles.findIndex(s => s.startsWith('width:'))
     if (widthIdx > -1)
       styles.splice(widthIdx, 1)
+
+    // 列表内 P 标签特殊处理：移除多余 margin
+    if (outTagName === 'p') {
+      const parent = el.parentElement
+      if (parent && (parent.classList.contains('content-dom') || parent.closest('.list-item'))) {
+        const marginIdx = styles.findIndex(s => s.startsWith('margin:'))
+        if (marginIdx > -1)
+          styles.splice(marginIdx, 1)
+
+        const marginTopIdx = styles.findIndex(s => s.startsWith('margin-top:'))
+        if (marginTopIdx > -1)
+          styles.splice(marginTopIdx, 1)
+
+        const marginBottomIdx = styles.findIndex(s => s.startsWith('margin-bottom:'))
+        if (marginBottomIdx > -1)
+          styles.splice(marginBottomIdx, 1)
+
+        styles.push('margin: 0')
+      }
+    }
 
     // 标题特殊处理：确保有加粗和合适的行高
     if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
@@ -385,9 +644,22 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   // 列表项特殊处理 (li)
   if (outTagName === 'li') {
-    if (!styles.some(s => s.startsWith('padding-bottom:'))) {
-      styles.push('padding-bottom: 4px')
-    }
+    // 强制移除 li 自身的 margin/padding，防止额外间距
+    const marginIdx = styles.findIndex(s => s.startsWith('margin:'))
+    if (marginIdx > -1)
+      styles.splice(marginIdx, 1)
+
+    // 只保留极小的底部间距
+    const marginBottomIdx = styles.findIndex(s => s.startsWith('margin-bottom:'))
+    if (marginBottomIdx > -1)
+      styles.splice(marginBottomIdx, 1)
+    styles.push('margin-bottom: 2px')
+
+    const paddingIdx = styles.findIndex(s => s.startsWith('padding:'))
+    if (paddingIdx > -1)
+      styles.splice(paddingIdx, 1)
+    styles.push('padding: 0')
+
     // 强制移除 list-style，防止任务列表出现双重标记
     if (el.classList.contains('task-list-item')) {
       styles.push('list-style: none')
@@ -399,11 +671,11 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
         styles.splice(displayIdx, 1)
       styles.push('display: flex')
 
-      // 强制移除可能存在的 align-items: normal，然后设置为 center
+      // 强制移除可能存在的 align-items: normal，然后设置为 flex-start 以确保多行文本时图标顶对齐
       const alignIdx = styles.findIndex(s => s.startsWith('align-items:'))
       if (alignIdx > -1)
         styles.splice(alignIdx, 1)
-      styles.push('align-items: center')
+      styles.push('align-items: flex-start')
     }
   }
 
@@ -651,7 +923,6 @@ export const getWeChatStyledHTML = (rootEl: HTMLElement): string => {
   // 外层容器样式
   const containerStyle = `
     padding: 20px 16px;
-    background-image: linear-gradient(90deg, rgba(50, 0, 0, 0.05) 3%, rgba(0, 0, 0, 0) 3%), linear-gradient(360deg, rgba(50, 0, 0, 0.05) 3%, rgba(0, 0, 0, 0) 3%);
     background-size: 20px 20px;
     background-position: center center;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
