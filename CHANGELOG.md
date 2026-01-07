@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.1 (2026-01-07)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.0...v0.27.1)
+
+### 🏡 Chore
+
+- 尝试处理安卓键盘弹出问题; 优化一些样式 ([d796c16](https://github.com/aatrooox/zotepad/commit/d796c16))
+
+
 ## v0.27.0 (2026-01-07)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.2...v0.27.0)
