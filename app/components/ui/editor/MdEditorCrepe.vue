@@ -1,6 +1,6 @@
 <template>
   <ClientOnly fallback-tag="div" fallback="Loading editor...">
-    <div class="h-full w-full milkdown-container overflow-y-auto" :class="{ 'dark': isDark }">
+    <div class="h-full w-full milkdown-container" :class="{ 'dark': isDark }">
       <MilkdownProvider>
         <Editor 
           :model-value="modelValue" 
@@ -65,6 +65,16 @@ const Editor = defineComponent({
       }
     }
 
+    // 🎯 禁用 Android 原生上下文菜单（长按弹出的复制/剪切/翻译）
+    const handleContextMenu = (e: Event) => {
+      // 仅在移动端禁用
+      const { width } = useWindowSize()
+      if (width.value < 768) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+
     const { get, loading } = useEditor((root) => {
       const { width } = useWindowSize()
       const isMobile = width.value < 768
@@ -76,15 +86,15 @@ const Editor = defineComponent({
         root,
         defaultValue: contentForEditor,
         // 如果是移动端，禁用BlockEdit（块拖拽）等重Hover特性
-        features: isMobile ? {
-          [Crepe.Feature.BlockEdit]: false,
-          [Crepe.Feature.Toolbar]: false, // 浮动工具栏在移动端也很难用
-        } : {},
+        features: {},
         // 这里可以配置 Crepe 的特性
         featureConfigs: {
           [Crepe.Feature.Placeholder]: {
             text: '开始输入...',
           },
+          // [Crepe.Feature.Toolbar]: {
+          //   position: 'bottom'
+          // },
           // 正确的 ImageBlock 上传配置
           [Crepe.Feature.ImageBlock]: {
             onUpload: (file) => {
@@ -138,10 +148,22 @@ const Editor = defineComponent({
 
     onMounted(() => {
       window.addEventListener('keydown', handleKeydown)
+      
+      // 🎯 阻止原生上下文菜单（移动端）
+      const editorRoot = document.querySelector('.milkdown-container')
+      if (editorRoot) {
+        editorRoot.addEventListener('contextmenu', handleContextMenu, { passive: false })
+      }
     })
 
     onUnmounted(() => {
       window.removeEventListener('keydown', handleKeydown)
+      
+      // 🎯 清理上下文菜单监听器
+      const editorRoot = document.querySelector('.milkdown-container')
+      if (editorRoot) {
+        editorRoot.removeEventListener('contextmenu', handleContextMenu)
+      }
       
       // 销毁 Crepe 实例以防止内存泄漏
       const crepe = crepeRef.value
@@ -186,7 +208,7 @@ const Editor = defineComponent({
 /* ============ 编辑器布局 ============ */
 .milkdown .editor {
   min-height: 100%;
-  padding-bottom: 50vh;
+  padding-bottom: 40vh; /* 减少底部padding，避免过度滚动 */
   max-width: 900px;
   margin: 0 auto;
   
@@ -195,6 +217,11 @@ const Editor = defineComponent({
   font-size: 16px;
   line-height: 1.75;
   letter-spacing: 0.01em;
+  
+  /* 🎯 禁用 Android/iOS 原生文本选择菜单 */
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: text; /* 保留文本选择能力 */
+  user-select: text;
 }
 
 /* ============ 标题样式 ============ */

@@ -41,7 +41,7 @@ const ALLOWED_TAGS = [
 
 // 允许的属性白名单
 const ALLOWED_ATTRS: Record<string, string[]> = {
-  '*': ['style'],
+  '*': ['style', 'data-code-block'],
   'img': ['src', 'alt', 'width', 'height', 'data-src', 'data-ratio', 'data-w'],
   'a': ['href', 'target', 'title'],
   'th': ['colspan', 'rowspan', 'align'],
@@ -106,6 +106,11 @@ const EXCLUDE_CLASS_LIST = [
   'image-resize-handle',
   'image-edit',
   // 'not-prose', // 排除不需要样式的元素
+  // milkedown里代码块tools
+  'cm-gutters',
+  'cm-layer',
+  'cm-announced',
+  'tools',
 ]
 
 // 驼峰转连字符
@@ -145,12 +150,12 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
   // 文本节点
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.nodeValue || ''
-    // 在代码块内，将空格转换为 &nbsp; 以防止被 HTML 合并
-    // 同时保留换行符
+    // 在代码块内,保留所有空格和换行
+    // 将所有空格转换为 &nbsp; 以防止被 HTML 合并
     if (isInCodeBlock && text) {
       return text
-        .replace(/ {2}/g, '\u00A0\u00A0') // 连续空格转为 &nbsp;
-        .replace(/^ /gm, '\u00A0') // 行首空格转为 &nbsp;
+        .replace(/ /g, '\u00A0') // 所有空格转为 &nbsp;
+        .replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0') // 制表符转为 4 个 &nbsp;
     }
     return text
   }
@@ -167,6 +172,20 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   const el = node as HTMLElement
   const tagName = el.tagName.toLowerCase()
+
+  // 标记代码块容器，用于后续压缩时保护
+  let isCodeBlockContainer = false
+  if (el.classList.contains('milkdown-code-block')) {
+    isCodeBlockContainer = true
+  }
+
+  // 判断当前是否进入代码块区域（用于子节点的空格保护）
+  // 包括 milkdown-code-block、CodeMirror 容器(cm-content、cm-editor)、以及传统的 pre/code
+  const currentIsInCodeBlock = isInCodeBlock
+    || el.classList.contains('milkdown-code-block')
+    || el.classList.contains('cm-content')
+    || el.classList.contains('cm-editor')
+    || ['pre', 'code'].includes(tagName)
 
   // 降级兼容易处理：列表项 (LI) 统一转为 "- 文本" 形式
   // 解决微信端列表渲染的各种对齐、间距和兼容性问题
@@ -749,6 +768,16 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     styles.push('flex-direction: row')
   }
 
+  // Milkdown 代码块容器特殊处理
+  if (el.classList.contains('milkdown-code-block')) {
+    // 移除原有 padding (工具栏相关的大 padding)
+    const paddingIdx = styles.findIndex(s => s.startsWith('padding:'))
+    if (paddingIdx > -1)
+      styles.splice(paddingIdx, 1)
+    // 强制设置紧凑的 padding
+    styles.push('padding: 10px')
+  }
+
   // 语言标识 span 特殊处理
   if (el.classList.contains('md-editor-code-lang')) {
     // 移除固定宽度
@@ -854,9 +883,6 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
 
   const styleStr = styles.join(';')
 
-  // 判断当前是否在代码块内 (pre 或 code)
-  const currentIsCodeBlock = isInCodeBlock || ['pre', 'code'].includes(outTagName)
-
   // 递归处理子元素
   let childrenHtml = ''
   if (el.childNodes && el.childNodes.length > 0) {
@@ -870,7 +896,7 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
         childTargetStyles = ['color', 'font-weight', 'font-style', 'text-decoration', 'background-color', 'white-space']
       }
 
-      childrenHtml += getOneDomCssStyle(child, references, childTargetStyles, currentIsCodeBlock)
+      childrenHtml += getOneDomCssStyle(child, references, childTargetStyles, currentIsInCodeBlock)
     })
   }
   else {
@@ -887,6 +913,11 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     // 修复 font-family 等可能包含双引号导致 style 属性截断的问题
     const safeStyleStr = styleStr.replace(/"/g, '\'')
     attrs.push(`style="${safeStyleStr}"`)
+  }
+
+  // 添加代码块标记
+  if (isCodeBlockContainer) {
+    attrs.push('data-code-block="true"')
   }
 
   const allowedForTag = ALLOWED_ATTRS[outTagName] || []
@@ -975,10 +1006,26 @@ export const getWeChatMinimalHTML = (rootEl: HTMLElement): string => {
   let result = getWeChatStyledHTML(rootEl)
 
   // 压缩 HTML：移除标签之间的换行和多余空白 (手机端编辑器会把换行当作内容)
+  // 但要保留代码块内的空格和换行
+  // 策略：先用占位符保护代码块内容，压缩后再恢复
+  const codeBlocks: string[] = []
+
+  // 1. 提取并保护代码块 (使用 data-code-block 属性识别)
+  result = result.replace(/<section[^>]*data-code-block="true"[^>]*>[\s\S]*?<\/section>/g, (match) => {
+    const index = codeBlocks.push(match) - 1
+    return `___CODE_BLOCK_${index}___`
+  })
+
+  // 2. 压缩非代码块区域
   result = result
     .replace(/>\s+</g, '><') // 移除标签之间的空白
     .replace(/\n\s*/g, '') // 移除换行和缩进
     .trim()
+
+  // 3. 恢复代码块
+  codeBlocks.forEach((block, index) => {
+    result = result.replace(`___CODE_BLOCK_${index}___`, block)
+  })
 
   info(`[copy wx html]  =================================`)
   info(result)

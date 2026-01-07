@@ -215,7 +215,7 @@ async function handlePublishMoment() {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-background">
+  <div class="h-full flex flex-col">
     <!-- Header -->
     <AppPageHeader :title="isEditing ? '编辑动态' : '发布动态'" :show-back="true" back-to="">
       <template #actions>

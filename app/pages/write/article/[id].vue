@@ -539,9 +539,13 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 <template>
   <div
-    class="relative h-full flex flex-col bg-background pt-safe-offset-4 md:pt-0 overflow-hidden"
+    class="relative flex flex-col md:pt-0 overflow-hidden"
     :class="{ 'pt-8': isPureMode }"
-    :style="{ '--keyboard-height': `${keyboardHeight}px` }"
+    :style="{
+      '--keyboard-height': `${keyboardHeight}px`,
+      'height': `calc(100dvh - var(--keyboard-height, 0px))`,
+      'max-height': `calc(100dvh - var(--keyboard-height, 0px))`,
+    }"
   >
     <!-- Header / Toolbar Area -->
     <header
@@ -685,7 +689,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     </header>
 
     <!-- Editor Area -->
-    <div ref="editorContainerRef" class="flex-1 bg-background relative pb-safe overflow-hidden min-h-0">
+    <div ref="editorContainerRef" class="flex-1 bg-background relative overflow-y-auto min-h-0">
       <MdEditorCrepe
         :key="noteId || 'new'"
         v-model="content"
