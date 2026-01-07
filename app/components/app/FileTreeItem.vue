@@ -41,7 +41,7 @@ const isActive = computed(() => props.activePath === props.node.path)
 <template>
   <div>
     <div
-      class="flex items-center py-1 px-2 cursor-pointer select-none transition-colors group text-sm rounded-sm mx-1"
+      class="relative flex items-center py-1 px-2 cursor-pointer select-none transition-colors group text-sm rounded-sm mx-1"
       :class="[
         isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted/50 text-foreground/80',
       ]"
@@ -71,14 +71,15 @@ const isActive = computed(() => props.activePath === props.node.path)
       <!-- Name -->
       <span class="truncate flex-1">{{ node.name }}</span>
 
-      <!-- Actions (Create File in Folder) -->
+      <!-- Actions (Create File in Folder) - 绝对定位避免抖动 -->
       <button
-        v-if="node.kind === 'directory' && isHovered"
-        class="p-1 hover:bg-background hover:text-primary rounded shadow-sm border border-border/50 ml-1 transition-all opacity-0 group-hover:opacity-100"
+        v-if="node.kind === 'directory'"
+        class="absolute right-2 p-0.5 hover:bg-background hover:text-primary rounded transition-all"
+        :class="isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'"
         title="在此新建文件"
         @click="handleCreate"
       >
-        <Plus class="w-3 h-3" />
+        <Plus class="w-3.5 h-3.5" />
       </button>
     </div>
 

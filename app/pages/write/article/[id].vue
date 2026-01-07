@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import type { ToolbarNames } from 'md-editor-v3'
 import type { Asset } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
-import { config, MdEditor, MdPreview } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
+import MdEditorCrepe from '~/components/ui/editor/MdEditorCrepe.vue'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useNoteRepository } from '~/composables/repositories/useNoteRepository'
-import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useNoteStore } from '~/composables/stores/useNoteStore'
@@ -20,7 +18,6 @@ import { useStorageService } from '~/composables/useStorageService'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
 import { WORKFLOW_TYPES } from '~/types/workflow'
 import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
-import 'md-editor-v3/lib/style.css'
 
 useHead({ title: 'ZotePad - Editor' })
 const { fetchNotes } = useNoteStore()
@@ -47,14 +44,12 @@ const title = ref('')
 const tags = ref<string[]>([])
 const newTag = ref('')
 const noteId = ref<number | null>(null)
-const htmlContent = ref('')
-const customCss = ref('')
 const editorContainerRef = ref(null)
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+const isEditorReadOnly = ref(false)
 
 // WeChat preview drawer state
 const isWeChatPreviewOpen = ref(false)
-const wechatPreviewRef = ref<HTMLElement | null>(null)
 
 // Resources Drawer state
 const isResourcesDrawerOpen = ref(false)
@@ -63,13 +58,11 @@ const isAssetsLoading = ref(false)
 
 const { getNote, createNote, updateNote } = useNoteRepository()
 const { createAsset, getAllAssets } = useAssetRepository()
-const { getSetting } = useSettingRepository()
 const { getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFiles } = useStorageService()
-const { setContext, isVisible: sidebarVisible } = useSidebar()
-// const { celebrateAchievement } = useMascotController()
+const { isVisible: sidebarVisible } = useSidebar()
 
 const isPureMode = ref(false)
 
@@ -192,61 +185,6 @@ const checkWxDraftWorkflow = async () => {
 //   }
 // }
 
-// Inject Custom CSS
-useHead({
-  style: computed(() => customCss.value ? [{ children: customCss.value, id: 'custom-css' }] : []),
-})
-
-// Editor configuration
-const toolbars: ToolbarNames[] = [
-  'bold',
-  'underline',
-  'italic',
-  '-',
-  'title',
-  'strikeThrough',
-  'sub',
-  'sup',
-  'quote',
-  'unorderedList',
-  'orderedList',
-  'task',
-  '-',
-  'codeRow',
-  'code',
-  'link',
-  'image',
-  'table',
-  'mermaid',
-  'katex',
-  '-',
-  'revoke',
-  'next',
-  'save',
-  '=',
-  'pageFullscreen',
-  'fullscreen',
-  'preview',
-  'htmlPreview',
-  'catalog',
-]
-
-// Mobile specific toolbar (simplified)
-const mobileToolbars: ToolbarNames[] = [
-  'bold',
-  'underline',
-  'italic',
-  'strikeThrough',
-  'codeRow',
-  'image',
-  'link',
-  'quote',
-  'code',
-  'mermaid',
-  '-',
-  'save',
-]
-
 // Auto-save logic
 const saveNote = async () => {
   if (!content.value && !title.value)
@@ -296,7 +234,6 @@ const saveNote = async () => {
 }
 
 const debouncedSave = useDebounceFn(saveNote, 1000)
-const currentToolbars = computed(() => isMobile.value ? mobileToolbars : toolbars)
 
 /**
  * 强制同步当前笔记
@@ -351,7 +288,6 @@ const removeTag = (tag: string) => {
 //   if (newMilestone > lastMilestone) {
 //     const pointsEarned = (newMilestone - lastMilestone)
 //     celebrateAchievement(pointsEarned)
-//     toast.success(`写作成就 +${pointsEarned} 分！已写 ${newCount} 字`, {
 //       duration: 2000,
 //     })
 //   }
@@ -361,25 +297,6 @@ const removeTag = (tag: string) => {
 
 watch([content, title], () => {
   debouncedSave()
-})
-
-// 配置短链的缩短阈值
-config({
-  codeMirrorExtensions(extensions) {
-    return extensions.map((item) => {
-      if (item.type === 'linkShortener') {
-        return {
-          ...item,
-          options: {
-            maxLength: 150,
-            shortenText: (_url: string) => '...',
-          },
-        }
-      }
-
-      return item
-    })
-  },
 })
 
 // Load initial data
@@ -399,9 +316,6 @@ onMounted(async () => {
     // 检查微信草稿箱工作流
     await checkWxDraftWorkflow()
 
-    // Load Custom CSS
-    customCss.value = await getSetting('custom_css') || ''
-
     const idParam = route.params.id
 
     if (idParam === 'new') {
@@ -419,9 +333,8 @@ onMounted(async () => {
           noteId.value = note.id
           content.value = note.content
           title.value = note.title
-          setContext('notes', { id: note.id })
           try {
-            tags.value = note.tags ? JSON.parse(note.tags) : []
+            tags.value = JSON.parse(note.tags || '[]')
           }
           catch {
             tags.value = []
@@ -440,14 +353,6 @@ onMounted(async () => {
   }
 })
 
-const onSave = () => {
-  saveNote()
-}
-
-const onHtmlChanged = (h: string) => {
-  htmlContent.value = h
-}
-
 // 复制原始markdown
 const copyMarkdown = () => {
   if (!content.value) {
@@ -464,35 +369,40 @@ const openWeChatPreview = () => {
     toast.error('没有可复制的内容')
     return
   }
+  isEditorReadOnly.value = true
   isWeChatPreviewOpen.value = true
+}
+
+// 关闭微信预览 Drawer
+const closeWeChatPreview = () => {
+  isWeChatPreviewOpen.value = false
+  isEditorReadOnly.value = false
 }
 
 // 精简版复制 - 适用于手机端公众号助手
 const copyWeChatMinimalHtml = async () => {
-  await nextTick()
-
-  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
-  if (!previewDom) {
-    toast.error('预览内容未加载')
+  const editorDom = document.querySelector('.milkdown .editor') as HTMLElement
+  if (!editorDom) {
+    toast.error('未找到编辑器内容')
     return
   }
 
   try {
-    const finalHtml = getWeChatMinimalHTML(previewDom)
+    const finalHtml = getWeChatMinimalHTML(editorDom)
     const success = await copyToClipboard(finalHtml)
     if (success) {
       toast.success('已复制')
-      isWeChatPreviewOpen.value = false
+      closeWeChatPreview()
     }
     else {
-      await writeHtml(finalHtml, previewDom.textContent || '内容已复制')
+      await writeHtml(finalHtml, editorDom.textContent || '内容已复制')
       toast.success('已复制')
-      isWeChatPreviewOpen.value = false
+      closeWeChatPreview()
     }
   }
-  catch (e) {
+  catch (e: any) {
     console.error('WeChat minimal copy failed', e)
-    toast.error('格式化复制失败')
+    toast.error(`格式化失败: ${e.message || '未知错误'}`)
   }
 }
 
@@ -530,18 +440,17 @@ const sendToWxDraft = async () => {
     return
   }
 
-  await nextTick()
-
-  const previewDom = wechatPreviewRef.value?.querySelector('.md-editor-preview') as HTMLElement
-  if (!previewDom) {
-    toast.error('预览内容未加载')
+  const editorDom = document.querySelector('.milkdown .editor') as HTMLElement
+  if (!editorDom) {
+    toast.error('未找到编辑器内容')
     return
   }
 
   isUploadingToDraft.value = true
+  isWeChatPreviewOpen.value = false
   try {
     // 获取处理后的 HTML 和图片列表
-    const finalHtml = getWeChatMinimalHTML(previewDom)
+    const finalHtml = getWeChatMinimalHTML(editorDom)
 
     // 提取图片 URL
     const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g
@@ -586,8 +495,8 @@ const sendToWxDraft = async () => {
       toast.error(`上传失败: ${errors[0].error}`)
     }
     else {
-      // toast.success('已成功上传到草稿箱！')
-      isWeChatPreviewOpen.value = false
+      toast.success('已成功上传到草稿箱')
+      closeWeChatPreview()
     }
   }
   catch (e: any) {
@@ -617,12 +526,12 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         storage_type: 'cos',
       })
     }
-
     const urls = results.map(r => r.url)
     callback(urls)
+    toast.success(`已上传 ${urls.length} 张图片`)
   }
   catch (e: any) {
-    console.error(e)
+    console.error('Image upload failed:', e)
     toast.error(e.message || '图片上传失败')
   }
 }
@@ -777,23 +686,14 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
     <!-- Editor Area -->
     <div ref="editorContainerRef" class="flex-1 bg-background relative pb-safe overflow-hidden min-h-0">
-      <ClientOnly>
-        <MdEditor
-          v-model="content"
-          :theme="resolvedTheme"
-          class="!h-full w-full"
-          :toolbars="currentToolbars"
-          :preview="false"
-          :editable="true"
-          preview-theme="github"
-          :code-foldable="false"
-          :show-code-row="true"
-          @on-save="onSave"
-          @on-html-changed="onHtmlChanged"
-          @on-upload-img="onUploadImg"
-        />
-      </ClientOnly>
-
+      <MdEditorCrepe
+        :key="noteId || 'new'"
+        v-model="content"
+        :is-dark="resolvedTheme === 'dark'"
+        :read-only="isEditorReadOnly"
+        @save="saveNote"
+        @upload-img="onUploadImg"
+      />
       <!-- Save Status Indicator -->
       <AppActionStatusIndicator :status="saveStatus" class="bottom-8 right-4" />
 
@@ -820,67 +720,32 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     </div>
 
     <!-- WeChat Preview Drawer -->
-    <Drawer v-model:open="isWeChatPreviewOpen">
-      <DrawerContent class="max-h-[85vh] flex flex-col">
-        <DrawerHeader class="text-left shrink-0">
-          <DrawerTitle>微信公众号预览</DrawerTitle>
-          <DrawerDescription>预览移动端样式，点击复制按钮将 HTML 复制到剪贴板</DrawerDescription>
+    <Drawer :open="isWeChatPreviewOpen" @update:open="(val) => !val && closeWeChatPreview()">
+      <DrawerContent class="h-auto">
+        <DrawerHeader class="text-left">
+          <DrawerTitle>分享到</DrawerTitle>
         </DrawerHeader>
-        <div class="flex-1 overflow-y-auto px-4 pb-4">
-          <!-- 居中显示的移动端宽度容器 -->
-          <div class="mx-auto" style="max-width: 850px;">
-            <!-- 模拟手机屏幕外框 -->
-            <div class="bg-muted/30 rounded-2xl p-3 border border-border/50">
-              <!-- 手机顶部状态栏模拟 -->
-              <div class="flex items-center justify-center mb-2">
-                <div class="w-20 h-1 bg-muted-foreground/20 rounded-full" />
-              </div>
-              <!-- 内容区域 -->
-              <div
-                ref="wechatPreviewRef"
-                class="bg-white rounded-xl overflow-hidden shadow-sm p-4"
-              >
-                <ClientOnly>
-                  <MdPreview
-                    :model-value="content"
-                    theme="light"
-                    preview-theme="github"
-                    :code-foldable="false"
-                    class="wechat-preview-content"
-                  />
-                </ClientOnly>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- 悬浮在底部的按钮区域 -->
-        <div class="shrink-0 border-t bg-background px-4 py-4">
-          <div class="mx-auto flex flex-col gap-2" style="max-width: 375px;">
-            <div class="flex gap-2">
-              <Button class="flex-1" variant="outline" @click="copyMarkdown">
-                <Icon name="lucide:file-code" class="w-4 h-4 mr-2" />
-                复制 MD
-              </Button>
-              <Button class="flex-1" @click="copyWeChatMinimalHtml">
-                <Icon name="lucide:copy" class="w-4 h-4 mr-2" />
-                复制样式
-              </Button>
-              <Button
-                class="flex-1"
-                :disabled="!wxDraftReady || isUploadingToDraft"
-                :title="!wxDraftWorkflow ? '请先在设置中生成微信工作流' : !wxDraftReady ? '请先配置所需环境变量' : '发送到微信草稿箱'"
-                @click="sendToWxDraft"
-              >
-                <Icon v-if="isUploadingToDraft" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-                <Icon v-else name="ri:wechat-fill" class="w-4 h-4 mr-2" />
-                发送到草稿箱
-              </Button>
-            </div>
-            <DrawerClose as-child>
-              <Button variant="ghost" size="sm">
+        <div class="px-4 pb-4 pt-2">
+          <div class="flex gap-2">
+            <Button @click="copyMarkdown">
+              <Icon name="lucide:file-code" class="w-4 h-4 " />
+            </Button>
+            <Button @click="copyWeChatMinimalHtml">
+              <Icon name="lucide:copy" class="w-4 h-4 " />
+            </Button>
+            <Button
+              :disabled="!wxDraftReady || isUploadingToDraft"
+              :title="!wxDraftWorkflow ? '请先在设置中生成微信工作流' : !wxDraftReady ? '请先配置所需环境变量' : '发送到微信草稿箱'"
+              @click="sendToWxDraft"
+            >
+              <Icon v-if="isUploadingToDraft" name="lucide:loader-2" class="w-4 h-4  animate-spin" />
+              <Icon v-else name="ri:wechat-fill" class="w-4 h-4 " />
+            </Button>
+            <!-- <DrawerClose as-child>
+              <Button variant="ghost" size="sm" @click="closeWeChatPreview">
                 关闭
               </Button>
-            </DrawerClose>
+            </DrawerClose> -->
           </div>
         </div>
       </DrawerContent>
@@ -919,91 +784,3 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     </Drawer>
   </div>
 </template>
-
-<style>
-/* Customize MdEditor to fit Shadcn/Tailwind theme if needed */
-.md-editor {
-  --md-bk-color: hsl(var(--background));
-  --md-color: hsl(var(--foreground));
-  --md-border-color: hsl(var(--border));
-}
-
-/* 强制编辑器输入区域使用新字体，覆盖默认的等宽字体 */
-.md-editor-input .cm-editor {
-  font-family:
-    'SweiCurveLeg',
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    'Noto Sans',
-    sans-serif !important;
-}
-
-.md-editor .ͼ1 .cm-scroller {
-  font-family:
-    'SweiCurveLeg',
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    'Noto Sans',
-    sans-serif !important;
-}
-.md-editor-toolbar-wrapper {
-  border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
-}
-
-/* Mobile: move toolbar to bottom for easier typing */
-@media (max-width: 767px) {
-  .md-editor {
-    display: flex;
-    flex-direction: column;
-    height: 100% !important;
-    font-size: 15px !important;
-  }
-
-  .md-editor-toolbar-wrapper {
-    order: 2;
-    flex-shrink: 0;
-    border-top: 1px solid hsl(var(--border) / 0.5) !important;
-    border-bottom: 0 !important;
-    position: fixed !important;
-    bottom: var(--keyboard-height) !important;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    background: hsl(var(--background));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    transition: bottom 0.1s ease-out;
-  }
-
-  .md-editor-content {
-    order: 1;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: none;
-    /* 40px is approx toolbar height, plus safe area, plus keyboard height */
-    padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px) + var(--keyboard-height)) !important;
-  }
-}
-
-/* WeChat Preview Styles */
-.wechat-preview-content {
-  --md-bk-color: #ffffff;
-  --md-color: #333333;
-}
-
-.wechat-preview-content .md-editor-preview-wrapper {
-  padding: 16px !important;
-}
-</style>

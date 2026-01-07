@@ -163,7 +163,7 @@ onMounted(async () => {
         <Icon name="lucide:folder-open" class="w-4 h-4 mr-1" />
         本地空间
       </Button>
-      <Button
+      <!-- <Button
         size="sm"
         variant="ghost"
         class="rounded-full shadow-sm hover:shadow-md transition-all ml-1 text-xs text-muted-foreground"
@@ -171,7 +171,7 @@ onMounted(async () => {
       >
         <Icon name="lucide:file-edit" class="w-4 h-4 mr-1" />
         单文件编辑
-      </Button>
+      </Button> -->
     </div>
 
     <!-- Mobile Action Buttons -->

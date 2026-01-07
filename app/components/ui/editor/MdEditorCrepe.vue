@@ -142,6 +142,19 @@ const Editor = defineComponent({
 
     onUnmounted(() => {
       window.removeEventListener('keydown', handleKeydown)
+      
+      // 销毁 Crepe 实例以防止内存泄漏
+      const crepe = crepeRef.value
+      if (crepe && crepe.editor) {
+        try {
+          crepe.destroy()
+          console.log('🗑️ Crepe editor destroyed')
+        }
+        catch (e) {
+          console.warn('Failed to destroy Crepe editor:', e)
+        }
+      }
+      crepeRef.value = null
     })
     
     return () => h(Milkdown)
