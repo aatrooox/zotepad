@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.27.0 (2026-01-07)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.2...v0.27.0)
+
+### 🚀 Features
+
+- 更换核心编辑器组件 ([ae161d7](https://github.com/aatrooox/zotepad/commit/ae161d7))
+- 自定义插件忽略处理md's frontmatter ([efc2ef3](https://github.com/aatrooox/zotepad/commit/efc2ef3))
+- 支持加在本地目录来编辑md文件; 测试新编辑器插件milkdown ([23e1a74](https://github.com/aatrooox/zotepad/commit/23e1a74))
+
+### 🏡 Chore
+
+- rm file ([5a86845](https://github.com/aatrooox/zotepad/commit/5a86845))
+- 尝试解决安卓键盘弹出问题 ([26e5577](https://github.com/aatrooox/zotepad/commit/26e5577))
+- 优化编辑页面显示问题; 但还是没解决 ([47ca467](https://github.com/aatrooox/zotepad/commit/47ca467))
+- 自定义编辑器渲染样式 ([c784a2a](https://github.com/aatrooox/zotepad/commit/c784a2a))
+
+
 ## v0.26.2 (2026-01-05)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.26.1...v0.26.2)
