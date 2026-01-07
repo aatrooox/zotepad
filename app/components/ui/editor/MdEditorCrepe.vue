@@ -150,9 +150,8 @@ const Editor = defineComponent({
 </script>
 
 <style>
-/* 覆盖 Crepe 的 CSS 变量以通过 Tailwind 的 dark 类自动切换 */
+/* ============ 主题变量：与 Tailwind/Shadcn 集成 ============ */
 .milkdown-container.dark {
-  /* Dark Mode Variables matching Shadcn/Tailwind Zinc/Slate */
   --crepe-color-background: hsl(var(--background));
   --crepe-color-surface: hsl(var(--card));
   --crepe-color-surface-low: hsl(var(--muted));
@@ -164,28 +163,207 @@ const Editor = defineComponent({
 }
 
 .milkdown-container:not(.dark) {
-  /* Light Mode Variables */
   --crepe-color-background: hsl(var(--background));
   --crepe-color-surface: hsl(var(--card));
   --crepe-color-surface-low: hsl(var(--muted));
   --crepe-color-on-background: hsl(var(--foreground));
-  
   --crepe-color-primary: hsl(var(--primary));
 }
 
-/* 强制让编辑器撑满高度 */
+/* ============ 编辑器布局 ============ */
 .milkdown .editor {
   min-height: 100%;
-  padding-bottom: 50vh; /* 底部留白 */
-  max-width: 900px;     /* 限制最大宽度提升阅读体验 */
+  padding-bottom: 50vh;
+  max-width: 900px;
   margin: 0 auto;
+  
+  /* 全局字体：使用 SweiCurveLeg */
+  font-family: 'SweiCurveLeg', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
 }
 
-/* 移动端适配：减少 Padding */
+/* ============ 标题样式 ============ */
+.milkdown h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.milkdown .editor h2 {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+.milkdown .editor h3 {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.milkdown h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.milkdown h5,
+.milkdown h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ============ 段落样式 ============ */
+.milkdown .editor p {
+  line-height: 1.9;
+  margin: 1.25rem 0;
+}
+
+.milkdown .editor p:first-child {
+  margin-top: 0;
+}
+
+.milkdown .editor p:last-child {
+  margin-bottom: 0;
+}
+
+/* ============ 列表样式 ============ */
+/* .milkdown ul,
+.milkdown ol {
+  padding-left: 1.75rem;
+  margin: 1rem 0;
+  line-height: 1.8;
+}
+
+.milkdown li {
+  margin: 0.5rem 0;
+}
+
+.milkdown li > p {
+  margin: 0.25rem 0;
+} */
+
+/* ============ 引用块样式 ============ */
+.milkdown .editor blockquote {
+  padding-left: 1rem;
+}
+
+.milkdown .editor blockquote p {
+  font-size: 14px;
+  color: hsl(var(--foreground));
+  margin: 0.5rem 0;
+}
+
+/* ============ 代码样式 ============ */
+.milkdown .editor code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 0.875em;
+  background: hsl(var(--primary) / 0.12);
+  color: var(--crepe-color-primary);
+  padding: 1px 2px;
+  border-radius: 4px;
+}
+
+.milkdown pre {
+  background: hsl(var(--muted));
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.milkdown pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+/* ============ 链接样式 ============ */
+.milkdown .editor a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-underline-offset: 3px;
+  transition: text-decoration-style 0.2s ease;
+}
+
+.milkdown a:hover {
+  text-decoration-style: solid;
+}
+
+/* ============ 水平分割线 ============ */
+.milkdown hr {
+  border: none;
+  border-top: 2px solid hsl(var(--border));
+  margin: 2rem 0;
+  opacity: 0.5;
+}
+
+/* ============ 表格样式 ============ */
+/* .milkdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9375rem;
+}
+
+.milkdown th,
+.milkdown td {
+  border: 1px solid var(--crepe-color-outline);
+  padding: 0.75rem 1rem;
+  text-align: left;
+} */
+
+/* .milkdown th {
+  background: var(--crepe-color-surface-low);
+  font-weight: 600;
+} */
+
+/* ============ Placeholder 样式 ============ */
+.milkdown .placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ============ 移动端适配 ============ */
 @media (max-width: 768px) {
   .milkdown .editor {
     padding: 1rem !important;
     padding-bottom: 50vh !important;
+    font-size: 15px;
+  }
+
+  .milkdown h1 {
+    font-size: 1.875rem;
+  }
+
+  .milkdown h2 {
+    font-size: 1.5rem;
+  }
+
+  .milkdown h3 {
+    font-size: 1.25rem;
+  }
+
+  .milkdown p {
+    line-height: 1.8;
   }
 }
 </style>
