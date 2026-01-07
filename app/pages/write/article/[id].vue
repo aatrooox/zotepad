@@ -549,7 +549,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     <!-- Header / Toolbar Area -->
     <header
       v-if="!isPureMode"
-      class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between bg-background/80 backdrop-blur-md z-10 shrink-0 md:mt-0 gap-2"
+      class="md:border-b px-4 md:px-6 py-3 md:py-4 flex items-start justify-between z-10 shrink-0 md:mt-0 gap-2"
     >
       <div class="flex flex-col flex-1 gap-2 md:gap-3 min-w-0">
         <!-- 移动端返回按钮 -->

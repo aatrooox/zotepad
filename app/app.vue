@@ -50,7 +50,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full">
+  <div class="h-full overflow-hidden">
     <NuxtRouteAnnouncer />
     <GlobalActivityIndicator />
     <NuxtLayout>

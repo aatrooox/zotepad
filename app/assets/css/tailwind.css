@@ -224,7 +224,7 @@
   html, body, #__nuxt {
     height: 100%;
     /* Allow native scrolling to avoid focus/keyboard issues on mobile */
-    overflow: auto;
+    overflow: hidden;
   }
 
   /* 移动端基础字号优化 */

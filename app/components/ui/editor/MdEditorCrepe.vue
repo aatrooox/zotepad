@@ -208,7 +208,7 @@ const Editor = defineComponent({
 /* ============ 编辑器布局 ============ */
 .milkdown .editor {
   min-height: 100%;
-  padding-bottom: 40vh; /* 减少底部padding，避免过度滚动 */
+  padding-bottom: 10vh; /* 减少底部padding，避免过度滚动 */
   max-width: 900px;
   margin: 0 auto;
   
@@ -386,24 +386,7 @@ const Editor = defineComponent({
 @media (max-width: 768px) {
   .milkdown .editor {
     padding: 1rem !important;
-    padding-bottom: 50vh !important;
     font-size: 15px;
-  }
-
-  .milkdown h1 {
-    font-size: 1.875rem;
-  }
-
-  .milkdown h2 {
-    font-size: 1.5rem;
-  }
-
-  .milkdown h3 {
-    font-size: 1.25rem;
-  }
-
-  .milkdown p {
-    line-height: 1.8;
   }
 }
 </style>
