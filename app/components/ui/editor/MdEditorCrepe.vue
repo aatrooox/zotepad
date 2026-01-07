@@ -21,6 +21,8 @@ import { Crepe } from '@milkdown/crepe'
 import { replaceAll } from '@milkdown/utils'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
 import { useWindowSize } from '@vueuse/core'
+import { createFrontmatterHandler } from './frontmatter-handler'
+
 import '@milkdown/crepe/theme/common/style.css'
 // 显式根据深色模式引入不同的主题文件可能会有冲突，Crepe 推荐用 CSS 变量控制
 import '@milkdown/crepe/theme/frame.css'
@@ -41,6 +43,9 @@ const updateValue = (val: string) => {
   emit('update:modelValue', val)
 }
 
+// 创建 frontmatter 处理器
+const frontmatterHandler = createFrontmatterHandler()
+
 // 内部编辑器组件
 const Editor = defineComponent({
   name: 'CrepeEditorInner',
@@ -60,13 +65,16 @@ const Editor = defineComponent({
       }
     }
 
-    const { get } = useEditor((root) => {
+    const { get, loading } = useEditor((root) => {
       const { width } = useWindowSize()
       const isMobile = width.value < 768
 
+      // 从 modelValue 中提取并缓存 frontmatter，只传递正文给编辑器
+      const contentForEditor = frontmatterHandler.prepareForEditor(props.modelValue)
+
       const crepe = new Crepe({
         root,
-        defaultValue: props.modelValue,
+        defaultValue: contentForEditor,
         // 如果是移动端，禁用BlockEdit（块拖拽）等重Hover特性
         features: isMobile ? {
           [Crepe.Feature.BlockEdit]: false,
@@ -95,42 +103,29 @@ const Editor = defineComponent({
         },
       })
 
-      // 保存 crepe 实例到 ref，因为 useEditor 返回的是 core Editor
+      // 保存 crepe 实例到 ref
       crepeRef.value = crepe
       
       // 初始化只读状态
       crepe.setReadonly(props.readOnly)
 
+      // 关键：必须在同一个链式调用中完成所有配置和创建
       crepe.editor
         .config((ctx) => {
           ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
-            // 记录这一次发出的值
-            lastEmittedValue = markdown
-            emit('update:modelValue', markdown)
+            // 将编辑器内容与缓存的 frontmatter 合并后再发出
+            const fullMarkdown = frontmatterHandler.prepareForSave(markdown)
+            lastEmittedValue = fullMarkdown
+            emit('update:modelValue', fullMarkdown)
           })
         })
         .use(listener)
-
+        .create()
+        .then(() => {
+          console.log('✅ Crepe editor created with frontmatter support')
+        })
+      
       return crepe
-    })
-
-    // 监听 modelValue 变化，更新编辑器内容（用于处理打开新文件的场景）
-    watch(() => props.modelValue, (val) => {
-      // 如果是刚刚发出的值，说明是编辑器内部更新回流，忽略
-      if (val === lastEmittedValue) return
-
-      // 通过保存的 ref 获取 Crepe 实例
-      const crepe = crepeRef.value
-      if (!crepe) return
-
-      // 现在可以调用 Crepe 的方法了
-      const currentMarkdown = crepe.getMarkdown()
-      if (currentMarkdown === val) return
-
-      // 更新最后发出的值，防止 replaceAll 触发新的更新循环
-      lastEmittedValue = val
-      // 使用 replaceAll 工具方法完全替换文档
-      crepe.editor.action(replaceAll(val))
     })
 
     // 监听只读状态变化

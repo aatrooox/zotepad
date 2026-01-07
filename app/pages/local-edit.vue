@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import type { Asset } from '~/types/models'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useColorMode } from '@vueuse/core'
 import { Eye, FilePlus, FolderOpen, Pencil, Save, Wand2 } from 'lucide-vue-next'
+// import { toast } from 'vue-sonner'
 // import { MdEditor } from 'md-editor-v3'
 // import 'md-editor-v3/lib/style.css'
 import MdEditorCrepe from '~/components/ui/editor/MdEditorCrepe.vue'
+import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
+import { useStorageService } from '~/composables/useStorageService'
 import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 
 useHead({ title: '本地编辑 - ZotePad' })
@@ -21,6 +25,9 @@ const {
 } = useLocalMarkdown()
 
 const isReadOnly = ref(false)
+
+const { createAsset } = useAssetRepository()
+const { uploadFiles } = useStorageService()
 
 const { toast } = useToast()
 const colorMode = useColorMode({
@@ -97,6 +104,36 @@ const copyWeChatFormat = async () => {
   }
 }
 
+// 图片上传处理
+const onUploadImg = async (files: File[], callback: (urls: string[]) => void) => {
+  try {
+    const results = await uploadFiles(files)
+
+    // 记录到资源表
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i] as any
+      const file = files[i] as any
+
+      await createAsset({
+        url: result.url,
+        path: result.path,
+        filename: result.filename || file.name,
+        size: result.size || file.size,
+        mime_type: result.mime_type || file.type,
+        storage_type: 'cos',
+      })
+    }
+
+    const urls = results.map(r => r.url)
+    callback(urls)
+    toast.success(`已上传 ${urls.length} 张图片`)
+  }
+  catch (e: any) {
+    console.error('Image upload failed:', e)
+    toast.error(e.message || '图片上传失败')
+  }
+}
+
 // 自动保持焦点在编辑器（可选）
 </script>
 
@@ -148,10 +185,12 @@ const copyWeChatFormat = async () => {
         @save="handleSave"
       /> -->
       <MdEditorCrepe
+        :key="currentFilePath"
         v-model="fileContent"
         :is-dark="resolvedTheme === 'dark'"
         :read-only="isReadOnly"
         @save="handleSave"
+        @upload-img="onUploadImg"
       />
 
       <div v-if="isLoading" class="absolute inset-0 bg-background/50 flex items-center justify-center z-50">
