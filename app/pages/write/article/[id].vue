@@ -21,7 +21,7 @@ import { copyToClipboard, getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 
 useHead({ title: 'ZotePad - Editor' })
 const { fetchNotes } = useNoteStore()
-const { keyboardHeight } = useKeyboardInset()
+const { viewportHeight } = useKeyboardInset()
 
 const route = useRoute()
 const router = useRouter()
@@ -539,12 +539,11 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
 
 <template>
   <div
-    class="relative flex flex-col md:pt-0 overflow-hidden"
+    class="relative flex flex-col pt-safe-offset-4 md:pt-0 overflow-hidden"
     :class="{ 'pt-8': isPureMode }"
     :style="{
-      '--keyboard-height': `${keyboardHeight}px`,
-      'height': `calc(100dvh - var(--keyboard-height, 0px))`,
-      'max-height': `calc(100dvh - var(--keyboard-height, 0px))`,
+      height: viewportHeight ? `${viewportHeight}px` : '100dvh',
+      maxHeight: viewportHeight ? `${viewportHeight}px` : '100dvh',
     }"
   >
     <!-- Header / Toolbar Area -->
