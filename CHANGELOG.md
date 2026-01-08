@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.2 (2026-01-08)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.1...v0.27.2)
+
+### 🐞 Bug Fixes
+
+- 修复桌面端本地空间内容滚动问题; 编辑文章没有触发动态侧边栏问题 ([19addf4](https://github.com/aatrooox/zotepad/commit/19addf4))
+
+
 ## v0.27.1 (2026-01-07)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.0...v0.27.1)
