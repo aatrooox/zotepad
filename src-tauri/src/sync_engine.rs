@@ -51,6 +51,18 @@ pub const SYNC_TABLES: &[TableConfig] = &[
         json_fields: &[],
     },
     TableConfig {
+        name: "asset_tags",
+        primary_key: "uuid",
+        fields: &["uuid", "name", "parent_id", "type", "description", "icon", "color", "sort_order", "created_at", "updated_at", "deleted_at", "version"],
+        json_fields: &[],
+    },
+    TableConfig {
+        name: "asset_tag_relations",
+        primary_key: "uuid",
+        fields: &["uuid", "asset_id", "tag_id", "created_at", "updated_at", "deleted_at", "version"],
+        json_fields: &[],
+    },
+    TableConfig {
         name: "workflows",
         primary_key: "uuid",
         fields: &["uuid", "name", "description", "steps", "schema_id", "type", "created_at", "updated_at", "deleted_at", "version"],
