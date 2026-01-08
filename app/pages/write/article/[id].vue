@@ -2,6 +2,8 @@
 import type { Asset } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
@@ -585,6 +587,42 @@ const sendToWxDraft = async () => {
   }
 }
 
+// 保存到本地文件
+const saveToLocalFile = async () => {
+  if (!content.value) {
+    toast.error('没有可保存的内容')
+    return
+  }
+
+  try {
+    // 使用标题作为默认文件名
+    const defaultFileName = title.value ? `${title.value}.md` : '无标题笔记.md'
+
+    // 打开保存对话框
+    const filePath = await save({
+      defaultPath: defaultFileName,
+      filters: [{
+        name: 'Markdown',
+        extensions: ['md'],
+      }],
+    })
+
+    if (!filePath) {
+      // 用户取消
+      return
+    }
+
+    // 写入文件
+    await writeTextFile(filePath, content.value)
+    toast.success('已保存到本地')
+    closeWeChatPreview()
+  }
+  catch (e: any) {
+    console.error('Failed to save to local file', e)
+    toast.error(`保存失败: ${e.message}`)
+  }
+}
+
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
   try {
     const results = await uploadFiles(files)
@@ -698,10 +736,10 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           variant="ghost"
           size="icon"
           class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
-          title="复制为微信公众号格式"
+          title="更多操作"
           @click="openWeChatPreview"
         >
-          <Icon name="ri:wechat-fill" class="w-4 h-4" />
+          <Icon name="lucide:more-horizontal" class="w-4 h-4" />
         </Button>
 
         <!-- <Dialog v-model:open="isWorkflowDialogOpen">
@@ -803,7 +841,7 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
     <Drawer :open="isWeChatPreviewOpen" @update:open="(val) => !val && closeWeChatPreview()">
       <DrawerContent class="h-auto">
         <DrawerHeader class="text-left">
-          <DrawerTitle>分享到</DrawerTitle>
+          <DrawerTitle>更多操作</DrawerTitle>
         </DrawerHeader>
         <div class="px-4 pb-4 pt-2">
           <div class="flex gap-2">
@@ -820,6 +858,9 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
             >
               <Icon v-if="isUploadingToDraft" name="lucide:loader-2" class="w-4 h-4  animate-spin" />
               <Icon v-else name="ri:wechat-fill" class="w-4 h-4 " />
+            </Button>
+            <Button v-if="isDesktop" title="保存到本地" @click="saveToLocalFile">
+              <Icon name="lucide:download" class="w-4 h-4 " />
             </Button>
             <!-- <DrawerClose as-child>
               <Button variant="ghost" size="sm" @click="closeWeChatPreview">
