@@ -530,7 +530,7 @@ onUnmounted(() => {
         </header>
 
         <!-- Editor Body -->
-        <div v-if="currentFilePath" class="flex-1 relative overflow-hidden">
+        <div v-if="currentFilePath" class="flex-1 relative overflow-y-auto min-h-0">
           <MdEditorCrepe
             :key="currentFilePath"
             v-model="fileContent"

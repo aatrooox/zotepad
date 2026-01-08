@@ -62,7 +62,7 @@ const { getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
 const { uploadFiles } = useStorageService()
-const { isVisible: sidebarVisible } = useSidebar()
+const { isVisible: sidebarVisible, setContext } = useSidebar()
 
 const isPureMode = ref(false)
 
@@ -186,6 +186,10 @@ const checkWxDraftWorkflow = async () => {
 // }
 
 // Auto-save logic
+const updateSidebarContext = () => {
+  setContext('notes', { id: noteId.value })
+}
+
 const saveNote = async () => {
   if (!content.value && !title.value)
     return
@@ -203,6 +207,7 @@ const saveNote = async () => {
         noteId.value = id
         // Update URL to reflect the new ID without reloading
         router.replace({ params: { id: id.toString() } })
+        updateSidebarContext()
       }
     }
     fetchNotes(true)
@@ -324,6 +329,7 @@ onMounted(async () => {
       content.value = ''
       title.value = ''
       tags.value = []
+      updateSidebarContext()
     }
     else {
       const id = Number.parseInt(idParam as string)
@@ -339,6 +345,7 @@ onMounted(async () => {
           catch {
             tags.value = []
           }
+          updateSidebarContext()
         }
         else {
           toast.error('未找到笔记')
