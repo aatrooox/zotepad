@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.27.4 (2026-01-08)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.3...v0.27.4)
+
+### 🐞 Bug Fixes
+
+- 修复相册计数sql ([dff70e0](https://github.com/aatrooox/zotepad/commit/dff70e0))
+- 修复相册及资源关联表同步问题 ([2b9a73e](https://github.com/aatrooox/zotepad/commit/2b9a73e))
+
+### 🏡 Chore
+
+- release 文案位置 ([6fc1751](https://github.com/aatrooox/zotepad/commit/6fc1751))
+
+
 ## v0.27.3 (2026-01-08)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.2...v0.27.3)
