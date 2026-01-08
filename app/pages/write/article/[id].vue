@@ -191,8 +191,9 @@ const checkWxDraftWorkflow = async () => {
 const extractImageUrls = (markdown: string): string[] => {
   const urls: string[] = []
 
-  // 匹配 ![alt](url) 格式
-  const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+  // 匹配 ![alt](url) 或 ![alt](url "title") 格式
+  // 只抓取 URL 部分，忽略可选的 title 描述
+  const markdownImageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
   let match = markdownImageRegex.exec(markdown)
   while (match !== null) {
     if (match[2]) {

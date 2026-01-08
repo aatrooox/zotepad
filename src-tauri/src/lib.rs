@@ -919,6 +919,30 @@ pub fn run() {
                             ",
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 8,
+                            description: "Add UUID fields to asset_tag_relations for cross-device sync",
+                            sql: "
+                                -- 添加 UUID 字段用于跨设备同步
+                                ALTER TABLE asset_tag_relations ADD COLUMN asset_uuid TEXT;
+                                ALTER TABLE asset_tag_relations ADD COLUMN tag_uuid TEXT;
+                                
+                                -- 为 UUID 字段创建索引
+                                CREATE INDEX IF NOT EXISTS idx_asset_tag_relations_asset_uuid ON asset_tag_relations(asset_uuid);
+                                CREATE INDEX IF NOT EXISTS idx_asset_tag_relations_tag_uuid ON asset_tag_relations(tag_uuid);
+                                
+                                -- 为现有数据填充 UUID（从 assets 和 asset_tags 表关联获取）
+                                UPDATE asset_tag_relations 
+                                SET asset_uuid = (
+                                    SELECT uuid FROM assets WHERE assets.id = asset_tag_relations.asset_id
+                                ),
+                                tag_uuid = (
+                                    SELECT uuid FROM asset_tags WHERE asset_tags.id = asset_tag_relations.tag_id
+                                )
+                                WHERE asset_uuid IS NULL OR tag_uuid IS NULL;
+                            ",
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

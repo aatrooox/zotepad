@@ -64,7 +64,7 @@ export const SYNC_TABLES: Record<string, SyncableTable> = {
   asset_tag_relations: {
     name: 'asset_tag_relations',
     primaryKey: 'uuid',
-    fields: ['uuid', 'asset_id', 'tag_id', 'created_at', 'updated_at', 'deleted_at', 'version'],
+    fields: ['uuid', 'asset_uuid', 'tag_uuid', 'created_at', 'updated_at', 'deleted_at', 'version'],
     jsonFields: [],
     hasVersion: true,
     hasSoftDelete: true,

@@ -77,45 +77,70 @@ export function useAssetTagRepository() {
       )
     }, '删除相册失败')
 
-  // 获取标签下的资源
+  // 获取标签下的资源（支持 UUID 和 ID 关联）
   const getAssetsByTag = (tagId: number) =>
     runAsync(() => select<Asset[]>(
-      `SELECT a.* 
+      `SELECT DISTINCT a.* 
        FROM assets a
-       JOIN asset_tag_relations r ON a.id = r.asset_id
-       WHERE r.tag_id = ? AND a.deleted_at IS NULL AND r.deleted_at IS NULL
+       LEFT JOIN asset_tag_relations r ON (
+         (r.asset_uuid IS NOT NULL AND a.uuid = r.asset_uuid) OR
+         (r.asset_uuid IS NULL AND a.id = r.asset_id)
+       )
+       WHERE r.tag_id = ? 
+         AND a.deleted_at IS NULL 
+         AND r.deleted_at IS NULL
        ORDER BY r.created_at DESC`,
       [tagId],
     ), '获取相册资源失败')
 
-  // 将资源添加到标签
+  // 将资源添加到标签（使用 UUID 支持跨设备同步）
   const addAssetsToTag = (assetIds: number[], tagId: number) =>
     runAsync(async () => {
       const now = new Date().toISOString()
       const version = -Date.now()
 
-      // 批量插入或忽略（如果已存在）
-      // SQLite 不支持一次性插入多个 VALUES 且带 WHERE NOT EXISTS 这种复杂逻辑简单写
-      // 这里用循环处理，虽然不是极致性能，但对于相册操作足够了
+      // 1. 获取相册的 UUID
+      const tagResult = await select<Array<{ uuid: string }>>(
+        'SELECT uuid FROM asset_tags WHERE id = ?',
+        [tagId],
+      )
+      const tagUuid = tagResult[0]?.uuid
+      if (!tagUuid) {
+        throw new Error('相册不存在')
+      }
+
       for (const assetId of assetIds) {
-        const uuid = generateUUID()
-        // 使用 INSERT OR IGNORE 避免重复关联
+        // 2. 获取资源的 UUID，如果没有则创建一个
+        let assetResult = await select<Array<{ uuid: string | null }>>(
+          'SELECT uuid FROM assets WHERE id = ?',
+          [assetId],
+        )
+        let assetUuid = assetResult[0]?.uuid
+
+        // 如果旧资源没有 UUID，自动生成一个
+        if (!assetUuid || assetUuid.trim() === '') {
+          assetUuid = generateUUID()
+          await execute(
+            'UPDATE assets SET uuid = ?, updated_at = ?, version = ? WHERE id = ?',
+            [assetUuid, now, version, assetId],
+          )
+        }
+
+        // 3. 创建关联记录（同时保存 ID 和 UUID）
+        const relationUuid = generateUUID()
         await execute(
           `INSERT OR IGNORE INTO asset_tag_relations 
-           (uuid, asset_id, tag_id, version, updated_at) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [uuid, assetId, tagId, version, now],
+           (uuid, asset_id, tag_id, asset_uuid, tag_uuid, version, updated_at) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [relationUuid, assetId, tagId, assetUuid, tagUuid, version, now],
         )
 
-        // 如果是软删除过的记录，需要恢复
-        // 这里简化处理：先尝试插入，如果没插入（因为唯一约束），则尝试更新 deleted_at = NULL
-        // 但由于 UNIQUE(asset_id, tag_id) 约束，INSERT OR IGNORE 会忽略冲突
-        // 所以我们需要额外检查是否需要"复活"关系
+        // 4. 如果是软删除过的记录，需要恢复
         await execute(
           `UPDATE asset_tag_relations 
-             SET deleted_at = NULL, version = ?, updated_at = ? 
-             WHERE asset_id = ? AND tag_id = ? AND deleted_at IS NOT NULL`,
-          [version, now, assetId, tagId],
+           SET deleted_at = NULL, asset_uuid = ?, tag_uuid = ?, version = ?, updated_at = ? 
+           WHERE asset_id = ? AND tag_id = ? AND deleted_at IS NOT NULL`,
+          [assetUuid, tagUuid, version, now, assetId, tagId],
         )
       }
     }, '添加资源到相册失败')

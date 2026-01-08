@@ -59,7 +59,7 @@ pub const SYNC_TABLES: &[TableConfig] = &[
     TableConfig {
         name: "asset_tag_relations",
         primary_key: "uuid",
-        fields: &["uuid", "asset_id", "tag_id", "created_at", "updated_at", "deleted_at", "version"],
+        fields: &["uuid", "asset_uuid", "tag_uuid", "created_at", "updated_at", "deleted_at", "version"],
         json_fields: &[],
     },
     TableConfig {
