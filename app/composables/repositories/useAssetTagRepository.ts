@@ -26,12 +26,12 @@ export function useAssetTagRepository() {
   const getAllTags = () =>
     runAsync(async () => {
       // 这个查询稍微复杂一点：
-      // 1. 关联 asset_tag_relations 计算数量
+      // 1. 关联 asset_tag_relations 计算数量（只统计未删除的资源）
       // 2. 关联 assets 获取最新的一张图作为封面
       const sql = `
         SELECT 
           t.*,
-          COUNT(r.asset_id) as asset_count,
+          COUNT(CASE WHEN a.deleted_at IS NULL THEN 1 END) as asset_count,
           (
             SELECT a.url 
             FROM asset_tag_relations r2 
@@ -42,6 +42,7 @@ export function useAssetTagRepository() {
           ) as cover_url
         FROM asset_tags t
         LEFT JOIN asset_tag_relations r ON t.id = r.tag_id AND r.deleted_at IS NULL
+        LEFT JOIN assets a ON r.asset_id = a.id
         WHERE t.deleted_at IS NULL
         GROUP BY t.id
         ORDER BY t.sort_order DESC, t.created_at DESC
