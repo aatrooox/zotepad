@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.27.3 (2026-01-08)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.2...v0.27.3)
+
+### 🚀 Features
+
+- 新增把数据库中的md内容导出到本地功能 ([8cf2c64](https://github.com/aatrooox/zotepad/commit/8cf2c64))
+- 文章中出现图片链接时自动维护到资源库 ([b574c91](https://github.com/aatrooox/zotepad/commit/b574c91))
+
+### 🐞 Bug Fixes
+
+- 新增相册表同步 ([45aad5b](https://github.com/aatrooox/zotepad/commit/45aad5b))
+
+
 ## v0.27.2 (2026-01-08)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.1...v0.27.2)
