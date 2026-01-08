@@ -57,7 +57,7 @@ const assetsList = ref<Asset[]>([])
 const isAssetsLoading = ref(false)
 
 const { getNote, createNote, updateNote } = useNoteRepository()
-const { createAsset, getAllAssets } = useAssetRepository()
+const { createAsset, getAllAssets, getAssetByUrl } = useAssetRepository()
 const { getSystemWorkflow } = useWorkflowRepository()
 const { getAllEnvs } = useEnvironmentRepository()
 const { runWorkflow } = useWorkflowRunner()
@@ -185,6 +185,73 @@ const checkWxDraftWorkflow = async () => {
 //   }
 // }
 
+// 提取 Markdown 中的图片链接
+const extractImageUrls = (markdown: string): string[] => {
+  const urls: string[] = []
+
+  // 匹配 ![alt](url) 格式
+  const markdownImageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g
+  let match = markdownImageRegex.exec(markdown)
+  while (match !== null) {
+    if (match[2]) {
+      urls.push(match[2])
+    }
+    match = markdownImageRegex.exec(markdown)
+  }
+
+  // 匹配 <img src="url"> 格式
+  const htmlImageRegex = /<img[^>]+src="([^"]+)"[^>]*>/g
+  match = htmlImageRegex.exec(markdown)
+  while (match !== null) {
+    if (match[1]) {
+      urls.push(match[1])
+    }
+    match = htmlImageRegex.exec(markdown)
+  }
+
+  // 去重
+  return [...new Set(urls)]
+}
+
+// 自动维护图片链接到资源表
+const maintainImageAssets = async (markdown: string) => {
+  if (!markdown)
+    return
+
+  const imageUrls = extractImageUrls(markdown)
+  if (imageUrls.length === 0)
+    return
+
+  try {
+    for (const url of imageUrls) {
+      // 检查是否已存在
+      const existing = await getAssetByUrl(url)
+      if (existing) {
+        continue
+      }
+
+      // 不存在则插入
+      const filename = url.split('/').pop() || 'image'
+      const mimeType = url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+        ? `image/${url.split('.').pop()?.toLowerCase()}`
+        : 'image/jpeg'
+
+      await createAsset({
+        url,
+        path: url,
+        filename,
+        size: 0,
+        mime_type: mimeType,
+        storage_type: 'external',
+      })
+    }
+  }
+  catch (e) {
+    // 维护失败不影响保存流程
+    console.warn('维护图片资源失败:', e)
+  }
+}
+
 // Auto-save logic
 const updateSidebarContext = () => {
   setContext('notes', { id: noteId.value })
@@ -198,6 +265,9 @@ const saveNote = async () => {
   saveStatus.value = 'saving'
 
   try {
+    // 先维护图片资源（不阻塞保存流程）
+    maintainImageAssets(content.value).catch(e => console.warn('维护图片资源失败:', e))
+
     if (noteId.value) {
       await updateNote(noteId.value, title.value, content.value, tags.value)
     }

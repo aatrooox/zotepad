@@ -67,11 +67,18 @@ export function useAssetRepository() {
       [new Date().toISOString(), new Date().toISOString(), -Date.now(), id],
     ), '删除资源失败')
 
+  const getAssetByUrl = (url: string) =>
+    runAsync(() => select<Asset[]>(
+      'SELECT * FROM assets WHERE url = ? AND deleted_at IS NULL LIMIT 1',
+      [url],
+    ).then(rows => rows[0] || null), '查询资源失败')
+
   return {
     isLoading,
     error,
     createAsset,
     getAllAssets,
     deleteAsset,
+    getAssetByUrl,
   }
 }
