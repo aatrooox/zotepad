@@ -317,14 +317,14 @@ jobs:
           tag_name: "v${{ needs.check-commit.outputs.version }}"
           name: "v${{ needs.check-commit.outputs.version }}"
           body: |
+            ## 📝 本次更新内容
+            ${{ steps.changelog.outputs.content }}
+
             ## 📦 下载
 
             - **macOS (Universal)**: `.dmg` 文件
             - **Android (arm64-v8a)**: `.apk` 文件
             - **Windows (x64)**: `.msi` 或 `.exe` 安装包
-
-            ## 📝 更新内容
-            ${{ steps.changelog.outputs.content }}
           files: |
             ./artifacts/macos/*.dmg
             ./artifacts/android/**/*.apk
