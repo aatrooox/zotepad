@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FrontmatterFields } from '~/components/ui/editor/frontmatter-handler'
 import type { Asset } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
@@ -7,6 +8,7 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useClipboard, useColorMode, useDebounceFn, useWindowSize } from '@vueuse/core'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
+import { stringifyYAML, updateFrontmatterFields } from '~/components/ui/editor/frontmatter-handler'
 import MdEditorCrepe from '~/components/ui/editor/MdEditorCrepe.vue'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
@@ -57,6 +59,12 @@ const isWeChatPreviewOpen = ref(false)
 const isResourcesDrawerOpen = ref(false)
 const assetsList = ref<Asset[]>([])
 const isAssetsLoading = ref(false)
+
+// Frontmatter Drawer state
+const isFrontmatterDrawerOpen = ref(false)
+const frontmatterFields = ref<FrontmatterFields>({})
+const noteCreatedAt = ref<Date | undefined>()
+const noteUpdatedAt = ref<Date | undefined>()
 
 const { getNote, createNote, updateNote } = useNoteRepository()
 const { createAsset, getAllAssets, getAssetByUrl } = useAssetRepository()
@@ -260,6 +268,16 @@ const updateSidebarContext = () => {
   setContext('notes', { id: noteId.value })
 }
 
+// Frontmatter 管理
+const updateFrontmatterFieldsFromNote = () => {
+  frontmatterFields.value = {
+    title: title.value || '无标题',
+    date: noteCreatedAt.value?.toISOString(),
+    lastmod: noteUpdatedAt.value?.toISOString(),
+    tags: tags.value,
+  }
+}
+
 const saveNote = async () => {
   if (!content.value && !title.value)
     return
@@ -273,6 +291,8 @@ const saveNote = async () => {
 
     if (noteId.value) {
       await updateNote(noteId.value, title.value, content.value, tags.value)
+      // 更新时间
+      noteUpdatedAt.value = new Date()
     }
     else {
       const id = await createNote(title.value || '无标题笔记', content.value, tags.value)
@@ -281,8 +301,15 @@ const saveNote = async () => {
         // Update URL to reflect the new ID without reloading
         router.replace({ params: { id: id.toString() } })
         updateSidebarContext()
+        // 设置创建时间
+        noteCreatedAt.value = new Date()
+        noteUpdatedAt.value = new Date()
       }
     }
+
+    // 更新 frontmatter 字段
+    updateFrontmatterFieldsFromNote()
+
     fetchNotes(true)
     // Ensure loading state shows for at least 500ms for visual smoothness
     const elapsed = Date.now() - startTime
@@ -351,6 +378,18 @@ const removeTag = (tag: string) => {
   debouncedSave()
 }
 
+const openFrontmatterDrawer = () => {
+  updateFrontmatterFieldsFromNote()
+  isFrontmatterDrawerOpen.value = true
+}
+
+const handleFrontmatterTitleUpdate = (newTitle: string) => {
+  // 同步更新主标题
+  title.value = newTitle
+  frontmatterFields.value.title = newTitle
+  debouncedSave()
+}
+
 // 字数统计与成就系统
 // const wordCount = computed(() => {
 //   return content.value.replace(/\s+/g, '').length
@@ -402,6 +441,8 @@ onMounted(async () => {
       content.value = ''
       title.value = ''
       tags.value = []
+      noteCreatedAt.value = new Date()
+      noteUpdatedAt.value = new Date()
       updateSidebarContext()
     }
     else {
@@ -418,6 +459,9 @@ onMounted(async () => {
           catch {
             tags.value = []
           }
+          // 解析时间戳
+          noteCreatedAt.value = note.created_at ? new Date(note.created_at) : new Date()
+          noteUpdatedAt.value = note.updated_at ? new Date(note.updated_at) : new Date()
           updateSidebarContext()
         }
         else {
@@ -613,8 +657,20 @@ const saveToLocalFile = async () => {
       return
     }
 
+    // 准备 frontmatter
+    const now = new Date().toISOString()
+    const frontmatterData: FrontmatterFields = {
+      title: title.value || '无标题',
+      date: noteCreatedAt.value?.toISOString() || now,
+      lastmod: now, // 保存时更新为当前时间
+      tags: tags.value,
+    }
+
+    const frontmatterYAML = stringifyYAML(frontmatterData)
+    const finalContent = `---\n${frontmatterYAML}\n---\n\n${content.value}`
+
     // 写入文件
-    await writeTextFile(filePath, content.value)
+    await writeTextFile(filePath, finalContent)
     toast.success('已保存到本地')
     closeWeChatPreview()
   }
@@ -721,6 +777,16 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
           @click="handleForceSync"
         >
           <Icon name="lucide:cloud-upload" class="w-4 h-4" :class="{ 'animate-pulse': isForceSyncing }" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground w-8 h-8 md:w-9 md:h-9"
+          title="Frontmatter 元数据"
+          @click="openFrontmatterDrawer"
+        >
+          <Icon name="lucide:file-code" class="w-4 h-4" />
         </Button>
 
         <Button
@@ -904,5 +970,15 @@ const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) =
         </div>
       </DrawerContent>
     </Drawer>
+
+    <!-- Frontmatter Drawer -->
+    <AppFrontmatterDrawer
+      v-model:open="isFrontmatterDrawerOpen"
+      :frontmatter-fields="frontmatterFields"
+      :tags="tags"
+      :created-at="noteCreatedAt"
+      :updated-at="noteUpdatedAt"
+      @update:title="handleFrontmatterTitleUpdate"
+    />
   </div>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FrontmatterFields } from '~/components/ui/editor/frontmatter-handler'
 import type { FileNode } from '~/composables/useLocalWorkspace'
 import type { Asset } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
@@ -14,6 +15,7 @@ import {
   Settings2,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import { extractFrontmatter, parseYAML, stringifyYAML } from '~/components/ui/editor/frontmatter-handler'
 import MdEditorCrepe from '~/components/ui/editor/MdEditorCrepe.vue'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
@@ -61,6 +63,12 @@ const isWeChatPreviewOpen = ref(false)
 const isResourcesDrawerOpen = ref(false)
 const assetsList = ref<Asset[]>([])
 const isAssetsLoading = ref(false)
+
+// Frontmatter Drawer state
+const isFrontmatterDrawerOpen = ref(false)
+const frontmatterFields = ref<FrontmatterFields>({})
+const fileCreatedAt = ref<Date | undefined>()
+const fileUpdatedAt = ref<Date | undefined>()
 
 // Workflow state
 const wxDraftWorkflow = ref<Workflow | null>(null)
@@ -115,10 +123,12 @@ const handleSelectNode = async (node: FileNode) => {
     if (isDirty.value && currentFilePath.value !== node.path) {
       triggerConfirm('当前文件未保存，切换将丢失更改，确认切换吗？', async () => {
         await loadFile(node.path)
+        updateFileMetadata()
       })
       return
     }
     await loadFile(node.path)
+    updateFileMetadata()
   }
 }
 
@@ -167,11 +177,34 @@ const handleCreateFile = (parentPath: string = workspacePath.value!) => {
 }
 
 const handleSave = async () => {
+  // 合并 frontmatter 到文件内容
+  const { content: pureContent } = extractFrontmatter(fileContent.value)
+
+  // 更新 lastmod
+  frontmatterFields.value.lastmod = new Date().toISOString()
+
+  // 生成完整的 frontmatter YAML
+  const frontmatterYAML = stringifyYAML(frontmatterFields.value)
+  const finalContent = frontmatterYAML ? `---\n${frontmatterYAML}\n---\n\n${pureContent}` : pureContent
+
+  // 临时替换 fileContent 用于保存
+  const originalContent = fileContent.value
+  fileContent.value = finalContent
+
   const success = await saveFile()
-  if (success)
+
+  if (success) {
     toast.success('已保存')
-  else if (editorError.value)
-    toast.error(editorError.value)
+    // 更新修改时间
+    fileUpdatedAt.value = new Date()
+  }
+  else {
+    // 保存失败，恢复原内容
+    fileContent.value = originalContent
+    if (editorError.value) {
+      toast.error(editorError.value)
+    }
+  }
 }
 
 const workspaceName = computed(() => {
@@ -185,6 +218,66 @@ const togglePureMode = () => {
   isPureMode.value = !isPureMode.value
   isGlobalSidebarCollapsed.value = isPureMode.value
   isSidebarOpen.value = !isPureMode.value
+}
+
+// Frontmatter 管理
+function updateFileMetadata() {
+  if (!currentFilePath.value || !fileContent.value)
+    return
+
+  // 从文件内容提取 frontmatter
+  const { frontmatter } = extractFrontmatter(fileContent.value)
+
+  if (frontmatter) {
+    // 解析已有的 frontmatter
+    const parsed = parseYAML(frontmatter)
+
+    // 解析时间字段
+    if (parsed.date) {
+      fileCreatedAt.value = new Date(parsed.date as string)
+    }
+    if (parsed.lastmod) {
+      fileUpdatedAt.value = new Date(parsed.lastmod as string)
+    }
+
+    frontmatterFields.value = {
+      title: (parsed.title as string) || '无标题',
+      date: parsed.date as string,
+      lastmod: parsed.lastmod as string,
+      tags: (parsed.tags as string[]) || [],
+    }
+  }
+  else {
+    // 没有 frontmatter，使用默认值
+    const fileName = currentFilePath.value.split(/[\\/]/).pop() || '无标题'
+    const title = fileName.replace(/\.md$/, '')
+
+    const now = new Date()
+    fileCreatedAt.value = now
+    fileUpdatedAt.value = now
+
+    frontmatterFields.value = {
+      title,
+      date: now.toISOString(),
+      lastmod: now.toISOString(),
+      tags: [],
+    }
+  }
+}
+
+const openFrontmatterDrawer = () => {
+  if (!currentFilePath.value) {
+    toast.error('请先打开一个文件')
+    return
+  }
+  updateFileMetadata()
+  isFrontmatterDrawerOpen.value = true
+}
+
+const handleFrontmatterTitleUpdate = (newTitle: string) => {
+  // 更新 frontmatter 中的标题
+  frontmatterFields.value.title = newTitle
+  // toast.success('标题已更新，保存文件后生效')
 }
 
 // 检查微信草稿箱工作流是否可用
@@ -496,6 +589,16 @@ onUnmounted(() => {
               variant="ghost"
               size="icon"
               class="text-muted-foreground hover:text-foreground w-8 h-8"
+              title="Frontmatter 元数据"
+              @click="openFrontmatterDrawer"
+            >
+              <Icon name="lucide:file-code" class="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              class="text-muted-foreground hover:text-foreground w-8 h-8"
               title="资源库"
               @click="openResourcesDrawer"
             >
@@ -522,9 +625,8 @@ onUnmounted(() => {
               <Icon name="lucide:maximize-2" class="w-4 h-4" />
             </Button>
 
-            <Button v-if="currentFilePath" variant="outline" size="sm" :disabled="isEditorLoading" @click="handleSave">
-              <Save class="w-4 h-4 mr-2" />
-              保存
+            <Button v-if="currentFilePath" variant="outline" size="icon" :disabled="isEditorLoading" title="保存" @click="handleSave">
+              <Save class="w-4 h-4" />
             </Button>
           </div>
         </header>
@@ -687,5 +789,15 @@ onUnmounted(() => {
         </div>
       </DrawerContent>
     </Drawer>
+
+    <!-- Frontmatter Drawer -->
+    <AppFrontmatterDrawer
+      v-model:open="isFrontmatterDrawerOpen"
+      :frontmatter-fields="frontmatterFields"
+      :tags="[]"
+      :created-at="fileCreatedAt"
+      :updated-at="fileUpdatedAt"
+      @update:title="handleFrontmatterTitleUpdate"
+    />
   </div>
 </template>
