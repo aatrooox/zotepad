@@ -90,8 +90,8 @@ export function parseYAML(yamlString: string): FrontmatterFields {
     }
 
     const [, key, value] = match
-    const cleanKey = key.trim()
-    let cleanValue = value.trim()
+    const cleanKey = (key ?? '').trim()
+    let cleanValue = (value ?? '').trim()
 
     // 处理引号包裹的值
     if ((cleanValue.startsWith('"') && cleanValue.endsWith('"')) ||
