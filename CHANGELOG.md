@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.5 (2026-01-09)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.4...v0.27.5)
+
+### 🚀 Features
+
+- 增强本地文章/数据库文章的frontmatter管理功能 ([8c8add7](https://github.com/aatrooox/zotepad/commit/8c8add7))
+
+
 ## v0.27.4 (2026-01-08)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.3...v0.27.4)
