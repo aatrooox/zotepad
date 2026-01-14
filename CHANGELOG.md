@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.27.6 (2026-01-14)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.5...v0.27.6)
+
+### 🏡 Chore
+
+- 更换app icon ([7870e29](https://github.com/aatrooox/zotepad/commit/7870e29))
+- eslint ([a139478](https://github.com/aatrooox/zotepad/commit/a139478))
+
+
 ## v0.27.5 (2026-01-09)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.4...v0.27.5)
