@@ -2,7 +2,6 @@
 import { useWindowSize } from '@vueuse/core'
 import AppSidebar from '~/components/app/sidebar/AppSidebar.vue'
 import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
-import { useKeyboardInset } from '~/composables/useKeyboardInset'
 
 useHead({ titleTemplate: '%s - ZotePad' })
 

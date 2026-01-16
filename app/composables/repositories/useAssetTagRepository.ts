@@ -112,7 +112,7 @@ export function useAssetTagRepository() {
 
       for (const assetId of assetIds) {
         // 2. 获取资源的 UUID，如果没有则创建一个
-        let assetResult = await select<Array<{ uuid: string | null }>>(
+        const assetResult = await select<Array<{ uuid: string | null }>>(
           'SELECT uuid FROM assets WHERE id = ?',
           [assetId],
         )

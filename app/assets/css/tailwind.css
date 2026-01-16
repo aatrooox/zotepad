@@ -25,7 +25,9 @@
 }
 
 @theme inline {
-  --font-sans: 'SweiCurveLeg', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans:
+    'SweiCurveLeg', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -85,7 +87,7 @@
   .glass-panel {
     @apply bg-background/80 backdrop-blur-xl border border-white/10 shadow-sm;
   }
-  
+
   /* 交互反馈类 */
   .clickable-spring {
     @apply transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-95;
@@ -95,7 +97,7 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-br from-primary to-slate-500;
   }
-  
+
   .bg-gradient-brand {
     @apply bg-gradient-to-br from-primary to-slate-500;
   }
@@ -112,23 +114,13 @@
     left: 0;
     right: 0;
     height: 200px;
-    background: linear-gradient(
-      to bottom,
-      hsl(142 30% 40% / 0.15) 0%,
-      hsl(142 25% 35% / 0.08) 30%,
-      transparent 100%
-    );
+    background: linear-gradient(to bottom, hsl(142 30% 40% / 0.15) 0%, hsl(142 25% 35% / 0.08) 30%, transparent 100%);
     pointer-events: none;
     z-index: 0;
   }
 
   .dark .bg-gradient-sidebar-top::before {
-    background: linear-gradient(
-      to bottom,
-      hsl(142 35% 30% / 0.2) 0%,
-      hsl(142 25% 20% / 0.1) 30%,
-      transparent 100%
-    );
+    background: linear-gradient(to bottom, hsl(142 35% 30% / 0.2) 0%, hsl(142 25% 20% / 0.1) 30%, transparent 100%);
   }
 
   /* 移动端沉浸式顶部渐变 */
@@ -137,12 +129,7 @@
       radial-gradient(ellipse 80% 50% at 50% 0%, hsl(142 40% 45% / 0.6) 0%, transparent 50%),
       radial-gradient(ellipse 100% 80% at 20% 0%, hsl(142 35% 40% / 0.3) 0%, transparent 50%),
       radial-gradient(ellipse 100% 80% at 80% 0%, hsl(142 25% 35% / 0.3) 0%, transparent 50%),
-      linear-gradient(
-        to bottom,
-        hsl(142 30% 35%) 0%,
-        hsl(142 20% 25%) 15%,
-        hsl(var(--background)) 50%
-      );
+      linear-gradient(to bottom, hsl(142 30% 35%) 0%, hsl(142 20% 25%) 15%, hsl(var(--background)) 50%);
   }
 
   .dark .bg-gradient-immersive-top {
@@ -150,12 +137,7 @@
       radial-gradient(ellipse 80% 50% at 50% 0%, hsl(142 45% 35% / 0.5) 0%, transparent 50%),
       radial-gradient(ellipse 100% 80% at 20% 0%, hsl(142 40% 30% / 0.25) 0%, transparent 50%),
       radial-gradient(ellipse 100% 80% at 80% 0%, hsl(142 30% 25% / 0.25) 0%, transparent 50%),
-      linear-gradient(
-        to bottom,
-        hsl(142 35% 20%) 0%,
-        hsl(142 20% 12%) 15%,
-        hsl(var(--background)) 50%
-      );
+      linear-gradient(to bottom, hsl(142 35% 20%) 0%, hsl(142 20% 12%) 15%, hsl(var(--background)) 50%);
   }
 
   /* 文本平衡，用于标题 */
@@ -220,8 +202,10 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
-  
-  html, body, #__nuxt {
+
+  html,
+  body,
+  #__nuxt {
     height: 100%;
     /* Allow native scrolling to avoid focus/keyboard issues on mobile */
     overflow: hidden;
@@ -245,7 +229,8 @@
   }
 
   /* 安全区域适配 */
-  html, body {
+  html,
+  body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;

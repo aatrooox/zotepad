@@ -3,8 +3,6 @@
  * 统一管理笔记、动态、资源的积分奖励逻辑
  */
 
-import type { Asset, Moment, Note } from '~/types/models'
-
 export function usePointsRewards() {
   const appConfig = useAppConfig()
 

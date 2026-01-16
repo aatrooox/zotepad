@@ -1,7 +1,6 @@
-import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
-import { exists, mkdir, readDir, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readDir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useStorage } from '@vueuse/core'
 
 export interface FileNode {

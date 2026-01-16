@@ -1,4 +1,4 @@
-import { debug, info, error as logError } from '@tauri-apps/plugin-log'
+import { info } from '@tauri-apps/plugin-log'
 
 // 微信公众号允许的标签白名单
 const ALLOWED_TAGS = [
@@ -508,10 +508,14 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
         value = 'auto'
     }
 
-    // code 标签也需要保留空格
+    // code 标签样式处理 (根据上下文判断)
     if (outTagName === 'code') {
-      if (attr === 'white-space')
-        value = 'pre-wrap'
+      // 注意: 这里在提取样式阶段,具体处理在后面的专门代码块中
+      // 此处先保留原逻辑,避免过早干预
+      if (attr === 'white-space') {
+        // 暂不强制设置,留给后续判断
+        // value = 'pre-wrap'
+      }
     }
 
     // 微信公众号不支持 grid 布局，转换为 flex
@@ -797,10 +801,49 @@ function getOneDomCssStyle(node: Node, references: LinkReference[] = [], targetS
     styles.push('line-height: 1')
   }
 
-  // code 标签特殊处理 (确保空格和换行保留)
+  // code 标签特殊处理
   if (outTagName === 'code') {
-    if (!styles.some(s => s.startsWith('white-space:'))) {
-      styles.push('white-space: pre-wrap')
+    // 判断是否为行内 code (父元素不是 pre)
+    const isInlineCode = !parent || parent.tagName.toLowerCase() !== 'pre'
+
+    if (isInlineCode) {
+      // 行内 code: 作为强调样式,允许正常折行
+      // 移除可能导致不换行的样式
+      const whiteSpaceIdx = styles.findIndex(s => s.startsWith('white-space:'))
+      if (whiteSpaceIdx > -1)
+        styles.splice(whiteSpaceIdx, 1)
+      styles.push('white-space: normal')
+
+      // 允许单词内断行,避免单词过长撑破布局
+      if (!styles.some(s => s.startsWith('word-break:')))
+        styles.push('word-break: break-word')
+
+      // 移除固定宽度,防止安卓机型显示异常
+      const widthIdx = styles.findIndex(s => s.startsWith('width:'))
+      if (widthIdx > -1)
+        styles.splice(widthIdx, 1)
+
+      const maxWidthIdx = styles.findIndex(s => s.startsWith('max-width:'))
+      if (maxWidthIdx > -1)
+        styles.splice(maxWidthIdx, 1)
+
+      // 确保 inline 显示,不独占一行
+      const displayIdx = styles.findIndex(s => s.startsWith('display:'))
+      if (displayIdx > -1)
+        styles.splice(displayIdx, 1)
+      styles.push('display: inline')
+
+      // 移除可能存在的固定高度
+      const heightIdx = styles.findIndex(s => s.startsWith('height:'))
+      if (heightIdx > -1)
+        styles.splice(heightIdx, 1)
+    }
+    else {
+      // 代码块内的 code: 保留空格和换行
+      if (!styles.some(s => s.startsWith('white-space:')))
+        styles.push('white-space: pre-wrap')
+      if (!styles.some(s => s.startsWith('word-break:')))
+        styles.push('word-break: break-all')
     }
   }
 

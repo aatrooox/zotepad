@@ -1,7 +1,7 @@
 import type { WorkflowSchema } from '~/types/workflow'
 import { useAsyncState } from '~/utils/async'
-import { useTauriSQL } from '../useTauriSQL'
 import { generateUUID } from '~/utils/uuid'
+import { useTauriSQL } from '../useTauriSQL'
 
 export function useWorkflowSchemaRepository() {
   const { execute, select } = useTauriSQL()

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Asset } from '~/types/models'
 import { writeHtml } from '@tauri-apps/plugin-clipboard-manager'
 import { useColorMode } from '@vueuse/core'
 import { Eye, FilePlus, FolderOpen, Pencil, Save, Wand2 } from 'lucide-vue-next'

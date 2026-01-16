@@ -235,8 +235,9 @@ const Editor = defineComponent({
 }
 
 .milkdown .editor h2 {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: bold;
+  color:hsl(var(--primary));
   line-height: 1.3;
   margin-top: 1.75rem;
   margin-bottom: 0.75rem;
@@ -244,7 +245,7 @@ const Editor = defineComponent({
 }
 
 .milkdown .editor h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 400;
   line-height: 1.4;
   margin-top: 1.5rem;

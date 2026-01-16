@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/models'
 import type { Workflow } from '~/types/workflow'
-import { useColorMode } from '@vueuse/core'
 import gsap from 'gsap'
 import { toast } from 'vue-sonner'
 import { useMomentRepository } from '~/composables/repositories/useMomentRepository'
-import { useWorkflowRepository } from '~/composables/repositories/useWorkflowRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useWorkflowRunner } from '~/composables/useWorkflowRunner'
-import { WORKFLOW_TYPES } from '~/types/workflow'
 
 useHead({ title: '动态 - ZotePad' })
 

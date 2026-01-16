@@ -20,7 +20,6 @@ import {
 import { Input } from '~/components/ui/input'
 import { useAssetRepository } from '~/composables/repositories/useAssetRepository'
 import { useAssetTagRepository } from '~/composables/repositories/useAssetTagRepository'
-import { useSettingRepository } from '~/composables/repositories/useSettingRepository'
 import { useSyncManager } from '~/composables/settings/useSyncManager'
 import { useStorageService } from '~/composables/useStorageService'
 

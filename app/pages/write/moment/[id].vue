@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ToolbarNames } from 'md-editor-v3'
-import type { Asset, Moment } from '~/types/models'
+import type { Asset } from '~/types/models'
 import { useColorMode, useFileDialog } from '@vueuse/core'
 import { MdEditor } from 'md-editor-v3'
 import { toast } from 'vue-sonner'
