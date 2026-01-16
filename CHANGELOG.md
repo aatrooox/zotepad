@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.7 (2026-01-16)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.6...v0.27.7)
+
+### 🚀 Features
+
+- 优化二级标题样式; init opencode; 优化 `code` 显示效果 ([8453aab](https://github.com/aatrooox/zotepad/commit/8453aab))
+
+
 ## v0.27.6 (2026-01-14)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.5...v0.27.6)
