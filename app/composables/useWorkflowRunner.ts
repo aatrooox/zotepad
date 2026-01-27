@@ -273,31 +273,163 @@ export function useWorkflowRunner() {
       await info(`[Workflow] Uploading photo ${i + 1}/${photos.length}: ${photoUrl.substring(0, 80)}...`)
 
       try {
-        // 1. 下载远程图片
-        await debug(`[Workflow] Downloading image from: ${photoUrl}`)
-        const imageResponse = await tauriFetch(photoUrl)
-        if (!imageResponse.ok) {
-          throw new Error(`Failed to download image: HTTP ${imageResponse.status}`)
+        // 1. 获取图片数据 - 支持多种格式
+        await info(`[Workflow] ===== Photo ${i + 1}/${photos.length} Download Start =====`)
+        await info(`[Workflow] Source URL: ${photoUrl}`)
+
+        let imageBlob: Blob
+        let contentType: string
+
+        // 判断 URL 类型
+        if (photoUrl.startsWith('data:')) {
+          // ===== Base64 Data URL 处理 =====
+          await info(`[Workflow] Detected Base64 Data URL`)
+
+          try {
+            // 解析 data URL: data:image/png;base64,iVBORw0KGgo...
+            const matches = photoUrl.match(/^data:([^;]+);base64,(.+)$/)
+            if (!matches) {
+              throw new Error('Invalid data URL format')
+            }
+
+            contentType = matches[1] || 'image/png'
+            const base64Data = matches[2]
+
+            await info(`  - Content-Type from data URL: ${contentType}`)
+            await info(`  - Base64 data length: ${base64Data.length} chars`)
+
+            // Base64 解码为二进制数据
+            const binaryString = atob(base64Data)
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
+            }
+
+            imageBlob = new Blob([bytes], { type: contentType })
+            await info(`  - Blob created from base64: ${imageBlob.size} bytes`)
+          }
+          catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err)
+            throw new Error(`Failed to parse base64 data URL: ${errMsg}`)
+          }
+        }
+        else if (photoUrl.startsWith('blob:')) {
+          // ===== Blob URL 处理 =====
+          await info(`[Workflow] Detected Blob URL`)
+
+          try {
+            // Blob URL 可以直接通过 fetch 获取
+            const blobResponse = await fetch(photoUrl)
+            if (!blobResponse.ok) {
+              throw new Error(`Failed to fetch blob: HTTP ${blobResponse.status}`)
+            }
+
+            imageBlob = await blobResponse.blob()
+            contentType = imageBlob.type || 'image/png'
+
+            await info(`  - Blob fetched: ${imageBlob.size} bytes`)
+            await info(`  - Content-Type: ${contentType}`)
+          }
+          catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err)
+            throw new Error(`Failed to fetch blob URL: ${errMsg}`)
+          }
+        }
+        else {
+          // ===== HTTP/HTTPS URL 处理 =====
+          await info(`[Workflow] Detected HTTP/HTTPS URL`)
+
+          const imageResponse = await tauriFetch(photoUrl)
+          await info(`  - Download response status: ${imageResponse.status}`)
+
+          if (!imageResponse.ok) {
+            throw new Error(`Failed to download image: HTTP ${imageResponse.status}`)
+          }
+
+          // 获取响应头信息
+          contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+          const contentLength = imageResponse.headers.get('content-length') || 'unknown'
+          const contentDisposition = imageResponse.headers.get('content-disposition') || 'none'
+
+          await info(`  - Response Headers:`)
+          await info(`    * Content-Type: ${contentType}`)
+          await info(`    * Content-Length: ${contentLength}`)
+          await info(`    * Content-Disposition: ${contentDisposition}`)
+
+          imageBlob = await imageResponse.blob()
+          await info(`  - Blob created: ${imageBlob.size} bytes, blob.type: ${imageBlob.type}`)
         }
 
-        const imageBlob = await imageResponse.blob()
-        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+        // 2. 智能提取文件名和扩展名
+        let finalFilename: string
+        let finalContentType: string
 
-        // 从 URL 提取文件名，或使用默认名
-        const urlParts = photoUrl.split('/')
-        let filename = urlParts[urlParts.length - 1] || `image_${i}.jpg`
-        // 移除 query string
-        filename = filename.split('?')[0] || filename
+        // 根据 content-type 推断正确的扩展名
+        const contentTypeToExt: Record<string, string> = {
+          'image/jpeg': 'jpg',
+          'image/jpg': 'jpg',
+          'image/png': 'png',
+          'image/gif': 'gif',
+          'image/webp': 'webp',
+          'image/bmp': 'bmp',
+        }
 
-        await debug(`[Workflow] Image downloaded: ${imageBlob.size} bytes, type: ${contentType}, name: ${filename}`)
+        const detectedExt = contentTypeToExt[contentType.toLowerCase()] || 'jpg'
+        finalContentType = contentType
 
-        // 2. 构建 FormData
+        if (photoUrl.startsWith('data:') || photoUrl.startsWith('blob:')) {
+          // Data URL 和 Blob URL 无法从 URL 提取文件名，使用默认名
+          finalFilename = `image_${i + 1}.${detectedExt}`
+          await info(`[Workflow] Generated filename for data/blob URL: ${finalFilename}`)
+        }
+        else {
+          // HTTP/HTTPS URL - 从 URL 提取文件名
+          const urlParts = photoUrl.split('/')
+          let urlFilename = urlParts[urlParts.length - 1] || `image_${i + 1}`
+          // 移除 query string
+          urlFilename = urlFilename.split('?')[0] || urlFilename
+
+          // 检查 URL 中的文件名是否已有扩展名
+          const hasExtension = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(urlFilename)
+
+          if (!hasExtension) {
+            // URL 没有扩展名，根据 content-type 添加
+            finalFilename = `${urlFilename}.${detectedExt}`
+            await info(`[Workflow] URL has no extension, added: .${detectedExt}`)
+          }
+          else {
+            // 检查扩展名是否与 content-type 匹配
+            const urlExt = urlFilename.split('.').pop()?.toLowerCase()
+            const expectedExt = detectedExt
+            if (urlExt !== expectedExt) {
+              await info(`[Workflow] WARNING: URL extension (${urlExt}) doesn't match Content-Type (${contentType})`)
+              await info(`[Workflow] Using Content-Type to determine extension: .${expectedExt}`)
+              // 替换扩展名
+              finalFilename = urlFilename.replace(/\.[^.]+$/, `.${expectedExt}`)
+            }
+            else {
+              finalFilename = urlFilename
+            }
+          }
+        }
+
+        await info(`[Workflow] Final filename: ${finalFilename}`)
+        await info(`[Workflow] Final content-type for File: ${finalContentType}`)
+
+        // 3. 构建 FormData
         const formData = new FormData()
         formData.append('access_token', accessToken)
         formData.append('type', 'image')
-        // 创建 File 对象
-        const file = new File([imageBlob], filename, { type: contentType })
+
+        // 创建 File 对象 - 使用正确的 content-type 和文件名
+        const file = new File([imageBlob], finalFilename, { type: finalContentType })
         formData.append('media', file)
+
+        await info(`[Workflow] FormData created:`)
+        await info(`  - File name: ${file.name}`)
+        await info(`  - File size: ${file.size} bytes`)
+        await info(`  - File type: ${file.type}`)
+        await info(`[Workflow] ===== Photo ${i + 1} Upload to WeChat Starting =====`)
 
         // 3. 上传到微信（通过代理服务器）
         // 注意：这里需要用原生 fetch 因为 FormData 需要自动设置 boundary
@@ -313,8 +445,15 @@ export function useWorkflowRunner() {
           body: formData,
         })
 
+        await info(`[Workflow] Upload response status: ${uploadResponse.status}`)
+        await info(`[Workflow] Upload response headers:`)
+        uploadResponse.headers.forEach((value: string, key: string) => {
+          info(`  - ${key}: ${value}`)
+        })
+
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text()
+          await logError(`[Workflow] Upload failed response body: ${errorText}`)
           throw new Error(`Upload failed: HTTP ${uploadResponse.status} - ${errorText}`)
         }
 
@@ -329,8 +468,10 @@ export function useWorkflowRunner() {
           errmsg?: string
         }
 
-        // 调试：打印完整响应
-        await info(`[Workflow] Upload response: ${JSON.stringify(result)}`)
+        // 详细打印完整响应
+        await info(`[Workflow] ===== Upload Response =====`)
+        await info(JSON.stringify(result, null, 2))
+        await info(`[Workflow] ===== Upload Response End =====`)
 
         // 兼容多种返回格式
         let mediaId: string | undefined
@@ -368,7 +509,11 @@ export function useWorkflowRunner() {
         // 仅当微信返回了可用的 URL 时才替换；否则保留原图地址，避免替换成空字符串
         imageUrlMap[photoUrl] = finalWxUrl || photoUrl
 
-        await info(`[Workflow] Photo ${i + 1} uploaded successfully. media_id: ${mediaId}`)
+        await info(`[Workflow] ===== Photo ${i + 1} Upload SUCCESS =====`)
+        await info(`  - Original URL: ${photoUrl}`)
+        await info(`  - Media ID: ${mediaId}`)
+        await info(`  - WeChat URL: ${finalWxUrl || '(not provided)'}`)
+        await info(`[Workflow] ===== Photo ${i + 1} Complete =====`)
       }
       catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err)
