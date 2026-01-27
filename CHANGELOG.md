@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.8 (2026-01-27)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.7...v0.27.8)
+
+### 🐞 Bug Fixes
+
+- 图片上传时兼容imgx返回的png以及直接复制粘贴的base64图片 ([c7e07e5](https://github.com/aatrooox/zotepad/commit/c7e07e5))
+
+
 ## v0.27.7 (2026-01-16)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.6...v0.27.7)
