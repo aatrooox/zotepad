@@ -106,6 +106,94 @@ const wxDraftReady = ref(false) // 工作流存在且环境变量已配置
 const isUploadingToDraft = ref(false)
 const WX_REQUIRED_ENVS = ['ZZCLUB_PAT', 'WX_APPID', 'WX_APPSECRET']
 
+const dataUrlImageRegex = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g
+
+const getImageExtension = (mimeType: string) => {
+  const parts = mimeType.split('/')
+  const rawExt = parts[1] || 'png'
+  return rawExt.replace('svg+xml', 'svg').replace('jpeg', 'jpg')
+}
+
+const dataUrlToFile = (dataUrl: string, index: number) => {
+  const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
+  if (!matches)
+    throw new Error('无效的图片数据')
+
+  const contentType = matches[1] || 'image/png'
+  const base64Data = matches[2]
+  const binaryString = atob(base64Data)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  const extension = getImageExtension(contentType)
+  const fileName = `pasted-${Date.now()}-${index}.${extension}`
+  return new File([bytes], fileName, { type: contentType })
+}
+
+const uploadImagesAndRegister = async (files: File[]) => {
+  const results = await uploadFiles(files)
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    const file = files[i]
+    if (!result || !file)
+      continue
+
+    await createAsset({
+      url: result.url,
+      path: result.path,
+      filename: result.filename || file.name,
+      size: result.size || file.size,
+      mime_type: result.mime_type || file.type,
+      storage_type: 'cos',
+    })
+  }
+  return results.map(r => r.url)
+}
+
+const isReplacingBase64Images = ref(false)
+const replaceBase64Images = async () => {
+  if (isReplacingBase64Images.value)
+    return
+
+  const matches = content.value.match(dataUrlImageRegex)
+  if (!matches || matches.length === 0)
+    return
+
+  isReplacingBase64Images.value = true
+  try {
+    const uniqueDataUrls = [...new Set(matches)]
+    const files = uniqueDataUrls.map((dataUrl, index) => dataUrlToFile(dataUrl, index))
+    const urls = await uploadImagesAndRegister(files)
+
+    if (urls.length !== uniqueDataUrls.length) {
+      throw new Error('图片上传失败')
+    }
+
+    let updatedContent = content.value
+    uniqueDataUrls.forEach((dataUrl, index) => {
+      const url = urls[index]
+      if (url) {
+        updatedContent = updatedContent.split(dataUrl).join(url)
+      }
+    })
+
+    if (updatedContent !== content.value) {
+      content.value = updatedContent
+      toast.success(`已上传 ${urls.length} 张图片`)
+    }
+  }
+  catch (e: any) {
+    console.error('Base64 image replace failed:', e)
+    toast.error(e.message || '图片上传失败')
+  }
+  finally {
+    isReplacingBase64Images.value = false
+  }
+}
+
+const debouncedReplaceBase64Images = useDebounceFn(replaceBase64Images, 500)
+
 // 检查微信草稿箱工作流是否可用
 const checkWxDraftWorkflow = async () => {
   try {
@@ -340,6 +428,7 @@ const saveNote = async () => {
 
 const debouncedSave = useDebounceFn(saveNote, 1000)
 
+
 /**
  * 强制同步当前笔记
  */
@@ -414,6 +503,10 @@ const handleFrontmatterTitleUpdate = (newTitle: string) => {
 
 watch([content, title], () => {
   debouncedSave()
+})
+
+watch(content, () => {
+  debouncedReplaceBase64Images()
 })
 
 // Load initial data
@@ -682,23 +775,7 @@ const saveToLocalFile = async () => {
 
 const onUploadImg = async (files: Array<File>, callback: (urls: Array<string>) => void) => {
   try {
-    const results = await uploadFiles(files)
-
-    // 记录到资源表
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i] as any
-      const file = files[i] as any
-
-      await createAsset({
-        url: result.url,
-        path: result.path,
-        filename: result.filename || file.name,
-        size: result.size || file.size,
-        mime_type: result.mime_type || file.type,
-        storage_type: 'cos',
-      })
-    }
-    const urls = results.map(r => r.url)
+    const urls = await uploadImagesAndRegister(files)
     callback(urls)
     toast.success(`已上传 ${urls.length} 张图片`)
   }
