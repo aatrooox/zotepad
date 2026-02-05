@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.9 (2026-02-05)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.8...v0.27.9)
+
+### 🚀 Features
+
+- 增加copy base64时直接上传到cos ([3935b48](https://github.com/aatrooox/zotepad/commit/3935b48))
+
+
 ## v0.27.8 (2026-01-27)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.7...v0.27.8)
