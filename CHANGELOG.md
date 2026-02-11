@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.10 (2026-02-11)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.9...v0.27.10)
+
+### 🐞 Bug Fixes
+
+- 修复base64图片反复被上传的问题 ([d2a6694](https://github.com/aatrooox/zotepad/commit/d2a6694))
+
+
 ## v0.27.9 (2026-02-05)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.8...v0.27.9)
