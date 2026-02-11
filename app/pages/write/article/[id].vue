@@ -120,7 +120,7 @@ const dataUrlToFile = (dataUrl: string, index: number) => {
     throw new Error('无效的图片数据')
 
   const contentType = matches[1] || 'image/png'
-  const base64Data = matches[2]
+  const base64Data = matches[2] as string
   const binaryString = atob(base64Data)
   const bytes = new Uint8Array(binaryString.length)
   for (let i = 0; i < binaryString.length; i++) {
@@ -156,7 +156,9 @@ const replaceBase64Images = async () => {
   if (isReplacingBase64Images.value)
     return
 
-  const matches = content.value.match(dataUrlImageRegex)
+  // 检查当前内容是否包含 base64 图片
+  const currentContent = content.value
+  const matches = currentContent.match(dataUrlImageRegex)
   if (!matches || matches.length === 0)
     return
 
@@ -170,15 +172,20 @@ const replaceBase64Images = async () => {
       throw new Error('图片上传失败')
     }
 
+    // 使用实时的 content.value 进行替换（防止用户在上传期间编辑导致替换失败）
     let updatedContent = content.value
+    let hasReplaced = false
+
     uniqueDataUrls.forEach((dataUrl, index) => {
       const url = urls[index]
-      if (url) {
+      if (url && updatedContent.includes(dataUrl)) {
         updatedContent = updatedContent.split(dataUrl).join(url)
+        hasReplaced = true
       }
     })
 
-    if (updatedContent !== content.value) {
+    // 只有确实替换了才更新 content（避免不必要的 watch 触发）
+    if (hasReplaced) {
       content.value = updatedContent
       toast.success(`已上传 ${urls.length} 张图片`)
     }
@@ -428,7 +435,6 @@ const saveNote = async () => {
 
 const debouncedSave = useDebounceFn(saveNote, 1000)
 
-
 /**
  * 强制同步当前笔记
  */
@@ -505,8 +511,12 @@ watch([content, title], () => {
   debouncedSave()
 })
 
+// 监听 content 变化，检测 base64 图片并上传
+// 只有在非上传状态时才触发，避免替换后再次触发上传
 watch(content, () => {
-  debouncedReplaceBase64Images()
+  if (!isReplacingBase64Images.value) {
+    debouncedReplaceBase64Images()
+  }
 })
 
 // Load initial data
