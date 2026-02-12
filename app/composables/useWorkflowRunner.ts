@@ -6,9 +6,10 @@ import { useTauriHTTP } from '~/composables/useTauriHTTP'
 import { encryptObjectForServer } from '~/lib/clientCrypto'
 
 // 需要加密请求体的 API URL
-const ENCRYPTED_API_URLS = [
-  'https://zzao.club/api/v1/wx/cgi-bin/token',
-  'http://localhost:4775/api/v1/wx/cgi-bin/token',
+// 2026年2月12日17:15:58 服务端不再加密参数
+const ENCRYPTED_API_URLS: any[] = [
+  // 'https://zzao.club/api/v1/wx/cgi-bin/token',
+  // 'http://localhost:4775/api/v1/wx/cgi-bin/token',
 ]
 
 // 微信素材上传接口 - 需要特殊处理 (FormData + 遍历 photos)
