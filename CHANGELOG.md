@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.27.11 (2026-02-12)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.10...v0.27.11)
+
+### 🚀 Features
+
+- 接口不再加密 ([2332a95](https://github.com/aatrooox/zotepad/commit/2332a95))
+
+### 🏡 Chore
+
+- 更新下一步计划 ([912f47e](https://github.com/aatrooox/zotepad/commit/912f47e))
+
+
 ## v0.27.10 (2026-02-11)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.9...v0.27.10)
