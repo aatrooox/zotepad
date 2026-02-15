@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.28.0 (2026-02-15)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.11...v0.28.0)
+
+### 🚀 Features
+
+- feat(preview): emit export event; improve local dir button label ([2e30422](https://github.com/aatrooox/zotepad/commit/2e30422))
+- feat(preview): validate preview/open path and return clearer errors ([482d380](https://github.com/aatrooox/zotepad/commit/482d380))
+- feat(preview): automation open+auto-export html + index; local workspace reset; docs ([29ad314](https://github.com/aatrooox/zotepad/commit/29ad314))
+
+### 🐞 Bug Fixes
+
+- fix(preview): stabilize preview auto-export and expand fs scope\n\nStabilize preview auto-export by adding deterministic editor-ready signaling and safer DOM detection; expand Tauri fs scope for preview export to include ~/.openclaw and common directories. ([3cefe03](https://github.com/aatrooox/zotepad/commit/3cefe03))
+- fix(fs): allow readTextFile for preview automation ([21114b5](https://github.com/aatrooox/zotepad/commit/21114b5))
+- fix(debug): use useLog() api correctly ([237b6aa](https://github.com/aatrooox/zotepad/commit/237b6aa))
+- fix(preview): emit preview:open from main window ([467abf8](https://github.com/aatrooox/zotepad/commit/467abf8))
+
+### 🏡 Chore
+
+- chore(merge): merge feature/preview-export — stabilize preview export ([9ec8e38](https://github.com/aatrooox/zotepad/commit/9ec8e38))
+- update Cargo.lock for deterministic merge ([75c732c](https://github.com/aatrooox/zotepad/commit/75c732c))
+- chore(debug): log preview plugin/page init ([535e2e2](https://github.com/aatrooox/zotepad/commit/535e2e2))
+- chore(debug): use tauri plugin-log for preview logs ([93455cc](https://github.com/aatrooox/zotepad/commit/93455cc))
+- chore(debug): add preview frontend logs ([24d35b2](https://github.com/aatrooox/zotepad/commit/24d35b2))
+- chore(debug): add preview/export logs ([9013340](https://github.com/aatrooox/zotepad/commit/9013340))
+- chore(tauri): align rust/js versions ([d0ad5fe](https://github.com/aatrooox/zotepad/commit/d0ad5fe))
+
+
 ## v0.27.11 (2026-02-12)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.10...v0.27.11)
