@@ -387,13 +387,39 @@ async fn preview_open(
     let app_handle = state_guard.app_handle.clone();
     drop(state_guard);
 
+    let path = body.path.trim().to_string();
+    if path.is_empty() {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Missing field: path".to_string()),
+        }));
+    }
+
+    // Basic sanity checks (best-effort)
+    if !path.ends_with(".md") && !path.ends_with(".markdown") {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Invalid file type: only .md/.markdown supported".to_string()),
+        }));
+    }
+
+    if !std::path::Path::new(&path).exists() {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some(format!("File not found: {}", path)),
+        }));
+    }
+
     // Best-effort: focus window
     if let Some(win) = app_handle.get_webview_window("main") {
         let _ = win.show();
         let _ = win.set_focus();
     }
 
-    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path: body.path }) {
+    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path }) {
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
