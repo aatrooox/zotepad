@@ -48,8 +48,6 @@ jobs:
         include:
           - platform: macos-latest
             args: --target universal-apple-darwin
-          - platform: ubuntu-22.04
-            args: ''
           - platform: windows-latest
             args: ''
 
@@ -64,23 +62,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-
-      # === Linux 依赖 ===
-      - name: Install system dependencies (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install Rust (Linux/Android)
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
 
       # === Windows 依赖 ===
       - name: Install Rust (Windows)
@@ -111,37 +92,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
-
-      # === Android 环境配置 ===
-      - name: Setup Android NDK (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26d
-          add-to-path: false
-
-      - name: Set Android env vars (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
-
-      - name: Setup Java (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: android-actions/setup-android@v3
-
-      - name: Add Android Rust target (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: rustup target add aarch64-linux-android
 
       # === 构建 macOS DMG ===
       - name: Build macOS app
@@ -203,71 +153,6 @@ jobs:
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
 
-      # === 构建 Android APK ===
-      - name: Setup Android NDK
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk-2
-        with:
-          ndk-version: r26d
-          add-to-path: false
-
-      - name: Set Android environment variables
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-          echo "NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-
-      - name: Build Android APK
-        if: matrix.platform == 'ubuntu-22.04'
-        env:
-          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/src-tauri/release.keystore
-          NUXT_PUBLIC_CRYPTO_SECRET_KEY: ${{ secrets.NUXT_PUBLIC_CRYPTO_SECRET_KEY }}
-        run: |
-          pnpm tauri android init
-
-          # Decode Keystore from Secrets
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-
-            # Create keystore.properties (fallback outside gen)
-            printf "keyAlias=%s\nkeyPassword=%s\nstoreFile=release.keystore\nstorePassword=%s\n" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD" > src-tauri/keystore.properties
-
-            echo "Keystore configured successfully."
-          else
-            echo "Warning: ANDROID_KEYSTORE_BASE64 secret not found. Build may fail or use debug signing."
-          fi
-
-          echo "Listing src-tauri/gen/android content:"
-          ls -R src-tauri/gen/android
-
-          pnpm tauri android build --apk --target aarch64
-
-      - name: Rename Android APK with version
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          VERSION="v${{ needs.check-commit.outputs.version }}"
-          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -type f | while read file; do
-            dir=$(dirname "$file")
-            base_name=$(basename "$file" .apk)
-            mv "$file" "${dir}/${base_name}-${VERSION}.apk"
-          done
-
-      - name: Upload Android APK
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-
   # === 创建 Release ===
   release:
     needs: [check-commit, build]
@@ -283,12 +168,6 @@ jobs:
         with:
           name: macos-dmg
           path: ./artifacts/macos/
-
-      - name: Download Android APK
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: ./artifacts/android/
 
       - name: Download Windows installers
         uses: actions/download-artifact@v4
@@ -323,11 +202,9 @@ jobs:
             ## 📦 下载
 
             - **macOS (Universal)**: `.dmg` 文件
-            - **Android (arm64-v8a)**: `.apk` 文件
             - **Windows (x64)**: `.msi` 或 `.exe` 安装包
           files: |
             ./artifacts/macos/*.dmg
-            ./artifacts/android/**/*.apk
             ./artifacts/windows/**/*.{msi,exe}
           draft: false
           prerelease: false
