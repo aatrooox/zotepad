@@ -7,6 +7,7 @@ use tauri_plugin_store;
 use std::io::Cursor;
 use image::{ImageFormat, ImageEncoder, AnimationDecoder};
 use image::codecs::jpeg::JpegEncoder;
+use chrono;
 use image::codecs::png::PngEncoder;
 use image::codecs::webp::WebPEncoder;
 use image::codecs::gif::{GifDecoder, GifEncoder};
@@ -87,6 +88,85 @@ async fn compress_image(buffer: Vec<u8>, quality: u8, target_format: Option<Stri
     } // cursor 作用域结束，释放 output_buffer 借用
 
     Ok(output_buffer)
+}
+
+// ============ Preview / Export (Local-first publishing helper) ============
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct PreviewOpenPayload {
+    path: String,
+}
+
+/// Emit an event to the frontend to open a markdown file in Preview page.
+/// This is mainly used for automation (OpenClaw / scripts) via the built-in HTTP server.
+#[cfg(not(mobile))]
+#[tauri::command]
+fn preview_open_file(app_handle: AppHandle, path: String) -> Result<(), String> {
+    // Best-effort: focus window
+    if let Some(win) = app_handle.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
+    app_handle
+        .emit("preview:open", PreviewOpenPayload { path })
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Export WeChat-ready HTML fragment into a deterministic workspace folder.
+/// Returns the written file path.
+#[tauri::command]
+fn export_wechat_html(slug: String, html: String, source_path: Option<String>) -> Result<String, String> {
+    // Allow override for portability
+    let base_dir = std::env::var("ZOTEPAD_EXPORT_DIR")
+        .unwrap_or_else(|_| "/Users/aatrox/.openclaw/workspace/zotepad-exports/html".to_string());
+
+    let safe_slug = slug
+        .trim()
+        .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "-");
+
+    if safe_slug.is_empty() {
+        return Err("empty slug".to_string());
+    }
+
+    let dir = std::path::Path::new(&base_dir);
+    std::fs::create_dir_all(dir).map_err(|e| format!("create_dir_all failed: {e}"))?;
+
+    let out_path = dir.join(format!("{}.html", safe_slug));
+    std::fs::write(&out_path, html).map_err(|e| format!("write failed: {e}"))?;
+
+    // Best-effort index.json update
+    // Format: { "slug": { "htmlPath": "...", "sourcePath": "...", "updatedAt": "..." }, ... }
+    let index_path = dir.join("index.json");
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let mut index_obj: serde_json::Map<String, serde_json::Value> = match std::fs::read_to_string(&index_path) {
+        Ok(s) => serde_json::from_str::<serde_json::Value>(&s)
+            .ok()
+            .and_then(|v| v.as_object().cloned())
+            .unwrap_or_default(),
+        Err(_) => serde_json::Map::new(),
+    };
+
+    let mut item = serde_json::Map::new();
+    item.insert(
+        "htmlPath".to_string(),
+        serde_json::Value::String(out_path.to_string_lossy().to_string()),
+    );
+    if let Some(p) = source_path {
+        item.insert("sourcePath".to_string(), serde_json::Value::String(p));
+    }
+    item.insert("updatedAt".to_string(), serde_json::Value::String(now));
+
+    index_obj.insert(safe_slug.clone(), serde_json::Value::Object(item));
+
+    if let Ok(s) = serde_json::to_string_pretty(&serde_json::Value::Object(index_obj)) {
+        let _ = std::fs::write(&index_path, s);
+    }
+
+    Ok(out_path.to_string_lossy().to_string())
 }
 
 // 同步引擎模块
@@ -282,6 +362,49 @@ async fn emit_event(
         success: true,
         data: None,
         message: Some(format!("Event '{}' emitted", event_name)),
+    }))
+}
+
+// ============ Preview automation via HTTP (desktop only) ============
+
+#[cfg(not(mobile))]
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct PreviewOpenRequest {
+    path: String,
+}
+
+/// POST /preview/open  { path }
+/// Emits event `preview:open` to the frontend.
+#[cfg(not(mobile))]
+async fn preview_open(
+    State(state): State<Arc<Mutex<HttpServerState>>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<PreviewOpenRequest>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let state_guard = state.lock().await;
+    check_auth(&headers, &state_guard.token)?;
+
+    let app_handle = state_guard.app_handle.clone();
+    drop(state_guard);
+
+    // Best-effort: focus window
+    if let Some(win) = app_handle.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
+    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path: body.path }) {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some(format!("Failed to emit event: {}", e)),
+        }));
+    }
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        message: Some("ok".to_string()),
     }))
 }
 
@@ -540,6 +663,7 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
     let app = Router::new()
         .route("/", get(health_check))
         .route("/health", get(health_check))
+        .route("/preview/open", post(preview_open))
         .route("/state", get(sync_state))
         .route("/metadata", get(sync_metadata))
         .route("/pull", get(sync_pull))
@@ -965,6 +1089,9 @@ pub fn run() {
             get_local_ip,
             #[cfg(not(mobile))]
             get_http_server_port,
+            #[cfg(not(mobile))]
+            preview_open_file,
+            export_wechat_html,
             compress_image
         ])
         .setup(|app| {
