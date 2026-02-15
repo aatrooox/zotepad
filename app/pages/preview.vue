@@ -22,6 +22,12 @@ const fileContent = ref('')
 const isLoading = ref(false)
 const lastExportPath = ref<string | null>(null)
 const lastError = ref<string | null>(null)
+const hasLoadedFile = ref(false)
+
+const exportRunId = ref(0)
+const editorReadySeq = ref(0)
+
+const previewContainerRef = ref<HTMLElement | null>(null)
 
 const { info, error } = useLog()
 
@@ -56,11 +62,25 @@ function getSlugFromMarkdown(path: string, content: string) {
   return slugifyFallback(fileName)
 }
 
-async function waitForEditorDom(timeoutMs = 5000) {
+function onEditorReady() {
+  editorReadySeq.value += 1
+}
+
+async function waitForEditorReady(fromSeq: number, timeoutMs = 15000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    const el = document.querySelector('.milkdown .editor') as HTMLElement | null
-    if (el && (el.textContent || '').trim().length > 0)
+    if (editorReadySeq.value > fromSeq)
+      return true
+    await new Promise(r => setTimeout(r, 50))
+  }
+  return false
+}
+
+async function waitForEditorDom(container: HTMLElement, timeoutMs = 5000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const el = container.querySelector('.milkdown .editor') as HTMLElement | null
+    if (el)
       return el
     await new Promise(r => setTimeout(r, 80))
   }
@@ -68,9 +88,15 @@ async function waitForEditorDom(timeoutMs = 5000) {
 }
 
 async function loadAndAutoExport(path: string) {
+  const runId = exportRunId.value + 1
+  exportRunId.value = runId
+
   isLoading.value = true
   lastError.value = null
   lastExportPath.value = null
+  hasLoadedFile.value = false
+
+  const startEditorReadySeq = editorReadySeq.value
 
   void info('loadAndAutoExport start', { tag: 'preview', context: { path } })
 
@@ -78,14 +104,36 @@ async function loadAndAutoExport(path: string) {
     // Read markdown via Tauri plugin-fs
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     fileContent.value = await readTextFile(path)
+    hasLoadedFile.value = true
     void info('readTextFile ok', { tag: 'preview', context: { len: fileContent.value?.length || 0 } })
 
-    // Wait editor render
+    if (runId !== exportRunId.value)
+      return
+
+    // Wait editor create signal (deterministic)
     await nextTick()
-    const editorDom = await waitForEditorDom(8000)
+    const isEditorReady = await waitForEditorReady(startEditorReadySeq, 20000)
+    void info('waitForEditorReady result', { tag: 'preview', context: { isEditorReady } })
+    if (!isEditorReady)
+      throw new Error('编辑器初始化超时')
+
+    if (runId !== exportRunId.value)
+      return
+
+    // Wait for DOM paint
+    await nextTick()
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    })
+
+    const container = previewContainerRef.value
+    if (!container)
+      throw new Error('预览容器未挂载')
+
+    const editorDom = await waitForEditorDom(container, 8000)
     void info('waitForEditorDom result', { tag: 'preview', context: { found: !!editorDom } })
     if (!editorDom)
-      throw new Error('未找到编辑器内容（渲染超时）')
+      throw new Error('未找到编辑器容器（渲染超时）')
 
     const htmlFragment = getWeChatMinimalHTML(editorDom)
     const slug = getSlugFromMarkdown(path, fileContent.value)
@@ -94,17 +142,25 @@ async function loadAndAutoExport(path: string) {
 
     // Write by Rust side to ensure directory creation & stable path
     const outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
+
+    if (runId !== exportRunId.value)
+      return
+
     lastExportPath.value = outPath
     void info('export_wechat_html ok', { tag: 'preview', context: { outPath } })
     toast.success(`已自动导出：${outPath}`)
   }
   catch (e: any) {
+    if (runId !== exportRunId.value)
+      return
+
     void error('loadAndAutoExport failed', e, { tag: 'preview' })
     lastError.value = e?.message || String(e)
     toast.error(`自动导出失败：${lastError.value}`)
   }
   finally {
-    isLoading.value = false
+    if (runId === exportRunId.value)
+      isLoading.value = false
   }
 }
 
@@ -118,7 +174,9 @@ watch(filePath, (p) => {
   <div class="h-full flex flex-col bg-background text-foreground">
     <header class="px-4 py-2 border-b bg-card flex items-center justify-between">
       <div class="min-w-0">
-        <div class="text-sm font-medium truncate">Preview 模式（自动导出）</div>
+        <div class="text-sm font-medium truncate">
+          Preview 模式（自动导出）
+        </div>
         <div class="text-xs text-muted-foreground truncate" :title="filePath || ''">
           {{ filePath || '等待外部指令打开文件…' }}
         </div>
@@ -130,11 +188,14 @@ watch(filePath, (p) => {
       </div>
     </header>
 
-    <div class="flex-1 overflow-hidden relative">
+    <div ref="previewContainerRef" class="flex-1 overflow-hidden relative">
       <MdEditorCrepe
+        v-if="filePath && hasLoadedFile"
+        :key="filePath"
         v-model="fileContent"
         :is-dark="resolvedTheme === 'dark'"
         :read-only="true"
+        @editor-ready="onEditorReady"
       />
 
       <div v-if="isLoading" class="absolute inset-0 bg-background/50 flex items-center justify-center z-50">

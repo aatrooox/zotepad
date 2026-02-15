@@ -92,16 +92,17 @@
     "fs:allow-desktop-write-recursive",
     "fs:allow-document-write-recursive",
     "fs:allow-picture-write-recursive",
-    {
-      "identifier": "fs:scope",
-      "allow": [
-        "$DOWNLOAD/**",
-        "$DESKTOP/**",
-        "$DOCUMENT/**",
-        "$PICTURE/**",
-        "**"
-      ]
-    },
+      {
+        "identifier": "fs:scope",
+        "allow": [
+          "$DOWNLOAD/**",
+          "$DESKTOP/**",
+          "$DOCUMENT/**",
+          "$PICTURE/**",
+          "$HOME/.openclaw/**",
+          "**"
+        ]
+      },
     "opener:default"
   ]
 }
