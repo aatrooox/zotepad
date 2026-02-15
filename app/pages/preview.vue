@@ -23,6 +23,8 @@ const isLoading = ref(false)
 const lastExportPath = ref<string | null>(null)
 const lastError = ref<string | null>(null)
 
+const { logInfo, logWarn, logError } = useLog()
+
 const resolvedTheme = computed(() => {
   if (colorMode.value !== 'auto')
     return colorMode.value as 'light' | 'dark'
@@ -68,34 +70,34 @@ async function loadAndAutoExport(path: string) {
   lastError.value = null
   lastExportPath.value = null
 
-  console.log('[preview] loadAndAutoExport start', { path })
+  void logInfo('loadAndAutoExport start', { tag: 'preview', context: { path } })
 
   try {
     // Read markdown via Tauri plugin-fs
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     fileContent.value = await readTextFile(path)
-    console.log('[preview] readTextFile ok', { len: fileContent.value?.length || 0 })
+    void logInfo('readTextFile ok', { tag: 'preview', context: { len: fileContent.value?.length || 0 } })
 
     // Wait editor render
     await nextTick()
     const editorDom = await waitForEditorDom(8000)
-    console.log('[preview] waitForEditorDom result', { found: !!editorDom })
+    void logInfo('waitForEditorDom result', { tag: 'preview', context: { found: !!editorDom } })
     if (!editorDom)
       throw new Error('未找到编辑器内容（渲染超时）')
 
     const htmlFragment = getWeChatMinimalHTML(editorDom)
     const slug = getSlugFromMarkdown(path, fileContent.value)
 
-    console.log('[preview] prepared export', { slug, htmlLen: htmlFragment.length })
+    void logInfo('prepared export', { tag: 'preview', context: { slug, htmlLen: htmlFragment.length } })
 
     // Write by Rust side to ensure directory creation & stable path
     const outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
     lastExportPath.value = outPath
-    console.log('[preview] export_wechat_html ok', { outPath })
+    void logInfo('export_wechat_html ok', { tag: 'preview', context: { outPath } })
     toast.success(`已自动导出：${outPath}`)
   }
   catch (e: any) {
-    console.error('[preview] loadAndAutoExport failed', e)
+    void logError('loadAndAutoExport failed', { tag: 'preview', context: { message: e?.message || String(e) } })
     lastError.value = e?.message || String(e)
     toast.error(`自动导出失败：${lastError.value}`)
   }
