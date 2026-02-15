@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.28.1 (2026-02-15)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.28.0...v0.28.1)
+
+### 🏡 Chore
+
+- disable ubuntu/android builds ([105c632](https://github.com/aatrooox/zotepad/commit/105c632))
+- update Cargo.lock ([5682849](https://github.com/aatrooox/zotepad/commit/5682849))
+
+
 ## v0.28.0 (2026-02-15)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.27.11...v0.28.0)
