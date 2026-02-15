@@ -13,11 +13,22 @@ export default defineNuxtPlugin(() => {
   // Best-effort: ignore errors if not running under Tauri
   listen<{ path: string }>('preview:open', async (event) => {
     const path = event.payload?.path
+    console.log('[preview-open] received preview:open', { path })
+
     if (!path)
       return
 
-    // Navigate to preview page with query param
-    // (query is easiest; path can be long but acceptable for local-only automation)
-    await router.push({ path: '/preview', query: { path } })
-  }).catch(() => {})
+    try {
+      // Navigate to preview page with query param
+      // (query is easiest; path can be long but acceptable for local-only automation)
+      await router.push({ path: '/preview', query: { path } })
+      console.log('[preview-open] router.push ok')
+    }
+    catch (e) {
+      console.error('[preview-open] router.push failed', e)
+      throw e
+    }
+  }).catch((e) => {
+    console.warn('[preview-open] listen failed (likely not running under Tauri)', e)
+  })
 })

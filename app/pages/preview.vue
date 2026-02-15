@@ -34,7 +34,7 @@ function slugifyFallback(name: string) {
     .trim()
     .replace(/\.[^/.]+$/, '')
     .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9\-_]/g, '-')
+    .replace(/[^\w-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase() || 'untitled'
@@ -56,7 +56,7 @@ async function waitForEditorDom(timeoutMs = 5000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const el = document.querySelector('.milkdown .editor') as HTMLElement | null
-    if (el && el.innerText.trim().length > 0)
+    if (el && (el.textContent || '').trim().length > 0)
       return el
     await new Promise(r => setTimeout(r, 80))
   }
@@ -68,26 +68,34 @@ async function loadAndAutoExport(path: string) {
   lastError.value = null
   lastExportPath.value = null
 
+  console.log('[preview] loadAndAutoExport start', { path })
+
   try {
-    // Read markdown via Tauri plugin-fs in the simplest way: use built-in local loader path
+    // Read markdown via Tauri plugin-fs
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     fileContent.value = await readTextFile(path)
+    console.log('[preview] readTextFile ok', { len: fileContent.value?.length || 0 })
 
     // Wait editor render
     await nextTick()
     const editorDom = await waitForEditorDom(8000)
+    console.log('[preview] waitForEditorDom result', { found: !!editorDom })
     if (!editorDom)
       throw new Error('未找到编辑器内容（渲染超时）')
 
     const htmlFragment = getWeChatMinimalHTML(editorDom)
     const slug = getSlugFromMarkdown(path, fileContent.value)
 
+    console.log('[preview] prepared export', { slug, htmlLen: htmlFragment.length })
+
     // Write by Rust side to ensure directory creation & stable path
     const outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
     lastExportPath.value = outPath
+    console.log('[preview] export_wechat_html ok', { outPath })
     toast.success(`已自动导出：${outPath}`)
   }
   catch (e: any) {
+    console.error('[preview] loadAndAutoExport failed', e)
     lastError.value = e?.message || String(e)
     toast.error(`自动导出失败：${lastError.value}`)
   }
