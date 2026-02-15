@@ -112,14 +112,23 @@ fn preview_open_file(app_handle: AppHandle, path: String) -> Result<(), String> 
         log::warn!("[preview_open_file] main webview window not found");
     }
 
-    app_handle
-        .emit("preview:open", PreviewOpenPayload { path: path.clone() })
-        .map_err(|e| {
-            log::error!("[preview_open_file] emit preview:open failed: {}", e);
-            e.to_string()
-        })?;
-
-    log::info!("[preview_open_file] emit preview:open ok");
+    // Prefer emitting from window (more deterministic for JS listeners)
+    if let Some(win) = app_handle.get_webview_window("main") {
+        win.emit("preview:open", PreviewOpenPayload { path: path.clone() })
+            .map_err(|e| {
+                log::error!("[preview_open_file] win.emit preview:open failed: {}", e);
+                e.to_string()
+            })?;
+        log::info!("[preview_open_file] win.emit preview:open ok");
+    } else {
+        app_handle
+            .emit("preview:open", PreviewOpenPayload { path: path.clone() })
+            .map_err(|e| {
+                log::error!("[preview_open_file] app.emit preview:open failed: {}", e);
+                e.to_string()
+            })?;
+        log::info!("[preview_open_file] app.emit preview:open ok");
+    }
     Ok(())
 }
 
@@ -477,16 +486,29 @@ async fn preview_open(
         log::warn!("[http/preview_open] main webview window not found");
     }
 
-    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path: path.clone() }) {
-        log::error!("[http/preview_open] emit preview:open failed: {}", e);
-        return Ok(Json(ApiResponse {
-            success: false,
-            data: None,
-            message: Some(format!("Failed to emit event: {}", e)),
-        }));
+    // Prefer emitting from the main window (more deterministic for JS listeners)
+    if let Some(win) = app_handle.get_webview_window("main") {
+        if let Err(e) = win.emit("preview:open", PreviewOpenPayload { path: path.clone() }) {
+            log::error!("[http/preview_open] win.emit preview:open failed: {}", e);
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some(format!("Failed to emit event: {}", e)),
+            }));
+        }
+        log::info!("[http/preview_open] win.emit preview:open ok path='{}'", path);
+    } else {
+        log::warn!("[http/preview_open] main webview window not found; fallback to app.emit");
+        if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path: path.clone() }) {
+            log::error!("[http/preview_open] app.emit preview:open failed: {}", e);
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some(format!("Failed to emit event: {}", e)),
+            }));
+        }
+        log::info!("[http/preview_open] app.emit preview:open ok path='{}'", path);
     }
-
-    log::info!("[http/preview_open] emit preview:open ok path='{}'", path);
 
     Ok(Json(ApiResponse {
         success: true,
