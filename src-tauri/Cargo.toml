@@ -19,22 +19,26 @@ crate-type = [
 ]
 
 [build-dependencies]
-tauri-build = { version = "2.3.1", features = [] }
+# tauri-build does not share the exact same versioning as the JS packages.
+tauri-build = { version = "2.5.5", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = [ "derive" ] }
 log = "0.4"
-tauri = { version = "2.7.0", features = [] }
-tauri-plugin-log = "2"
+# Keep in sync with @tauri-apps/api minor version.
+tauri = { version = "2.9.4", features = [] }
+# Keep in sync with @tauri-apps/plugin-* minor versions.
+tauri-plugin-log = "2.8.0"
 tauri-plugin-store = "2"
 image = { version = "0.25", features = ["jpeg", "png", "webp"] }
 tauri-plugin-notification = "2"
 tauri-plugin-http = "2"
 tauri-plugin-clipboard-manager = "2"
-tauri-plugin-dialog = "2.4.2"
-tauri-plugin-fs = "2.4.4"
+tauri-plugin-dialog = "2.6.0"
+tauri-plugin-fs = "2.4.5"
 tauri-plugin-opener = "2"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
@@ -46,5 +50,4 @@ axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
-chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-opener = "2"

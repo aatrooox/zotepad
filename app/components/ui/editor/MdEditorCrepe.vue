@@ -9,6 +9,7 @@
           @update:model-value="updateValue" 
           @save="$emit('save')" 
           @upload-img="(files, cb) => $emit('upload-img', files, cb)"
+          @editor-ready="$emit('editor-ready')"
         />
       </MilkdownProvider>
     </div>
@@ -37,6 +38,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'save'): void
   (e: 'upload-img', files: File[], callback: (urls: string[]) => void): void
+  (e: 'editor-ready'): void
 }>()
 
 const updateValue = (val: string) => {
@@ -52,10 +54,11 @@ const Editor = defineComponent({
   components: { Milkdown },
   props: ['modelValue', 'isDark', 'readOnly'],
   // 必须声明 emits，否则 setup 中无法正常向上传递
-  emits: ['update:modelValue', 'save', 'upload-img'],
+  emits: ['update:modelValue', 'save', 'upload-img', 'editor-ready'],
   setup(props, { emit }) {
-    const crepeRef = shallowRef<any>() // 使用 any 或 Crepe 类型，保持简单
+    const crepeRef = shallowRef<Crepe | null>(null)
     let lastEmittedValue = '' // 记录最后一次发出的值，防止回流导致的光标跳动
+    const isCreated = ref(false)
 
     // 监听键盘事件实现保存快捷键
     const handleKeydown = (e: KeyboardEvent) => {
@@ -132,10 +135,26 @@ const Editor = defineComponent({
         .use(listener)
         .create()
         .then(() => {
+          isCreated.value = true
           console.log('✅ Crepe editor created with frontmatter support')
+          emit('editor-ready')
         })
       
       return crepe
+    })
+
+    // 父 -> 子：当父层异步更新 modelValue（例如读取文件后），同步更新编辑器内容
+    watch(() => props.modelValue, (val) => {
+      const crepe = crepeRef.value
+      if (!crepe || !isCreated.value)
+        return
+
+      // 防止编辑器自身更新触发回流
+      if (val === lastEmittedValue)
+        return
+
+      const contentForEditor = frontmatterHandler.prepareForEditor(val)
+      crepe.editor.action(replaceAll(contentForEditor))
     })
 
     // 监听只读状态变化

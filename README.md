@@ -48,6 +48,56 @@ ZotePad 是一个基于 **Tauri v2** 和 **Nuxt 4** 构建的本地优先（Loca
 | **Database** | **SQLite** | 成熟可靠的嵌入式关系型数据库，适合本地数据持久化。 |
 | **Animation** | **GSAP** | 处理复杂的 UI 过渡动画，提升应用的精致感。 |
 
+## 公众号草稿箱（自动化工作流）
+
+> 目标：让 Agent / CLI 在不操作 GUI 的情况下，把本地 Markdown 文章导出为“公众号可用的富文本 HTML 片段”，并交给 `z-cli` 写入公众号草稿箱。
+
+### 工作流概览
+
+1. OpenClaw/脚本向 ZotePad 发送“打开文件”指令（带绝对路径）
+2. ZotePad 进入 `/preview` 页面：自动加载该 Markdown → 渲染 → 导出 HTML 片段文件
+3. `z-cli` 读取该 HTML 文件（`--html-file`）并创建公众号草稿
+
+### HTML 导出约定
+
+- 导出目录（默认）：
+  - `/Users/aatrox/.openclaw/workspace/zotepad-exports/html/`
+  - 可用环境变量覆盖：`ZOTEPAD_EXPORT_DIR`
+- 导出文件名：`{slug}.html`
+  - `slug` 优先取 frontmatter 的 `slug` 字段；否则回退为文件名
+- 索引文件（便于自动化确认导出完成）：
+  - `/Users/aatrox/.openclaw/workspace/zotepad-exports/html/index.json`
+  - 记录 `slug -> { htmlPath, sourcePath, updatedAt }`
+
+### 远程触发（桌面端）
+
+桌面端内置一个本地 HTTP Server（默认端口 `54577`），可用于自动化触发打开文件：
+
+```bash
+curl -X POST "http://127.0.0.1:54577/preview/open" \
+  -H "authorization: zotepad-dev-token" \
+  -H "content-type: application/json" \
+  -d '{"path":"/abs/path/to/article.md"}'
+```
+
+- 授权 token：环境变量 `ZOTEPAD_SYNC_TOKEN`（未设置时默认 `zotepad-dev-token`）
+
+### 用 z-cli 写入公众号草稿箱
+
+z-cli 的 `wx draft` 支持直接读取 HTML 片段文件：
+
+```bash
+z wx draft \
+  -t "文章标题" \
+  --html-file "/Users/aatrox/.openclaw/workspace/zotepad-exports/html/my-slug.html"
+```
+
+说明：
+- `--photos` 可选；如果 HTML 里包含 `<img src=...>`，z-cli 会尝试提取并上传素材，再替换为微信 URL。
+- 如果 HTML 中完全没有图片，z-cli 可能会要求至少提供一张图作为封面素材（按实现逻辑）。
+
+---
+
 ## 快速开始
 
 如果你对这个技术栈感兴趣，或者想部署一套自己的私有笔记系统：

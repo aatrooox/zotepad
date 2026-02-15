@@ -32,6 +32,7 @@ const {
   fileTree,
   isLoading: isTreeLoading,
   chooseWorkspace,
+  clearWorkspace,
   refreshWorkspace,
   // readDirectory,
   loadSubNode,
@@ -631,8 +632,11 @@ onUnmounted(() => {
             <Button variant="ghost" size="icon" class="h-7 w-7" title="刷新" @click="refreshWorkspace">
               <RotateCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isTreeLoading }" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7" title="切换工作区" @click="chooseWorkspace">
+            <Button variant="ghost" size="icon" class="h-7 w-7" title="更换目录" @click="chooseWorkspace">
               <Settings2 class="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" class="h-7 w-7" title="清除绑定" @click="clearWorkspace">
+              <Icon name="lucide:x" class="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>

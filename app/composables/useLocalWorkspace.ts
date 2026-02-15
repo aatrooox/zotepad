@@ -157,11 +157,17 @@ export function useLocalWorkspace() {
     }
   }
 
+  const clearWorkspace = async () => {
+    workspacePath.value = null
+    fileTree.value = []
+  }
+
   return {
     workspacePath,
     fileTree,
     isLoading,
     chooseWorkspace,
+    clearWorkspace,
     refreshWorkspace,
     readDirectory,
     loadSubNode,
