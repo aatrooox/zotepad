@@ -102,16 +102,24 @@ struct PreviewOpenPayload {
 #[cfg(not(mobile))]
 #[tauri::command]
 fn preview_open_file(app_handle: AppHandle, path: String) -> Result<(), String> {
+    log::info!("[preview_open_file] requested path={}", path);
+
     // Best-effort: focus window
     if let Some(win) = app_handle.get_webview_window("main") {
         let _ = win.show();
         let _ = win.set_focus();
+    } else {
+        log::warn!("[preview_open_file] main webview window not found");
     }
 
     app_handle
-        .emit("preview:open", PreviewOpenPayload { path })
-        .map_err(|e| e.to_string())?;
+        .emit("preview:open", PreviewOpenPayload { path: path.clone() })
+        .map_err(|e| {
+            log::error!("[preview_open_file] emit preview:open failed: {}", e);
+            e.to_string()
+        })?;
 
+    log::info!("[preview_open_file] emit preview:open ok");
     Ok(())
 }
 
@@ -123,19 +131,36 @@ fn export_wechat_html(app_handle: tauri::AppHandle, slug: String, html: String, 
     let base_dir = std::env::var("ZOTEPAD_EXPORT_DIR")
         .unwrap_or_else(|_| "/Users/aatrox/.openclaw/workspace/zotepad-exports/html".to_string());
 
+    log::info!(
+        "[export_wechat_html] start slug='{}' source_path={:?} base_dir='{}' html_len={}",
+        slug,
+        source_path,
+        base_dir,
+        html.len()
+    );
+
     let safe_slug = slug
         .trim()
         .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "-");
 
     if safe_slug.is_empty() {
+        log::error!("[export_wechat_html] empty slug (raw='{}')", slug);
         return Err("empty slug".to_string());
     }
 
     let dir = std::path::Path::new(&base_dir);
-    std::fs::create_dir_all(dir).map_err(|e| format!("create_dir_all failed: {e}"))?;
+    std::fs::create_dir_all(dir).map_err(|e| {
+        log::error!("[export_wechat_html] create_dir_all failed: {}", e);
+        format!("create_dir_all failed: {e}")
+    })?;
 
     let out_path = dir.join(format!("{}.html", safe_slug));
-    std::fs::write(&out_path, html).map_err(|e| format!("write failed: {e}"))?;
+    std::fs::write(&out_path, html).map_err(|e| {
+        log::error!("[export_wechat_html] write failed path={:?} err={}", out_path, e);
+        format!("write failed: {e}")
+    })?;
+
+    log::info!("[export_wechat_html] wrote html to {:?}", out_path);
 
     // Best-effort index.json update
     // Format: { "slug": { "htmlPath": "...", "sourcePath": "...", "updatedAt": "..." }, ... }
@@ -164,12 +189,18 @@ fn export_wechat_html(app_handle: tauri::AppHandle, slug: String, html: String, 
     index_obj.insert(safe_slug.clone(), serde_json::Value::Object(item));
 
     if let Ok(s) = serde_json::to_string_pretty(&serde_json::Value::Object(index_obj)) {
-        let _ = std::fs::write(&index_path, s);
+        if let Err(e) = std::fs::write(&index_path, s) {
+            log::warn!("[export_wechat_html] write index.json failed path={:?} err={}", index_path, e);
+        } else {
+            log::info!("[export_wechat_html] updated index.json at {:?}", index_path);
+        }
+    } else {
+        log::warn!("[export_wechat_html] failed to serialize index.json");
     }
 
     let out_str = out_path.to_string_lossy().to_string();
     // Emit best-effort event for automation / debug
-    let _ = app_handle.emit(
+    match app_handle.emit(
         "preview:exported",
         serde_json::json!({
             "slug": safe_slug,
@@ -177,7 +208,10 @@ fn export_wechat_html(app_handle: tauri::AppHandle, slug: String, html: String, 
             "sourcePath": source_path_for_event,
             "updatedAt": chrono::Utc::now().to_rfc3339(),
         }),
-    );
+    ) {
+        Ok(_) => log::info!("[export_wechat_html] emitted preview:exported"),
+        Err(e) => log::warn!("[export_wechat_html] emit preview:exported failed: {}", e),
+    }
 
     Ok(out_str)
 }
@@ -394,14 +428,21 @@ async fn preview_open(
     headers: axum::http::HeaderMap,
     Json(body): Json<PreviewOpenRequest>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let path_raw = body.path.clone();
+    log::info!("[http/preview_open] request path='{}'", path_raw);
+
     let state_guard = state.lock().await;
-    check_auth(&headers, &state_guard.token)?;
+    if let Err(_e) = check_auth(&headers, &state_guard.token) {
+        log::warn!("[http/preview_open] unauthorized");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
 
     let app_handle = state_guard.app_handle.clone();
     drop(state_guard);
 
-    let path = body.path.trim().to_string();
+    let path = path_raw.trim().to_string();
     if path.is_empty() {
+        log::warn!("[http/preview_open] empty path");
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
@@ -411,6 +452,7 @@ async fn preview_open(
 
     // Basic sanity checks (best-effort)
     if !path.ends_with(".md") && !path.ends_with(".markdown") {
+        log::warn!("[http/preview_open] invalid file type path='{}'", path);
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
@@ -419,6 +461,7 @@ async fn preview_open(
     }
 
     if !std::path::Path::new(&path).exists() {
+        log::warn!("[http/preview_open] file not found path='{}'", path);
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
@@ -430,15 +473,20 @@ async fn preview_open(
     if let Some(win) = app_handle.get_webview_window("main") {
         let _ = win.show();
         let _ = win.set_focus();
+    } else {
+        log::warn!("[http/preview_open] main webview window not found");
     }
 
-    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path }) {
+    if let Err(e) = app_handle.emit("preview:open", PreviewOpenPayload { path: path.clone() }) {
+        log::error!("[http/preview_open] emit preview:open failed: {}", e);
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
             message: Some(format!("Failed to emit event: {}", e)),
         }));
     }
+
+    log::info!("[http/preview_open] emit preview:open ok path='{}'", path);
 
     Ok(Json(ApiResponse {
         success: true,
