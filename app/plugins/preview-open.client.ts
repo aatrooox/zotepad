@@ -9,14 +9,14 @@ export default defineNuxtPlugin(() => {
     return
 
   const router = useRouter()
-  const { logInfo, logWarn, logError } = useLog()
+  const { info, warn, error } = useLog()
 
-  void logInfo('plugin init', { tag: 'preview-open' })
+  void info('plugin init', { tag: 'preview-open' })
 
   // Best-effort: ignore errors if not running under Tauri
   listen<{ path: string }>('preview:open', async (event) => {
     const path = event.payload?.path
-    void logInfo('received preview:open', { tag: 'preview-open', context: { path } })
+    void info('received preview:open', { tag: 'preview-open', context: { path } })
 
     if (!path)
       return
@@ -25,13 +25,13 @@ export default defineNuxtPlugin(() => {
       // Navigate to preview page with query param
       // (query is easiest; path can be long but acceptable for local-only automation)
       await router.push({ path: '/preview', query: { path } })
-      void logInfo('router.push ok', { tag: 'preview-open' })
+      void info('router.push ok', { tag: 'preview-open' })
     }
     catch (e: any) {
-      void logError('router.push failed', { tag: 'preview-open', context: { message: e?.message || String(e) } })
+      void error('router.push failed', e, { tag: 'preview-open' })
       throw e
     }
   }).catch((e: any) => {
-    void logWarn('listen failed (likely not running under Tauri)', { tag: 'preview-open', context: { message: e?.message || String(e) } })
+    void warn('listen failed (likely not running under Tauri)', { tag: 'preview-open', context: { message: e?.message || String(e) } })
   })
 })

@@ -8,8 +8,6 @@ import { getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 
 useHead({ title: 'Preview & Export - ZotePad' })
 
-void useLog().logInfo('preview page setup', { tag: 'preview' })
-
 type ExportResult = string
 
 const route = useRoute()
@@ -25,7 +23,9 @@ const isLoading = ref(false)
 const lastExportPath = ref<string | null>(null)
 const lastError = ref<string | null>(null)
 
-const { logInfo, logWarn, logError } = useLog()
+const { info, error } = useLog()
+
+void info('preview page setup', { tag: 'preview' })
 
 const resolvedTheme = computed(() => {
   if (colorMode.value !== 'auto')
@@ -72,34 +72,34 @@ async function loadAndAutoExport(path: string) {
   lastError.value = null
   lastExportPath.value = null
 
-  void logInfo('loadAndAutoExport start', { tag: 'preview', context: { path } })
+  void info('loadAndAutoExport start', { tag: 'preview', context: { path } })
 
   try {
     // Read markdown via Tauri plugin-fs
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     fileContent.value = await readTextFile(path)
-    void logInfo('readTextFile ok', { tag: 'preview', context: { len: fileContent.value?.length || 0 } })
+    void info('readTextFile ok', { tag: 'preview', context: { len: fileContent.value?.length || 0 } })
 
     // Wait editor render
     await nextTick()
     const editorDom = await waitForEditorDom(8000)
-    void logInfo('waitForEditorDom result', { tag: 'preview', context: { found: !!editorDom } })
+    void info('waitForEditorDom result', { tag: 'preview', context: { found: !!editorDom } })
     if (!editorDom)
       throw new Error('未找到编辑器内容（渲染超时）')
 
     const htmlFragment = getWeChatMinimalHTML(editorDom)
     const slug = getSlugFromMarkdown(path, fileContent.value)
 
-    void logInfo('prepared export', { tag: 'preview', context: { slug, htmlLen: htmlFragment.length } })
+    void info('prepared export', { tag: 'preview', context: { slug, htmlLen: htmlFragment.length } })
 
     // Write by Rust side to ensure directory creation & stable path
     const outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
     lastExportPath.value = outPath
-    void logInfo('export_wechat_html ok', { tag: 'preview', context: { outPath } })
+    void info('export_wechat_html ok', { tag: 'preview', context: { outPath } })
     toast.success(`已自动导出：${outPath}`)
   }
   catch (e: any) {
-    void logError('loadAndAutoExport failed', { tag: 'preview', context: { message: e?.message || String(e) } })
+    void error('loadAndAutoExport failed', e, { tag: 'preview' })
     lastError.value = e?.message || String(e)
     toast.error(`自动导出失败：${lastError.value}`)
   }
