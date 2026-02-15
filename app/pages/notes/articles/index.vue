@@ -9,6 +9,7 @@ import { useNoteStore } from '~/composables/stores/useNoteStore'
 useHead({ title: '文章 - ZotePad' })
 
 const router = useRouter()
+const { workspacePath } = useLocalWorkspace()
 const { fetchNotes } = useNoteStore()
 const { getAllNotes, deleteNote, createNote } = useNoteRepository()
 const { syncTable, syncMode } = useSyncManager()
@@ -161,7 +162,7 @@ onMounted(async () => {
         @click="router.push('/local-workspace')"
       >
         <Icon name="lucide:folder-open" class="w-4 h-4 mr-1" />
-        本地空间
+        {{ workspacePath ? '本地目录' : '绑定本地目录' }}
       </Button>
       <!-- <Button
         size="sm"
@@ -187,7 +188,7 @@ onMounted(async () => {
         @click="router.push('/local-workspace')"
       >
         <Icon name="lucide:folder-open" class="w-4 h-4 mr-1" />
-        本地空间
+        {{ workspacePath ? '本地目录' : '绑定本地目录' }}
       </Button>
     </div>
 

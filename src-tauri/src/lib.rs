@@ -118,7 +118,7 @@ fn preview_open_file(app_handle: AppHandle, path: String) -> Result<(), String> 
 /// Export WeChat-ready HTML fragment into a deterministic workspace folder.
 /// Returns the written file path.
 #[tauri::command]
-fn export_wechat_html(slug: String, html: String, source_path: Option<String>) -> Result<String, String> {
+fn export_wechat_html(app_handle: tauri::AppHandle, slug: String, html: String, source_path: Option<String>) -> Result<String, String> {
     // Allow override for portability
     let base_dir = std::env::var("ZOTEPAD_EXPORT_DIR")
         .unwrap_or_else(|_| "/Users/aatrox/.openclaw/workspace/zotepad-exports/html".to_string());
@@ -155,6 +155,7 @@ fn export_wechat_html(slug: String, html: String, source_path: Option<String>) -
         "htmlPath".to_string(),
         serde_json::Value::String(out_path.to_string_lossy().to_string()),
     );
+    let source_path_for_event = source_path.clone();
     if let Some(p) = source_path {
         item.insert("sourcePath".to_string(), serde_json::Value::String(p));
     }
@@ -166,7 +167,19 @@ fn export_wechat_html(slug: String, html: String, source_path: Option<String>) -
         let _ = std::fs::write(&index_path, s);
     }
 
-    Ok(out_path.to_string_lossy().to_string())
+    let out_str = out_path.to_string_lossy().to_string();
+    // Emit best-effort event for automation / debug
+    let _ = app_handle.emit(
+        "preview:exported",
+        serde_json::json!({
+            "slug": safe_slug,
+            "htmlPath": out_str,
+            "sourcePath": source_path_for_event,
+            "updatedAt": chrono::Utc::now().to_rfc3339(),
+        }),
+    );
+
+    Ok(out_str)
 }
 
 // 同步引擎模块
