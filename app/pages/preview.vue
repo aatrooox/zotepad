@@ -8,6 +8,8 @@ import { getWeChatMinimalHTML } from '~/utils/wechat-formatter'
 
 useHead({ title: 'Preview & Export - ZotePad' })
 
+void useLog().logInfo('preview page setup', { tag: 'preview' })
+
 type ExportResult = string
 
 const route = useRoute()

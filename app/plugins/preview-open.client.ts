@@ -11,6 +11,8 @@ export default defineNuxtPlugin(() => {
   const router = useRouter()
   const { logInfo, logWarn, logError } = useLog()
 
+  void logInfo('plugin init', { tag: 'preview-open' })
+
   // Best-effort: ignore errors if not running under Tauri
   listen<{ path: string }>('preview:open', async (event) => {
     const path = event.payload?.path
