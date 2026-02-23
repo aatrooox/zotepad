@@ -32,6 +32,8 @@ const previewContainerRef = ref<HTMLElement | null>(null)
 const { info, error } = useLog()
 
 void info('preview page setup', { tag: 'preview' })
+if (import.meta.dev)
+  console.log('[preview] page setup', { href: typeof window !== 'undefined' ? window.location.href : '' })
 
 const resolvedTheme = computed(() => {
   if (colorMode.value !== 'auto')
@@ -87,6 +89,40 @@ async function waitForEditorDom(container: HTMLElement, timeoutMs = 5000) {
   return null
 }
 
+function sleep(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
+function doubleRaf(timeoutMs = 1500) {
+  // NOTE: requestAnimationFrame can pause when the WebView is not visible/focused.
+  // We fall back to a timeout so automation can still proceed.
+  return new Promise<void>((resolve) => {
+    let done = false
+    const timer = setTimeout(() => {
+      if (done)
+        return
+      done = true
+      resolve()
+    }, timeoutMs)
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (done)
+          return
+        done = true
+        clearTimeout(timer)
+        resolve()
+      })
+    })
+  })
+}
+
+function getQueryNumber(route: ReturnType<typeof useRoute>, key: string, defaultValue: number) {
+  const raw = route.query[key]
+  const n = typeof raw === 'string' ? Number(raw) : Array.isArray(raw) ? Number(raw[0]) : Number.NaN
+  return Number.isFinite(n) ? n : defaultValue
+}
+
 async function loadAndAutoExport(path: string) {
   const runId = exportRunId.value + 1
   exportRunId.value = runId
@@ -99,6 +135,8 @@ async function loadAndAutoExport(path: string) {
   const startEditorReadySeq = editorReadySeq.value
 
   void info('loadAndAutoExport start', { tag: 'preview', context: { path } })
+  if (import.meta.dev)
+    console.log('[preview] loadAndAutoExport start', { path })
 
   try {
     // Read markdown via Tauri plugin-fs
@@ -106,6 +144,8 @@ async function loadAndAutoExport(path: string) {
     fileContent.value = await readTextFile(path)
     hasLoadedFile.value = true
     void info('readTextFile ok', { tag: 'preview', context: { len: fileContent.value?.length || 0 } })
+    if (import.meta.dev)
+      console.log('[preview] readTextFile ok', { len: fileContent.value?.length || 0 })
 
     if (runId !== exportRunId.value)
       return
@@ -114,6 +154,8 @@ async function loadAndAutoExport(path: string) {
     await nextTick()
     const isEditorReady = await waitForEditorReady(startEditorReadySeq, 20000)
     void info('waitForEditorReady result', { tag: 'preview', context: { isEditorReady } })
+    if (import.meta.dev)
+      console.log('[preview] waitForEditorReady result', { isEditorReady })
     if (!isEditorReady)
       throw new Error('编辑器初始化超时')
 
@@ -122,32 +164,68 @@ async function loadAndAutoExport(path: string) {
 
     // Wait for DOM paint
     await nextTick()
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    })
+    void info('before doubleRaf', { tag: 'preview' })
+    if (import.meta.dev)
+      console.log('[preview] before doubleRaf')
+
+    const doubleRafWarnTimer = setTimeout(() => {
+      void info('doubleRaf still pending (>1200ms)', { tag: 'preview' })
+      if (import.meta.dev)
+        console.log('[preview] doubleRaf still pending (>1200ms)')
+    }, 1200)
+    await doubleRaf()
+    clearTimeout(doubleRafWarnTimer)
+    void info('after doubleRaf', { tag: 'preview' })
+    if (import.meta.dev)
+      console.log('[preview] after doubleRaf')
 
     const container = previewContainerRef.value
     if (!container)
       throw new Error('预览容器未挂载')
 
+    void info('waitForEditorDom start', { tag: 'preview' })
+    if (import.meta.dev)
+      console.log('[preview] waitForEditorDom start')
     const editorDom = await waitForEditorDom(container, 8000)
     void info('waitForEditorDom result', { tag: 'preview', context: { found: !!editorDom } })
+    if (import.meta.dev)
+      console.log('[preview] waitForEditorDom result', { found: !!editorDom })
     if (!editorDom)
       throw new Error('未找到编辑器容器（渲染超时）')
+
+    const exportDelayMs = Math.max(0, getQueryNumber(route, 'exportDelayMs', 300))
+    await sleep(exportDelayMs)
+    await doubleRaf()
+
+    if (runId !== exportRunId.value)
+      return
 
     const htmlFragment = getWeChatMinimalHTML(editorDom)
     const slug = getSlugFromMarkdown(path, fileContent.value)
 
     void info('prepared export', { tag: 'preview', context: { slug, htmlLen: htmlFragment.length } })
+    if (import.meta.dev)
+      console.log('[preview] prepared export', { slug, htmlLen: htmlFragment.length })
 
     // Write by Rust side to ensure directory creation & stable path
-    const outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
+    let outPath: ExportResult
+    try {
+      outPath = await invoke<ExportResult>('export_wechat_html', { slug, html: htmlFragment, source_path: path })
+    }
+    catch (e: any) {
+      void error('invoke export_wechat_html failed', e, { tag: 'preview', context: { slug } })
+      if (import.meta.dev)
+        console.log('[preview] invoke export_wechat_html failed', { message: e?.message || String(e) })
+      throw e
+    }
 
     if (runId !== exportRunId.value)
       return
 
     lastExportPath.value = outPath
     void info('export_wechat_html ok', { tag: 'preview', context: { outPath } })
+    if (import.meta.dev)
+      console.log('[preview] export_wechat_html ok', { outPath })
     toast.success(`已自动导出：${outPath}`)
   }
   catch (e: any) {
@@ -155,6 +233,8 @@ async function loadAndAutoExport(path: string) {
       return
 
     void error('loadAndAutoExport failed', e, { tag: 'preview' })
+    if (import.meta.dev)
+      console.log('[preview] loadAndAutoExport failed', { message: e?.message || String(e) })
     lastError.value = e?.message || String(e)
     toast.error(`自动导出失败：${lastError.value}`)
   }

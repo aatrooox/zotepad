@@ -399,14 +399,35 @@ async fn send_notification(
 #[cfg(not(mobile))]
 async fn emit_event(
     State(state): State<Arc<Mutex<HttpServerState>>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let state = state.lock().await;
-    
+    let state_guard = state.lock().await;
+
+    if let Err(_e) = check_auth(&headers, &state_guard.token) {
+        log::warn!("[http/emit_event] unauthorized");
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let app_handle = state_guard.app_handle.clone();
+    drop(state_guard);
+     
     let event_name = payload.get("event").and_then(|v| v.as_str()).unwrap_or("custom-event");
     let event_data = payload.get("data").cloned().unwrap_or(serde_json::json!({}));
+
+    let event_data_str = serde_json::to_string(&event_data).unwrap_or_else(|_| "<unserializable-json>".to_string());
+    let event_data_trunc: String = event_data_str.chars().take(800).collect();
+    let event_data_suffix = if event_data_str.chars().count() > 800 { "…(truncated)" } else { "" };
+    let has_main_window = app_handle.get_webview_window("main").is_some();
+    log::info!(
+        "[http/emit_event] emitting event='{}' has_main_window={} data={}{}",
+        event_name,
+        has_main_window,
+        event_data_trunc,
+        event_data_suffix
+    );
     
-    if let Err(e) = state.app_handle.emit(event_name, &event_data) {
+    if let Err(e) = app_handle.emit(event_name, &event_data) {
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
@@ -488,6 +509,7 @@ async fn preview_open(
 
     // Prefer emitting from the main window (more deterministic for JS listeners)
     if let Some(win) = app_handle.get_webview_window("main") {
+        log::info!("[http/preview_open] main window label='{}'", win.label());
         if let Err(e) = win.emit("preview:open", PreviewOpenPayload { path: path.clone() }) {
             log::error!("[http/preview_open] win.emit preview:open failed: {}", e);
             return Ok(Json(ApiResponse {
@@ -772,13 +794,13 @@ async fn start_http_server(app_handle: AppHandle, port: u16) {
     let app = Router::new()
         .route("/", get(health_check))
         .route("/health", get(health_check))
+        .route("/emit", post(emit_event))
         .route("/preview/open", post(preview_open))
         .route("/state", get(sync_state))
         .route("/metadata", get(sync_metadata))
         .route("/pull", get(sync_pull))
         .route("/push", post(sync_push))
         // .route("/api/notification", post(send_notification))
-        // .route("/api/emit", post(emit_event))
         .layer(cors)
         .with_state(state);
 
