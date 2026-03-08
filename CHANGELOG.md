@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.0 (2026-03-08)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v0.28.1...v1.0.0)
+
+### 🐞 Bug Fixes
+
+- fix(preview): fix something... ([0fbd7b0](https://github.com/aatrooox/zotepad/commit/0fbd7b0))
+
+### 🏡 Chore
+
+- update Cargo.lock for v0.28.1 ([78219ff](https://github.com/aatrooox/zotepad/commit/78219ff))
+
+
 ## v0.28.1 (2026-02-15)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.28.0...v0.28.1)
