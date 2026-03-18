@@ -1,10 +1,10 @@
 /**
  * Tauri HTTP 客户端 Composable
- * 基于 @tauri-apps/plugin-http 封装的 HTTP 请求工具
+ * 基于 Tauri HTTP 插件兼容层封装的 HTTP 请求工具
  */
 
-import { fetch } from '@tauri-apps/plugin-http'
 import { error as logError } from '@tauri-apps/plugin-log'
+import { tauriHttpFetch as fetch } from '~/lib/tauriHttpCompat'
 
 // ============= 类型定义 =============
 

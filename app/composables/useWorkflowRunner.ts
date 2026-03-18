@@ -1,9 +1,9 @@
 import type { ExecutionLog, WorkflowSchemaField, WorkflowStep } from '~/types/workflow'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { debug, info, error as logError } from '@tauri-apps/plugin-log'
 import { useEnvironmentRepository } from '~/composables/repositories/useEnvironmentRepository'
 import { useTauriHTTP } from '~/composables/useTauriHTTP'
 import { encryptObjectForServer } from '~/lib/clientCrypto'
+import { tauriHttpFetch as tauriFetch } from '~/lib/tauriHttpCompat'
 
 // 需要加密请求体的 API URL
 // 2026年2月12日17:15:58 服务端不再加密参数
@@ -225,6 +225,19 @@ export function useWorkflowRunner() {
       throw new Error(`API request failed with status ${response.status}: ${errorData}`)
     }
 
+    if (typeof response.data === 'object' && response.data !== null && 'code' in response.data) {
+      const apiResponse = response.data as {
+        code?: number
+        message?: string
+      }
+
+      if (apiResponse.code !== 0) {
+        const errMsg = apiResponse.message || 'Unknown API error'
+        await logError(`[Workflow] API business error code ${apiResponse.code}: ${errMsg}`)
+        throw new Error(errMsg)
+      }
+    }
+
     await info(`[Workflow] API Response: Success (${response.status})`)
     await info(`[Workflow] API Response Start ==========================`)
     await info(JSON.stringify(response.data, null, 2))
@@ -252,6 +265,9 @@ export function useWorkflowRunner() {
 
     // 获取 access_token (从上一步的输出中获取)
     const accessToken = ctx.step1?.data?.accessToken
+      || ctx.step1?.data?.access_token
+      || ctx.step1?.accessToken
+      || ctx.step1?.access_token
 
     if (!accessToken) {
       await logError(`[Workflow] Access token not found. step1 structure: ${JSON.stringify(ctx.step1).slice(0, 200)}`)
@@ -363,7 +379,6 @@ export function useWorkflowRunner() {
 
         // 2. 智能提取文件名和扩展名
         let finalFilename: string
-        let finalContentType: string
 
         // 根据 content-type 推断正确的扩展名
         const contentTypeToExt: Record<string, string> = {
@@ -376,7 +391,7 @@ export function useWorkflowRunner() {
         }
 
         const detectedExt = contentTypeToExt[contentType.toLowerCase()] || 'jpg'
-        finalContentType = contentType
+        const finalContentType = contentType
 
         if (photoUrl.startsWith('data:') || photoUrl.startsWith('blob:')) {
           // Data URL 和 Blob URL 无法从 URL 提取文件名，使用默认名
@@ -391,7 +406,7 @@ export function useWorkflowRunner() {
           urlFilename = urlFilename.split('?')[0] || urlFilename
 
           // 检查 URL 中的文件名是否已有扩展名
-          const hasExtension = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(urlFilename)
+          const hasExtension = /\.(?:jpg|jpeg|png|gif|webp|bmp)$/i.test(urlFilename)
 
           if (!hasExtension) {
             // URL 没有扩展名，根据 content-type 添加

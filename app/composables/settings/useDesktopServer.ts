@@ -69,7 +69,7 @@ export function useDesktopServer() {
     isTestingConnection.value = true
     try {
       // 在 Tauri 环境中使用 Tauri HTTP 插件
-      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
+      const { tauriHttpFetch: tauriFetch } = await import('~/lib/tauriHttpCompat')
       console.log('[Desktop] 测试连接:', serverUrl.value)
 
       const response = await tauriFetch(`${serverUrl.value}/health`, {
