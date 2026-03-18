@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.1 (2026-03-18)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v1.0.0...v1.0.1)
+
+### 🐞 Bug Fixes
+
+- 修复接口请求报错 ([0e472bb](https://github.com/aatrooox/zotepad/commit/0e472bb))
+
+
 ## v1.0.0 (2026-03-08)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v0.28.1...v1.0.0)
