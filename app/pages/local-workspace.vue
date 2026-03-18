@@ -421,7 +421,7 @@ const sendToWxDraft = async () => {
     }
 
     if (photos.length === 0) {
-      photos.push('https://img.zzao.club/zotepad/1764937926926_g2uj75oxn4p.png')
+      photos.push('https://img.zzao.club/blog/01955151-643c-7920-a170-4e908fc0ae20/zotepad/20260318_wechat-fallback-cover.png')
     }
 
     const fileName = currentFilePath.value?.split(/[\\/]/).pop() || '无标题'

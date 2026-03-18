@@ -701,7 +701,7 @@ const sendToWxDraft = async () => {
     }
     // 如果没图片，给用户传一张zotepad的图作为一种宣传
     if (photos.length === 0) {
-      photos.push('https://img.zzao.club/zotepad/1764937926926_g2uj75oxn4p.png')
+      photos.push('https://img.zzao.club/blog/01955151-643c-7920-a170-4e908fc0ae20/zotepad/20260318_wechat-fallback-cover.png')
     }
     // 构建上下文
     const ctx = {
