@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.2 (2026-03-18)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v1.0.1...v1.0.2)
+
+### 🐞 Bug Fixes
+
+- 修改 fallback 封面图(微信接口限制) ([d61bf2a](https://github.com/aatrooox/zotepad/commit/d61bf2a))
+
+
 ## v1.0.1 (2026-03-18)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v1.0.0...v1.0.1)
