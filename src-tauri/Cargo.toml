@@ -1,6 +1,6 @@
 [package]
 name = "zotepad"
-version = "1.0.2"
+version = "1.0.3"
 description = "zotepad - A template for fast development of desktop applications using Tauri and Nuxt.js"
 authors = [ "aatrox" ]
 license = "MIT"

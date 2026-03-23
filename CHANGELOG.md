@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.3 (2026-03-23)
+
+[compare changes](https://github.com/aatrooox/zotepad/compare/v1.0.2...v1.0.3)
+
+### 🐞 Bug Fixes
+
+- auto return home after preview export ([af07c11](https://github.com/aatrooox/zotepad/commit/af07c11))
+
+
 ## v1.0.2 (2026-03-18)
 
 [compare changes](https://github.com/aatrooox/zotepad/compare/v1.0.1...v1.0.2)
