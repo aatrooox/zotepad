@@ -11,6 +11,7 @@ useHead({ title: 'Preview & Export - ZotePad' })
 type ExportResult = string
 
 const route = useRoute()
+const router = useRouter()
 const colorMode = useColorMode({ emitAuto: true })
 
 const filePath = computed(() => {
@@ -123,6 +124,17 @@ function getQueryNumber(route: ReturnType<typeof useRoute>, key: string, default
   return Number.isFinite(n) ? n : defaultValue
 }
 
+async function navigateBackHome(runId: number) {
+  const returnDelayMs = Math.max(0, getQueryNumber(route, 'returnDelayMs', 400))
+  await sleep(returnDelayMs)
+
+  if (runId !== exportRunId.value)
+    return
+
+  void info('navigate back home after export', { tag: 'preview' })
+  await router.replace('/')
+}
+
 async function loadAndAutoExport(path: string) {
   const runId = exportRunId.value + 1
   exportRunId.value = runId
@@ -227,6 +239,7 @@ async function loadAndAutoExport(path: string) {
     if (import.meta.dev)
       console.log('[preview] export_wechat_html ok', { outPath })
     toast.success(`已自动导出：${outPath}`)
+    await navigateBackHome(runId)
   }
   catch (e: any) {
     if (runId !== exportRunId.value)
